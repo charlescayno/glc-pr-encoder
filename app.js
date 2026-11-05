@@ -180,7 +180,7 @@ function updatePrWarning() {
 function resetForm() {
     editingId = null;
     // Date stays on the last one used until the user changes it.
-    $("fDate").value = localStorage.getItem(LS_LAST_DATE) || todayISO();
+    setDate(localStorage.getItem(LS_LAST_DATE) || todayISO());
     // Batch encoding: continue from the last encoded PR (42701 -> 42702).
     const lastPr = Number(localStorage.getItem(LS_LAST_PR));
     $("fPr").value = lastPr > 0 ? lastPr + 1 : nextPr(entries);
@@ -201,7 +201,7 @@ function startEdit(id) {
     const e = entries.find(x => x.id === id);
     if (!e) return;
     editingId = id;
-    $("fDate").value = e.date;
+    setDate(e.date);
     $("fPr").value = e.pr;
     $("fBuyer").value = e.buyer || "";
     $("fMop").value = e.mop || "Cash";
@@ -228,9 +228,38 @@ $("fMop").addEventListener("change", () => {
     updateRefField();
     if (!$("refField").classList.contains("hidden")) $("fRef").focus();
 });
-$("fDate").addEventListener("change", () => {
-    if ($("fDate").value) localStorage.setItem(LS_LAST_DATE, $("fDate").value);
+// ---- Date entry: type digits only (0913 2026 -> 09-13-2026), or use Today / arrows ----
+function setDate(iso) { $("fDate").value = iso ? fmtDate(iso) : ""; }
+function getDate() {
+    const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec($("fDate").value.trim());
+    if (!m) return "";
+    const [, mm, dd, yyyy] = m;
+    const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    if (d.getFullYear() !== Number(yyyy) || d.getMonth() !== Number(mm) - 1 || d.getDate() !== Number(dd)) return "";
+    return `${yyyy}-${mm}-${dd}`;
+}
+function shiftDate(days) {
+    const cur = getDate() || todayISO();
+    const [y, m, d] = cur.split("-").map(Number);
+    const n = new Date(y, m - 1, d + days);
+    const iso = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+    setDate(iso);
+    localStorage.setItem(LS_LAST_DATE, iso);
+}
+$("fDate").addEventListener("input", () => {
+    const digits = $("fDate").value.replace(/\D/g, "").slice(0, 8);
+    let out = digits;
+    if (digits.length > 4) out = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+    else if (digits.length > 2) out = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    $("fDate").value = out;
+    $("fDate").classList.toggle("invalid", out.length === 10 && !getDate());
+    const iso = getDate();
+    if (iso) localStorage.setItem(LS_LAST_DATE, iso);
 });
+$("fDate").addEventListener("focus", () => $("fDate").select());
+$("dateToday").addEventListener("click", () => { setDate(todayISO()); localStorage.setItem(LS_LAST_DATE, todayISO()); });
+$("datePrev").addEventListener("click", () => shiftDate(-1));
+$("dateNext").addEventListener("click", () => shiftDate(1));
 $("fPr").addEventListener("input", updatePrWarning);
 $("addRowBtn").addEventListener("click", () => addItemRow());
 $("cancelEditBtn").addEventListener("click", resetForm);
@@ -238,6 +267,7 @@ $("cancelEditBtn").addEventListener("click", resetForm);
 $("prForm").addEventListener("submit", ev => {
     ev.preventDefault();
     if (!updatePrWarning()) { toast("Duplicate PR number."); return; }
+    if (!getDate()) { toast("Enter a valid date (MM-DD-YYYY)."); $("fDate").focus(); return; }
     const items = readItems().filter(i => i.desc);
     if (!items.length) { toast("Add at least one sold item."); return; }
     for (const i of items) {
@@ -248,7 +278,7 @@ $("prForm").addEventListener("submit", ev => {
     const pr = Number($("fPr").value);
     const entry = {
         id: `pr_${pr}`,
-        date: $("fDate").value,
+        date: getDate(),
         pr,
         buyer: $("fBuyer").value.trim() || "Anonymous",
         mop: $("fMop").value,

@@ -55,10 +55,15 @@
 
                 <form id="prForm" autocomplete="off">
                     <div class="form-grid">
-                        <label class="field">
+                        <div class="field field-date">
                             <span>Date</span>
-                            <input type="date" id="fDate" required>
-                        </label>
+                            <div class="date-wrap">
+                                <button type="button" class="btn btn-secondary btn-icon-only" id="datePrev" title="Previous day"><i class="ri-arrow-left-s-line"></i></button>
+                                <input type="text" id="fDate" inputmode="numeric" maxlength="10" placeholder="MM-DD-YYYY" required>
+                                <button type="button" class="btn btn-secondary btn-icon-only" id="dateNext" title="Next day"><i class="ri-arrow-right-s-line"></i></button>
+                                <button type="button" class="btn btn-secondary" id="dateToday" title="Set to today">Today</button>
+                            </div>
+                        </div>
                         <label class="field">
                             <span>PR Number</span>
                             <input type="number" id="fPr" min="1" step="1" required>

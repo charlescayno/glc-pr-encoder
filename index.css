@@ -164,6 +164,12 @@ input:focus, select:focus {
     border-color: var(--color-border-focus);
     box-shadow: 0 0 0 3px rgba(0, 158, 226, 0.15);
 }
+.field-date { grid-column: span 2; }
+@media (max-width: 480px) { .field-date { grid-column: 1 / -1; } }
+.date-wrap { display: flex; gap: 0.3rem; align-items: center; }
+.date-wrap input { min-width: 0; text-align: center; }
+input.invalid { border-color: var(--color-danger); }
+.date-wrap .btn { padding: 0.45rem 0.6rem; flex: none; }
 .warn {
     margin-top: 0.9rem;
     padding: 0.6rem 0.85rem;
