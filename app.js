@@ -1065,16 +1065,17 @@ function renderReview() {
             ? e.payments.map(p => esc(paymentText(p))).join("<br>") : esc(mopText(e) || "Cash");
         $("rvCard").innerHTML = `
             <div class="rv-pr-head">
-                <div class="rv-sheet-label">Compare this with the paper PR #${esc(e.pr)}</div>
+                <div class="rv-sheet-label">Compare with paper PR #${esc(e.pr)}</div>
+                <div class="rv-sys"><b>Encoded MOP:</b> ${pay.replace(/<br>/g, " + ")}</div>
                 <span class="rv-status ${cur.checked ? "ok" : "todo"}">${cur.checked ? "Checked " + esc(fmtStamp(e.checkedAt)) : "Not checked yet"}</span>
             </div>
-            ${receiptPaperHtml(e)}
-            <div class="rv-sys"><b>Encoded MOP:</b> ${pay}</div>`;
+            <div class="rv-stage">${receiptPaperHtml(e)}</div>`;
         $("rvActions").innerHTML = `${back}<div class="grp">
             <button type="button" class="btn btn-secondary btn-lg" data-rv="edit"><i class="ri-edit-line"></i> Edit</button>
             ${cur.checked ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Uncheck</button>` : ""}
             ${skip}
             <button type="button" class="btn btn-success btn-lg" data-rv="confirm"><i class="ri-check-line"></i> ${cur.checked ? "Next" : "Checked, next"}</button></div>`;
+        fitPaper();
     } else if (cur.type === "mark") {
         $("rvCard").innerHTML = `
             <div class="rv-empty">
@@ -1100,6 +1101,17 @@ function renderReview() {
         $("rvActions").innerHTML = `${back}<div class="grp">${skip}</div>`;
     }
 }
+
+function fitPaper() {
+    const stage = $("rvCard").querySelector(".rv-stage");
+    const paper = stage && stage.querySelector(".paper");
+    if (!paper) return;
+    paper.style.zoom = 1;
+    const z = Math.min(stage.clientWidth / paper.offsetWidth, stage.clientHeight / paper.offsetHeight, 1.6);
+    paper.style.zoom = Math.max(0.3, z).toFixed(3);
+}
+window.addEventListener("resize", fitPaper);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPaper);
 
 function renderReviewSummary(seq, prog) {
     const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
