@@ -44,6 +44,16 @@ const split = paymentSplit(flatten(entries));
 assert.equal(split.online, 100);            // PR 42753 paid by invoice
 assert.equal(split.cash, 565 - 100);
 assert.deepEqual(split.byMethod, { Cash: 465, Invoice: 100 });
+// Split payment: PR 42760 total 300 = 100 cash + 200 invoice, two line items
+const splitEntry = { id: "pr_42760", pr: 42760, date: "2026-09-13", buyer: "Anonymous", mop: "Split", mopRef: "",
+    payments: [{ method: "Cash", amount: 100 }, { method: "Invoice", amount: 200, ref: "689746" }],
+    items: [{ desc: "Real Talk", qty: 4, price: 25 }, { desc: "Accountability Card", qty: 100, price: 2 }] };
+assert.equal(mopText(splitEntry), "Cash 100.00 + INVOICE REF # 689746 200.00");
+const sp = paymentSplit(flatten([splitEntry]));
+assert.equal(sp.cash, 100);
+assert.equal(sp.online, 200);
+assert.deepEqual(sp.byMethod, { Cash: 100, Invoice: 200 });
+
 // Item shorthand
 const cat = [
     "GLC Book 1: One by One", "GLC Book 1: Filipino One by One", "GLC Book 5: Starting Point for small group (New)",

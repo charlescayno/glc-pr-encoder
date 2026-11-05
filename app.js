@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, paymentText
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -32,6 +32,9 @@ let entries = loadLocal();
 let remoteOk = false;
 let editingId = null;
 let catalog = loadCatalog();
+let splitOn = false;          // split payment (part cash, part online) for the current form
+let splitAnchor = "cash";     // which split amount the user typed last; the other is calculated
+let formSum = 0;              // current receipt total
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -188,8 +191,59 @@ function updateFormTotal() {
         r.querySelector(".line-total").textContent = peso(line);
         sum += line;
     }
-    $("formTotal").textContent = peso(sum);
+    formSum = round2(sum);
+    $("formTotal").textContent = peso(formSum);
+    recalcSplit();
 }
+
+// ---- Split payment (special case): part cash, part online ----
+function recalcSplit() {
+    if (!splitOn) return;
+    if (splitAnchor === "cash") {
+        const cash = Number($("sCash").value) || 0;
+        const online = round2(formSum - cash);
+        $("sOnline").value = formSum > 0 ? String(online) : "";
+    } else {
+        const online = Number($("sOnline").value) || 0;
+        const cash = round2(formSum - online);
+        $("sCash").value = formSum > 0 ? String(cash) : "";
+    }
+    const cash = Number($("sCash").value) || 0;
+    const online = Number($("sOnline").value) || 0;
+    const note = $("splitNote");
+    note.className = "split-note";
+    if (formSum <= 0) note.textContent = "Add items first. The receipt total is \u20B1 0.00.";
+    else if (cash < 0 || online < 0) { note.textContent = "Amounts cannot be more than the receipt total."; note.classList.add("bad"); }
+    else if (cash === 0 || online === 0) note.textContent = `Enter the cash amount. Online gets the rest (receipt total ${peso(formSum)}).`;
+    else { note.textContent = `Cash ${peso(cash)} + Online ${peso(online)} = ${peso(round2(cash + online))}`; note.classList.add("ok"); }
+}
+
+function toggleSplit(on) {
+    splitOn = on;
+    $("splitPanel").classList.toggle("hidden", !on);
+    $("fMop").disabled = on;
+    $("splitBtnText").textContent = on ? "Single payment" : "Split payment";
+    $("splitBtn").classList.toggle("btn-primary", on);
+    $("splitBtn").classList.toggle("btn-secondary", !on);
+    if (on) {
+        $("refField").classList.add("hidden");
+        $("fRef").value = "";
+        $("sCash").value = ""; $("sOnline").value = ""; $("sRef").value = "";
+        splitAnchor = "cash";
+        updateSplitRefLabel();
+        recalcSplit();
+    } else {
+        $("sCash").value = ""; $("sOnline").value = ""; $("sRef").value = "";
+        updateRefField();
+    }
+}
+function updateSplitRefLabel() {
+    $("sRefLabel").textContent = $("sMethod").value === "Invoice" ? "Invoice No." : "Reference No.";
+}
+$("splitBtn").addEventListener("click", () => { toggleSplit(!splitOn); if (splitOn) $("sCash").focus(); });
+$("sCash").addEventListener("input", () => { splitAnchor = "cash"; recalcSplit(); });
+$("sOnline").addEventListener("input", () => { splitAnchor = "online"; recalcSplit(); });
+$("sMethod").addEventListener("change", () => { updateSplitRefLabel(); $("sRef").focus(); });
 
 function updatePrWarning() {
     const el = $("prWarn");
@@ -222,7 +276,8 @@ function resetForm() {
     $("fBuyer").value = "Anonymous";
     $("fMop").value = "Cash";
     $("fRef").value = "";
-    updateRefField();
+    toggleSplit(false);
+    $("sMethod").value = "Invoice";
     $("itemsList").innerHTML = "";
     addItemRow();
     $("formTitle").textContent = "New Provisional Receipt";
@@ -240,11 +295,25 @@ function startEdit(id) {
     setDate(e.date);
     $("fPr").value = e.pr;
     $("fBuyer").value = e.buyer || "";
-    $("fMop").value = e.mop || "Cash";
-    $("fRef").value = e.mopRef || "";
-    updateRefField();
+    const isSplit = Array.isArray(e.payments) && e.payments.length > 0;
+    toggleSplit(false);
+    if (!isSplit) {
+        $("fMop").value = e.mop && e.mop !== "Split" ? e.mop : "Cash";
+        $("fRef").value = e.mopRef || "";
+        updateRefField();
+    }
     $("itemsList").innerHTML = "";
     e.items.forEach(addItemRow);
+    if (isSplit) {
+        const cashPay = e.payments.find(p => p.method === "Cash");
+        const onlinePay = e.payments.find(p => p.method !== "Cash");
+        toggleSplit(true);
+        $("sCash").value = cashPay ? String(cashPay.amount) : "";
+        if (onlinePay) { $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; }
+        updateSplitRefLabel();
+        splitAnchor = "cash";
+        recalcSplit();
+    }
     $("formTitle").textContent = `Edit PR #${e.pr}`;
     $("submitText").textContent = "Save changes";
     $("editBadge").classList.remove("hidden");
@@ -350,12 +419,14 @@ $("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item
 // ---- Keyboard shortcuts ----
 //  Enter       next field (after the last price, starts a new item row)
 //  Alt+N       add item row
+//  Alt+S       split payment on/off (part cash, part online)
 //  Alt+C       MOP: Cash
 //  Alt+I       MOP: Invoice (jumps to the invoice number)
 //  Ctrl+Enter  add PR to output (Cmd+Enter on Mac)
 //  Esc         cancel edit
 function formFields() {
-    const fixed = ["fDate", "fPr", "fBuyer", "fMop", "fRef"].map($).filter(el => el.offsetParent !== null);
+    const fixed = ["fDate", "fPr", "fBuyer", "fMop", "fRef", "sCash", "sMethod", "sRef", "sOnline"].map($)
+        .filter(el => el.offsetParent !== null && !el.disabled);
     const rows = [...$("itemsList").children].flatMap(r => [".item-name", ".item-qty", ".item-price"].map(s => r.querySelector(s)));
     return [...fixed, ...rows];
 }
@@ -368,13 +439,19 @@ document.addEventListener("keydown", ev => {
     } else if (ev.altKey && !mod && ev.key.toLowerCase() === "n") {
         ev.preventDefault();
         addItemRow().querySelector(".item-name").focus();
+    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "s") {
+        ev.preventDefault();
+        toggleSplit(!splitOn);
+        if (splitOn) $("sCash").focus();
     } else if (ev.altKey && !mod && ev.key.toLowerCase() === "c") {
         ev.preventDefault();
+        if (splitOn) toggleSplit(false);
         $("fMop").value = "Cash";
         updateRefField();
         toast("MOP: Cash");
     } else if (ev.altKey && !mod && ev.key.toLowerCase() === "i") {
         ev.preventDefault();
+        if (splitOn) toggleSplit(false);
         $("fMop").value = "Invoice";
         updateRefField();
         $("fRef").focus(); // type the invoice number right away
@@ -440,6 +517,19 @@ $("prForm").addEventListener("submit", ev => {
         items: items.map(({ desc, qty, price }) => ({ desc, qty, price })),
         updatedAt: Date.now()
     };
+    if (splitOn) {
+        const total = entryTotal(entry);
+        const cash = round2(Number($("sCash").value) || 0);
+        const online = round2(Number($("sOnline").value) || 0);
+        if (!(cash > 0) || !(online > 0)) { toast("Split payment needs both a cash and an online amount."); $("sCash").focus(); return; }
+        if (round2(cash + online) !== total) { toast(`Cash + online must equal the receipt total (${peso(total)}).`); $("sCash").focus(); return; }
+        entry.mop = "Split";
+        entry.mopRef = "";
+        entry.payments = [
+            { method: "Cash", amount: cash },
+            { method: $("sMethod").value, amount: online, ref: $("sRef").value.trim() }
+        ];
+    }
     const oldId = editingId;
     const wasEdit = !!editingId;
     persist(entry, oldId);
@@ -518,6 +608,12 @@ function refresh() {
     afterRowsRendered(rows, shown, f);
 }
 
+function mopCellHtml(r) {
+    const p = r.entry.payments;
+    if (Array.isArray(p) && p.length) return `<span class="split-tag">SPLIT</span><br>` + p.map(x => esc(paymentText(x))).join("<br>");
+    return esc(r.mop);
+}
+
 function rowHtml(r) {
     return `
         <tr class="${r.first ? "pr-first" : ""}">
@@ -529,7 +625,7 @@ function rowHtml(r) {
             <td class="num">${money(r.price)}</td>
             <td class="num">${money(r.total)}</td>
             <td class="num">${money(r.grand)}</td>
-            <td>${r.first ? esc(r.mop) : ""}</td>
+            <td>${r.first ? mopCellHtml(r) : ""}</td>
             <td class="no-print">${r.first ? `<div class="row-actions">
                 <button class="btn btn-secondary btn-icon-only" data-edit="${esc(r.entry.id)}" title="Edit"><i class="ri-edit-line"></i></button>
                 <button class="btn btn-danger btn-icon-only" data-del="${esc(r.entry.id)}" title="Delete"><i class="ri-delete-bin-line"></i></button>

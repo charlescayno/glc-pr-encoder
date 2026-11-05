@@ -15,7 +15,16 @@ export function fmtDate(iso) {
     return `${m}-${d}-${y}`;
 }
 
+// One payment line, e.g. "Cash 150.00" or "INVOICE REF # 689746 250.00"
+export function paymentText(p) {
+    const ref = (p.ref || '').trim();
+    const label = p.method === 'Cash' ? 'Cash' : (ref ? `${p.method.toUpperCase()} REF # ${ref}` : p.method);
+    return `${label} ${money(p.amount)}`;
+}
+
+// A split PR (part cash, part online) keeps its payments in e.payments.
 export function mopText(e) {
+    if (Array.isArray(e.payments) && e.payments.length) return e.payments.map(paymentText).join(' + ');
     const mop = (e.mop || '').trim();
     const ref = (e.mopRef || '').trim();
     if (!mop) return ref ? `REF # ${ref}` : '';
@@ -101,13 +110,24 @@ export function resolveShortcut(catalog, text) {
 
 // Cash vs online split of flattened rows. Online = every non-cash MOP (Invoice, GCash, Maya, Bank Transfer, ...).
 // An empty MOP (older receipts) counts as cash.
+// Split PRs add each payment's own amount to cash or online.
 export function paymentSplit(rows) {
     const out = { cash: 0, online: 0, byMethod: {} };
+    const add = (m, amount) => {
+        out.byMethod[m] = round2((out.byMethod[m] || 0) + amount);
+        if (m === 'Cash') out.cash = round2(out.cash + amount);
+        else out.online = round2(out.online + amount);
+    };
+    const seen = new Set();
     for (const r of rows) {
-        const m = (r.entry.mop || '').trim() || 'Cash';
-        out.byMethod[m] = round2((out.byMethod[m] || 0) + r.total);
-        if (m === 'Cash') out.cash = round2(out.cash + r.total);
-        else out.online = round2(out.online + r.total);
+        const e = r.entry;
+        if (Array.isArray(e.payments) && e.payments.length) {
+            if (seen.has(e)) continue; // count a split PR once, not once per line item
+            seen.add(e);
+            e.payments.forEach(p => add((p.method || '').trim() || 'Cash', Number(p.amount) || 0));
+        } else {
+            add((e.mop || '').trim() || 'Cash', r.total);
+        }
     }
     return out;
 }

@@ -51,6 +51,7 @@
                 <span><kbd>Enter</kbd> next field</span>
                 <span><kbd>Tab</kbd> on Unit Price adds an item</span>
                 <span><kbd>Alt</kbd> + <kbd>N</kbd> add item</span>
+                <span><kbd>Alt</kbd> + <kbd>S</kbd> split payment</span>
                 <span><kbd>Alt</kbd> + <kbd>C</kbd> MOP Cash</span>
                 <span><kbd>Alt</kbd> + <kbd>I</kbd> MOP Invoice</span>
                 <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> add PR to output</span>
@@ -94,7 +95,6 @@
                                 <option>Maya</option>
                                 <option>Bank Transfer</option>
                                 <option>Check</option>
-                                <option>Invoice</option>
                                 <option>Other</option>
                             </select>
                         </label>
@@ -102,6 +102,32 @@
                             <span id="refLabel">Invoice No.</span>
                             <input type="text" id="fRef" placeholder="e.g. 689746">
                         </label>
+                        <div class="field split-toggle">
+                            <span>Special case</span>
+                            <button type="button" class="btn btn-secondary" id="splitBtn" title="Part cash, part online (Alt+S)"><i class="ri-split-cells-horizontal"></i> <span id="splitBtnText">Split payment</span></button>
+                        </div>
+                    </div>
+
+                    <div class="split-panel hidden" id="splitPanel">
+                        <div class="split-title"><i class="ri-split-cells-horizontal"></i> Split payment: part cash, part online. The two amounts must add up to the receipt total.</div>
+                        <div class="split-grid">
+                            <label class="field"><span>Cash amount</span>
+                                <input type="number" id="sCash" min="0" step="0.01" placeholder="0.00"></label>
+                            <label class="field"><span>Online method</span>
+                                <select id="sMethod">
+                                    <option>Invoice</option>
+                                    <option>GCash</option>
+                                    <option>Maya</option>
+                                    <option>Bank Transfer</option>
+                                    <option>Check</option>
+                                    <option>Other</option>
+                                </select></label>
+                            <label class="field"><span id="sRefLabel">Invoice No.</span>
+                                <input type="text" id="sRef" placeholder="e.g. 689746"></label>
+                            <label class="field"><span>Online amount</span>
+                                <input type="number" id="sOnline" min="0" step="0.01" placeholder="0.00"></label>
+                        </div>
+                        <div class="split-note" id="splitNote"></div>
                     </div>
 
                     <div id="prWarn" class="warn hidden"></div>
