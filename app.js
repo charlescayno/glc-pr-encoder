@@ -1444,6 +1444,7 @@ function summaryHtml(bookEntries) {
 }
 
 // PDF / XLSX downloads of the verified booklet (see export.js).
+const PREPARED_BY = "Ynah Orgasan"; // always printed on the PDF, no prompt
 async function exportBooklet(kind) {
     const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
     const s = { ...bookletSummary(bookEntries), ...markSummary(marks, rv.start), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
@@ -1451,12 +1452,7 @@ async function exportBooklet(kind) {
     const counts = DENOMS.map(d => { const count = Number(saved[d.key]) || 0; return { value: d.value, kind: d.label.split(" ")[1], count, amount: round2(count * d.value) }; });
     try {
         if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
-        else {
-            const name = prompt("Prepared by:", localStorage.getItem("pre_preparedBy") || "Ynah Orgasan");
-            if (name === null) return;
-            localStorage.setItem("pre_preparedBy", name.trim());
-            await downloadBookletPdf(s, bookEntries, counts, name.trim());
-        }
+        else await downloadBookletPdf(s, bookEntries, counts, PREPARED_BY);
     } catch (err) {
         console.error(err);
         toast("Could not create the file. Check your internet connection and try again.");

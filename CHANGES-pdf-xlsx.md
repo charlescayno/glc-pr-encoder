@@ -8,7 +8,7 @@ When every PR in a booklet is checked, the review summary screen now shows two e
 | Download XLSX | `<first>-<last> PR Booklet Summary.xlsx` | Sheet "Booklet Summary" (tally, void, not used, cash count) and sheet "Receipts" (full table) |
 
 Notes
-- "Prepared By" defaults to "Ynah Orgasan" (asked on download, editable, and the last name used is remembered on this device).
+- "Prepared By" is always "Ynah Orgasan" (no prompt).
 - Cash count rows come from the cash count entered on the summary screen.
 - Libraries (jsPDF, autotable, SheetJS) load from a CDN on first use, so an internet connection is needed for downloads.
 - Code: new `export.js`, wiring in `app.js` (`exportBooklet`), `sw.js` precaches `export.js`.
