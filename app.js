@@ -646,7 +646,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const prog = reviewProgress(reviewSequence(entries, marks, start));
     const verified = prog.done && prog.entries > 0;
     const reviewBadge = prog.entries
-        ? `<span class="bk-badge ${verified ? "verified" : "checked"}" title="${prog.lastAt ? "Last checked " + esc(new Date(prog.lastAt).toLocaleString()) : "Nothing checked yet"}">${verified ? (st.complete ? "Verified" : "All checked") : `Checked ${prog.checked}/${prog.entries}`}</span>`
+        ? `<span class="bk-badge ${verified ? "verified" : "partial"}" title="${prog.lastAt ? "Last checked " + esc(new Date(prog.lastAt).toLocaleString()) : "Nothing checked yet"}">${verified ? `<i class="ri-checkbox-circle-fill"></i> ${st.complete ? "Verified" : "All checked"}` : `Checked ${prog.checked}/${prog.entries}`}</span>`
         : "";
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);

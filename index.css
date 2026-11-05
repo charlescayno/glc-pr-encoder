@@ -584,3 +584,6 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .pp-pay-row { min-height: 1.35rem; padding: 0.1rem 0.5rem; }
 .pp-sign { min-height: 1.9rem; }
 .pp-foot { margin-top: 0.35rem; }
+.bk-badge.partial { background: rgba(245, 158, 11, 0.16); border-color: var(--color-warning); color: #b45309; }
+[data-theme="dark"] .bk-badge.partial { color: #fbbf24; }
+.bk-badge.verified { display: inline-flex; align-items: center; gap: 0.25rem; }
