@@ -250,24 +250,57 @@ function shiftDate(days) {
     setDate(iso);
     localStorage.setItem(LS_LAST_DATE, iso);
 }
+function maskDigits(d) {
+    if (d.length > 4) return `${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4)}`;
+    if (d.length > 2) return `${d.slice(0, 2)}-${d.slice(2)}`;
+    return d;
+}
 $("fDate").addEventListener("input", () => {
-    const digits = $("fDate").value.replace(/\D/g, "").slice(0, 8);
-    let out = digits;
-    if (digits.length > 4) out = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
-    else if (digits.length > 2) out = `${digits.slice(0, 2)}-${digits.slice(2)}`;
-    $("fDate").value = out;
-    $("fDate").classList.toggle("invalid", out.length === 10 && !getDate());
+    const el = $("fDate");
+    // Any non-digit the user types (- / . space) is treated as a separator.
+    const raw = el.value.replace(/[^\d]+/g, "-").replace(/^-/, "").replace(/-{2,}/g, "-").slice(0, 10);
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    // Typing plain digits gets auto-dashes; typing your own dashes (9-21) is left alone until you finish.
+    const segs = raw.split("-");
+    const typedSeparators = segs.length > 1 && (segs.slice(0, -1).some(s => s.length < 2) || segs.length > 3);
+    el.value = typedSeparators ? raw : maskDigits(digits);
+    el.classList.toggle("invalid", el.value.length === 10 && !getDate());
     const iso = getDate();
     if (iso) localStorage.setItem(LS_LAST_DATE, iso);
 });
-// "09-21" -> "09-21-<current year>", "09-21-26" -> "09-21-2026"
+// Partial fill: missing parts come from today's date.
+//   "21" or "9-21" -> day only / month+day -> current month / current year
+//   "0921", "921", "9-21", "09-21" -> 09-21-<current year>;  "09-21-26" -> 09-21-2026
 function completeYear() {
     const el = $("fDate");
-    const digits = el.value.replace(/\D/g, "");
-    const year = new Date().getFullYear();
-    if (digits.length === 4) el.value = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${year}`;
-    else if (digits.length === 6) el.value = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-20${digits.slice(4)}`;
-    else return;
+    const v = el.value.trim();
+    if (!v || getDate()) return;
+    const digits = v.replace(/\D/g, "");
+    const now = new Date();
+    const curM = now.getMonth() + 1, curY = now.getFullYear();
+    const pad = n => String(n).padStart(2, "0");
+    const valid = (m, d, y) => { const t = new Date(y, m - 1, d); return t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === d; };
+    let m, d, y = curY;
+
+    if (v === maskDigits(digits)) {
+        // Plain digits typed with auto-dashes
+        if (digits.length <= 2) { m = curM; d = Number(digits); }
+        else if (digits.length === 3) {
+            m = Number(digits[0]); d = Number(digits.slice(1));            // 921 -> 9/21
+            if (!valid(m, d, y)) { m = Number(digits.slice(0, 2)); d = Number(digits[2]); } // 131 -> 1/31, 112 -> 11/2
+        }
+        else if (digits.length === 4) { m = Number(digits.slice(0, 2)); d = Number(digits.slice(2)); }
+        else if (digits.length === 6) { m = Number(digits.slice(0, 2)); d = Number(digits.slice(2, 4)); y = 2000 + Number(digits.slice(4)); }
+        else return;
+    } else {
+        // User typed their own separators
+        const p = v.split("-").filter(Boolean).map(Number);
+        if (p.length === 1) { m = curM; d = p[0]; }
+        else if (p.length === 2) { [m, d] = p; }
+        else if (p.length === 3) { [m, d, y] = p; if (y < 100) y += 2000; }
+        else return;
+    }
+    el.value = `${pad(m)}-${pad(d)}-${y}`;
     el.classList.toggle("invalid", !getDate());
     const iso = getDate();
     if (iso) localStorage.setItem(LS_LAST_DATE, iso);
