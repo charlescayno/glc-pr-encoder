@@ -1014,7 +1014,7 @@ function receiptPaperHtml(e) {
     const invoiceRef = online.map(p => `${p.method}${p.ref ? " " + p.ref : ""}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
     const bankText = bank ? `Bank Transfer${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
 
-    const rows = e.items.map(i => ({ text: `${i.qty} pcs  ${i.desc}${i.price ? " @ " + money(i.price) : ""}`, amt: money(round2(i.qty * i.price)) }));
+    const rows = e.items.map(i => ({ text: `${i.desc} - ${i.qty}`, amt: money(round2(i.qty * i.price)) }));
     while (rows.length < 6) rows.push({ text: "", amt: "" });
     const lines = rows.map(r => `<div class="pp-row"><span class="ink">${esc(r.text)}</span><span class="ink amt">${esc(r.amt)}</span></div>`).join("");
 
