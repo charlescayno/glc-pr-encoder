@@ -27,6 +27,8 @@ const fileBase = s => `${s.firstPr}-${s.lastPr}`;
 function save(doc, name) { doc.save(name); }
 
 const HEAD_STYLE = { fillColor: [235, 235, 235], textColor: 0, fontStyle: "bold", lineColor: 0, lineWidth: 0.5 };
+// Column headers are always centered, whatever the column alignment of the body.
+const centerHead = d => { if (d.section === "head") d.cell.styles.halign = "center"; };
 const BODY_STYLE = { textColor: 0, lineColor: 0, lineWidth: 0.5, fontSize: 10 };
 
 function headerLine(doc, s) {
@@ -42,11 +44,11 @@ function sectionTable(doc, y, label, sec) {
     doc.autoTable({
         startY: y + 18, margin: { left: 40, right: 40 }, theme: "grid",
         head: [["Sold Item", "QTY", "Selling Price", "Total"]],
-        body: sec.rows.length ? sec.rows.map(r => [r.desc, qtyText(r.qty), money(r.price).replace(/\.00$/, ""), money(r.total)]) : [["None", "", "", ""]],
+        body: sec.rows.length ? sec.rows.map(r => [r.desc, qtyText(r.qty), money(r.price), money(r.total)]) : [["None", "", "", ""]],
         foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
-        headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, styles: BODY_STYLE,
+        headStyles: { ...HEAD_STYLE, halign: "center" }, footStyles: HEAD_STYLE, styles: BODY_STYLE,
         columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
-        didParseCell: d => { if (d.section === "foot" && d.column.index === 3) d.cell.styles.halign = "right"; },
+        didParseCell: d => { centerHead(d); if (d.section === "foot" && d.column.index === 3) d.cell.styles.halign = "right"; },
     });
     return doc.lastAutoTable.finalY + 20;
 }
@@ -106,11 +108,12 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     doc.autoTable({
         startY: 30, margin: { left: 30, right: 30 }, theme: "grid", body,
         head: [["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""]],
-        headStyles: HEAD_STYLE, styles: { ...BODY_STYLE, fontSize: 8, cellPadding: 2 },
+        headStyles: { ...HEAD_STYLE, halign: "center" }, styles: { ...BODY_STYLE, fontSize: 8, cellPadding: 2 },
         columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
         rowPageBreak: "avoid",
         // Invoice / online payment receipts (every item row of the receipt) are highlighted blue.
         didParseCell: d => {
+            centerHead(d);
             if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
         },
     });
@@ -139,15 +142,15 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         // Only the denominations that were actually counted; if nothing was counted, the blank list is kept.
         body: (counted.length ? counted : counts).map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? money(c.amount) : ""]),
         foot: [[{ content: "TOTAL COUNTED", colSpan: 2 }, counted.length ? money(round2(counted.reduce((t, c) => t + c.amount, 0))) : ""]],
-        headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
-        didParseCell: d => { if (d.section === "foot" && d.column.index === 2) d.cell.styles.halign = "right"; },
+        headStyles: { ...HEAD_STYLE, halign: "center" }, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
+        didParseCell: d => { centerHead(d); if (d.section === "foot" && d.column.index === 2) d.cell.styles.halign = "right"; },
     });
     y = Math.max(totalsEnd, doc.lastAutoTable.finalY) + 8;
     const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
     doc.setFont("helvetica", "normal").setFontSize(9);
-    if (y + notes.length * 12 + 22 + 120 > 780) { doc.addPage(); y = 40; } // signatures stay together
+    if (y + notes.length * 12 + 44 + 120 > 780) { doc.addPage(); y = 40; } // signatures stay together
     notes.forEach(n => { doc.text(n, 30, y + 8); y += 12; });
-    y += 22;
+    y += 44; // one blank line more above Prepared By
     doc.setFontSize(10);
     doc.text(`Prepared By: ${preparedBy || ""}`, 30, y);
     doc.text("Checked By:", 30, y + 50);   // extra room between lines for signatures
