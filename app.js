@@ -1321,7 +1321,9 @@ function renderReview() {
     if (rv.summary) { renderReviewSummary(seq, prog); return; }
 
     const back = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back" ${idx === 0 ? "disabled" : ""}><i class="ri-arrow-left-line"></i> Back</button>`;
-    const skip = `<button type="button" class="btn btn-secondary btn-lg" data-rv="skip">Skip <i class="ri-arrow-right-line"></i></button>`;
+    // "Summary" jumps straight to the booklet summary (totals, cash count, PDF), without going through the last PR.
+    const summaryBtn = `<button type="button" class="btn btn-secondary btn-lg" data-rv="summary" title="Go to the booklet summary"><i class="ri-file-list-3-line"></i> Summary</button>`;
+    const skip = summaryBtn + `<button type="button" class="btn btn-secondary btn-lg" data-rv="skip">Skip <i class="ri-arrow-right-line"></i></button>`;
 
     if (cur.type === "entry") {
         const e = cur.entry;
@@ -1348,6 +1350,7 @@ function renderReview() {
             </div>`;
         $("rvActions").innerHTML = `${back}<div class="grp">
             <button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Clear mark</button>
+            ${summaryBtn}
             <button type="button" class="btn btn-success btn-lg" data-rv="confirm">Next</button></div>`;
     } else {
         $("rvCard").innerHTML = `
@@ -1597,6 +1600,7 @@ $("rvActions").addEventListener("click", ev => {
     switch (b.dataset.rv) {
         case "back": rvGo(-1); break;
         case "skip": rvGo(1); break;
+        case "summary": rv.summary = true; renderReview(); break;
         case "confirm": rvConfirm(); break;
         case "uncheck": rvUncheck(); break;
         case "edit": rvEdit(); break;
