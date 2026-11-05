@@ -41,7 +41,7 @@ function sectionTable(doc, y, label, sec) {
     doc.text(label, 40, y + 10);
     doc.autoTable({
         startY: y + 18, margin: { left: 40, right: 40 }, theme: "grid",
-        head: [["Item", "QTY", "Selling Price", "Total"]],
+        head: [["Sold Item", "QTY", "Selling Price", "Total"]],
         body: sec.rows.length ? sec.rows.map(r => [r.desc, qtyText(r.qty), money(r.price).replace(/\.00$/, ""), money(r.total)]) : [["None", "", "", ""]],
         foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
         headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, styles: BODY_STYLE,
@@ -158,7 +158,7 @@ export async function downloadSummaryXlsx(s, bookEntries, counts) {
     const X = window.XLSX;
     const tally = [[`PR No.: ${s.firstPr}-${s.lastPr}`, "", "", `Date: ${s.dateRange}`], []];
     const block = (title, sec) => {
-        tally.push([title], ["Item", "QTY", "Selling Price", "Total"]);
+        tally.push([title], ["Sold Item", "QTY", "Selling Price", "Total"]);
         sec.rows.forEach(r => tally.push([r.desc, r.qty, r.price, r.total]));
         tally.push(["TOTAL", "", "", sec.total], []);
     };
