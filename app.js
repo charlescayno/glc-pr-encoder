@@ -525,6 +525,85 @@ $("fDate").addEventListener("focus", () => $("fDate").select());
 $("dateToday").addEventListener("click", () => { setDate(todayISO()); localStorage.setItem(LS_LAST_DATE, todayISO()); });
 $("datePrev").addEventListener("click", () => shiftDate(-1));
 $("dateNext").addEventListener("click", () => shiftDate(1));
+
+// ---- Mini calendar: click the date field to pick a day (typing still works) ----
+const cal = (() => {
+    const wrap = $("fDate").closest(".field-date");
+    const el = document.createElement("div");
+    el.className = "cal-pop hidden";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "Choose a date");
+    wrap.appendChild(el);
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const iso = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    let vy = 0, vm = 0;
+    const isOpen = () => !el.classList.contains("hidden");
+
+    function render() {
+        const sel = getDate(), today = todayISO();
+        const first = new Date(vy, vm, 1).getDay();
+        const days = new Date(vy, vm + 1, 0).getDate();
+        let cells = "";
+        for (let i = 0; i < first; i++) cells += `<span class="cal-blank"></span>`;
+        for (let d = 1; d <= days; d++) {
+            const v = iso(vy, vm, d);
+            cells += `<button type="button" class="cal-day${v === sel ? " sel" : ""}${v === today ? " today" : ""}" data-iso="${v}">${d}</button>`;
+        }
+        el.innerHTML = `
+            <div class="cal-head">
+                <button type="button" class="cal-nav" data-cal="prevyear" title="Previous year"><i class="ri-arrow-left-double-line"></i></button>
+                <button type="button" class="cal-nav" data-cal="prev" title="Previous month"><i class="ri-arrow-left-s-line"></i></button>
+                <strong class="cal-title">${MONTHS[vm]} ${vy}</strong>
+                <button type="button" class="cal-nav" data-cal="next" title="Next month"><i class="ri-arrow-right-s-line"></i></button>
+                <button type="button" class="cal-nav" data-cal="nextyear" title="Next year"><i class="ri-arrow-right-double-line"></i></button>
+            </div>
+            <div class="cal-week">${["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(w => `<span>${w}</span>`).join("")}</div>
+            <div class="cal-grid">${cells}</div>
+            <div class="cal-foot"><button type="button" class="btn btn-secondary btn-sm" data-cal="today">Today</button></div>`;
+    }
+    function open() {
+        const [y, m] = (getDate() || todayISO()).split("-").map(Number);
+        vy = y; vm = m - 1;
+        render();
+        el.classList.remove("hidden");
+    }
+    function close() { el.classList.add("hidden"); }
+    function pick(v) {
+        setDate(v);
+        localStorage.setItem(LS_LAST_DATE, v);
+        close();
+        $("fDate").focus();
+    }
+    el.addEventListener("click", ev => {
+        const day = ev.target.closest("[data-iso]");
+        if (day) return pick(day.dataset.iso);
+        const nav = ev.target.closest("[data-cal]");
+        if (!nav) return;
+        const k = nav.dataset.cal;
+        if (k === "today") return pick(todayISO());
+        if (k === "prev") vm -= 1; else if (k === "next") vm += 1; else if (k === "prevyear") vy -= 1; else if (k === "nextyear") vy += 1;
+        const d = new Date(vy, vm, 1); vy = d.getFullYear(); vm = d.getMonth();
+        render();
+    });
+    // Esc closes only the calendar (not the review or the edit mode behind it)
+    el.addEventListener("keydown", ev => { if (ev.key === "Escape") { ev.stopPropagation(); close(); $("fDate").focus(); } });
+    $("fDate").addEventListener("click", () => { if (!isOpen()) open(); });
+    $("fDate").addEventListener("keydown", ev => {
+        if (ev.key === "Escape" && isOpen()) { ev.stopPropagation(); close(); }
+        else if (ev.key === "ArrowDown" && !isOpen()) { ev.preventDefault(); open(); }
+    });
+    // Typing a valid date moves the calendar to that month
+    $("fDate").addEventListener("input", () => {
+        if (!isOpen()) return;
+        const v = getDate();
+        if (v) { const [y, m] = v.split("-").map(Number); vy = y; vm = m - 1; render(); }
+    });
+    document.addEventListener("click", ev => { if (isOpen() && !ev.target.closest(".field-date")) close(); });
+    $("datePrev").addEventListener("click", () => { if (isOpen()) close(); });
+    $("dateNext").addEventListener("click", () => { if (isOpen()) close(); });
+    $("dateToday").addEventListener("click", () => { if (isOpen()) close(); });
+    return { close };
+})();
 $("fPr").addEventListener("input", () => { updatePrWarning(); updateBookletHint(); });
 $("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item-name").focus());
 
