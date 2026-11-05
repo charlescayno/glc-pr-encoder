@@ -640,6 +640,15 @@ $("unusedBtn").addEventListener("click", () => markFromForm("unused"));
 
 // Booklets (50 sheets each) can be collapsed in the output table.
 const collapsedBooklets = new Set();
+function allBookletStarts() {
+    return [...new Set([...entries, ...marks].map(x => bookletStart(x.pr)))];
+}
+$("collapseBtn").addEventListener("click", () => {
+    const starts = allBookletStarts();
+    const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
+    if (allCollapsed) collapsedBooklets.clear(); else starts.forEach(s => collapsedBooklets.add(s));
+    refresh();
+});
 
 function bookletHeaderHtml(start, rowsInBooklet) {
     const st = bookletStats(entries, start, marks);
@@ -704,6 +713,10 @@ function refresh() {
         if (!collapsedBooklets.has(b)) html += r.mark ? markRowHtml(r) : rowHtml(r);
     });
     body.innerHTML = html;
+    const starts = allBookletStarts();
+    const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
+    $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
+    $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
     afterRowsRendered(rows, shown, f);
 }
 
