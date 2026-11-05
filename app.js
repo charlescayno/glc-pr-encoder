@@ -1576,14 +1576,30 @@ function renderReviewSummary(seq, prog) {
         ${summaryHtml(bookEntries)}
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
     $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
-        <button type="button" class="btn btn-secondary btn-lg" data-rv="copysummary"><i class="ri-file-copy-line"></i> Copy summary</button>
-        ${allDone ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="viewpdf"><i class="ri-eye-line"></i> View PDF</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-rv="pdf"><i class="ri-file-pdf-line"></i> Download PDF</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-rv="xlsx"><i class="ri-file-excel-2-line"></i> Download XLSX</button>` : ""}
-        <button type="button" class="btn btn-secondary btn-lg" data-rv="print"><i class="ri-printer-line"></i> Print</button>
+        <div class="export-wrap">
+            <button type="button" class="btn btn-secondary btn-lg" data-rv="exportmenu" aria-haspopup="true" aria-expanded="false"><i class="ri-download-2-line"></i> Export <i class="ri-arrow-up-s-line"></i></button>
+            <div class="export-menu hidden" id="exportMenu" role="menu">
+                <button type="button" role="menuitem" data-rv="copysummary"><i class="ri-file-copy-line"></i> Copy summary</button>
+                <button type="button" role="menuitem" data-rv="print"><i class="ri-printer-line"></i> Print</button>
+                ${allDone ? `<button type="button" role="menuitem" data-rv="viewpdf"><i class="ri-eye-line"></i> View PDF</button>
+                <button type="button" role="menuitem" data-rv="pdf"><i class="ri-file-pdf-line"></i> Download PDF</button>
+                <button type="button" role="menuitem" data-rv="xlsx"><i class="ri-file-excel-2-line"></i> Download XLSX</button>` : ""}
+            </div>
+        </div>
         ${allDone ? "" : `<button type="button" class="btn btn-secondary btn-lg" data-rv="firstopen">Go to first open</button>`}
         <button type="button" class="btn btn-success btn-lg" data-rv="close">Done</button></div>`;
 }
+
+// Export menu on the summary screen. Returns true when a menu was open and got closed.
+function closeExportMenu() {
+    const m = $("exportMenu");
+    if (!m || m.classList.contains("hidden")) return false;
+    m.classList.add("hidden");
+    const t = $("rvActions").querySelector('[data-rv="exportmenu"]');
+    if (t) t.setAttribute("aria-expanded", "false");
+    return true;
+}
+document.addEventListener("click", ev => { if (!ev.target.closest(".export-wrap")) closeExportMenu(); });
 
 $("rvStrip").addEventListener("click", ev => {
     const b = ev.target.closest("[data-pr]");
@@ -1597,7 +1613,9 @@ $("rvActions").addEventListener("click", ev => {
     const b = ev.target.closest("[data-rv]");
     if (!b || !rv) return;
     b.blur(); // so Enter always means "checked", never "press the focused button again"
+    if (b.dataset.rv !== "exportmenu") closeExportMenu(); // picking an item closes the Export menu
     switch (b.dataset.rv) {
+        case "exportmenu": { const m = $("exportMenu"); m.classList.toggle("hidden"); b.setAttribute("aria-expanded", String(!m.classList.contains("hidden"))); break; }
         case "back": rvGo(-1); break;
         case "skip": rvGo(1); break;
         case "summary": rv.summary = true; renderReview(); break;
@@ -1667,7 +1685,7 @@ document.addEventListener("keydown", ev => {
     if (k === "Enter") rvConfirm();
     else if (k === "ArrowLeft") rvGo(-1);
     else if (k === "ArrowRight" || k === " ") rvGo(1);
-    else if (k === "Escape") closeReview();
+    else if (k === "Escape") { if (!closeExportMenu()) closeReview(); } // Esc closes the Export menu first
     else if (k.toLowerCase() === "e") rvEdit();
     else if (k.toLowerCase() === "u") rvUncheck();
     else if (k.toLowerCase() === "v") rvMark("void");
