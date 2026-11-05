@@ -1431,6 +1431,27 @@ $("rvCard").addEventListener("click", ev => {
     else if (b.dataset.rv === "later") rvEncodeLater();
 });
 $("rvClose").addEventListener("click", closeReview);
+// Uncheck every PR of the booklet and restart the review from the first sheet.
+$("rvRestart").addEventListener("click", () => {
+    if (!rv) return;
+    const checked = entries.filter(e => bookletStart(e.pr) === rv.start && e.checkedAt);
+    if (!checked.length) return toast("Nothing is checked in this booklet.");
+    if (!confirm(`Uncheck all ${checked.length} checked PRs in booklet ${bookletLabel(rv.start)} and restart the review?`)) return;
+    const ids = new Set(checked.map(e => e.id));
+    entries = entries.map(e => {
+        if (!ids.has(e.id)) return e;
+        const { checkedAt, ...rest } = e;
+        return rest;
+    });
+    saveLocal();
+    refresh();
+    entries.filter(e => ids.has(e.id)).forEach(({ id, ...data }) => setDoc(doc(col, id), data).catch(remoteFail));
+    rvStreak = 0;
+    const seq = rvSeq();
+    rv.pr = seq[0].pr; rv.summary = false;
+    renderReview();
+    toast(`Unchecked ${checked.length} PRs. Review restarted.`);
+});
 $("rvFirst").addEventListener("click", () => { if (rv) { const seq = rvSeq(); rv.pr = seq[0].pr; rv.summary = false; renderReview(); } });
 
 document.addEventListener("keydown", ev => {
