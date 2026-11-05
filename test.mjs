@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress } from "./logic.js";
 
 const entries = [
     { id: "pr_42751", pr: 42751, date: "2026-09-13", buyer: "Anonymous", mop: "", mopRef: "", items: [{ desc: "Book 1: One by One 4th Edition", qty: 2, price: 50 }] },
@@ -44,6 +44,33 @@ const split = paymentSplit(flatten(entries));
 assert.equal(split.online, 100);            // PR 42753 paid by invoice
 assert.equal(split.cash, 565 - 100);
 assert.deepEqual(split.byMethod, { Cash: 465, Invoice: 100 });
+// Review: sequence, progress, marks
+{
+    const es = [
+        { id: "pr_42751", pr: 42751, date: "2026-09-13", items: [], checkedAt: 111 },
+        { id: "pr_42752", pr: 42752, date: "2026-09-13", items: [] },
+        { id: "pr_42755", pr: 42755, date: "2026-09-13", items: [] },
+        { id: "pr_42801", pr: 42801, date: "2026-09-14", items: [] },
+    ];
+    let seq = reviewSequence(es, [], 42751);
+    assert.deepEqual(seq.map(s => s.pr), [42751, 42752, 42753, 42754, 42755]);
+    assert.deepEqual(seq.map(s => s.type), ["entry", "entry", "missing", "missing", "entry"]);
+    let pg = reviewProgress(seq);
+    assert.equal(pg.checked, 1); assert.equal(pg.entries, 3); assert.equal(pg.missing, 2); assert.equal(pg.done, false);
+    const marks = [{ id: "pr_42753", pr: 42753, status: "void", at: 222 }, { id: "pr_42754", pr: 42754, status: "unused", at: 333 }];
+    seq = reviewSequence(es, marks, 42751);
+    assert.deepEqual(seq.map(s => s.type), ["entry", "entry", "mark", "mark", "entry"]);
+    pg = reviewProgress(seq);
+    assert.equal(pg.missing, 0); assert.equal(pg.done, false); // two PRs still unchecked
+    es[1].checkedAt = 444; es[2].checkedAt = 555;
+    pg = reviewProgress(reviewSequence(es, marks, 42751));
+    assert.equal(pg.done, true); assert.equal(pg.lastAt, 555);
+    assert.deepEqual(reviewSequence(es, [], 42701), []);
+    assert.deepEqual(bookletStats(es, 42751, marks).missing, []);
+    assert.deepEqual(bookletStats(es, 42751).missing, [42753, 42754]);
+    assert.equal(filterEntries(es, { unchecked: true }).length, 1);
+}
+
 // Split payment: PR 42760 total 300 = 100 cash + 200 invoice, two line items
 const splitEntry = { id: "pr_42760", pr: 42760, date: "2026-09-13", buyer: "Anonymous", mop: "Split", mopRef: "",
     payments: [{ method: "Cash", amount: 100 }, { method: "Invoice", amount: 200, ref: "689746" }],

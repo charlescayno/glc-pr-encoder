@@ -185,6 +185,7 @@
                     </select>
                     <label class="inline-field"><span>From</span><input type="date" id="fromDate"></label>
                     <label class="inline-field"><span>To</span><input type="date" id="toDate"></label>
+                    <label class="inline-field check-field"><input type="checkbox" id="uncheckedOnly"> <span>Unchecked only</span></label>
                     <button class="btn btn-secondary" id="clearFilterBtn">Reset</button>
                 </div>
 
@@ -236,6 +237,40 @@
                 <button class="btn btn-secondary" id="catalogAdd"><i class="ri-add-line"></i> Add item</button>
                 <button class="btn btn-primary" id="catalogSave">Save</button>
             </div>
+        </div>
+    </div>
+
+    <!-- PR review (step through one booklet, check each PR against the paper sheet) -->
+    <div class="review-overlay hidden" id="reviewOverlay">
+        <div class="review">
+            <div class="rv-top">
+                <div>
+                    <div class="rv-title" id="rvTitle"></div>
+                    <div class="rv-sub" id="rvSub"></div>
+                </div>
+                <div class="rv-top-actions">
+                    <button type="button" class="btn btn-secondary" id="rvFirst" title="Go to the first PR of this booklet">Start from first</button>
+                    <button type="button" class="btn btn-secondary" id="rvClose" title="Close review (Esc)"><i class="ri-close-line"></i> Close</button>
+                </div>
+            </div>
+            <div class="rv-bar"><span id="rvBar"></span></div>
+            <div class="rv-strip" id="rvStrip"></div>
+            <div class="rv-card" id="rvCard"></div>
+            <div class="rv-actions" id="rvActions"></div>
+            <div class="rv-keys">
+                <span><kbd>Enter</kbd> checked, next</span>
+                <span><kbd>Left</kbd> previous</span>
+                <span><kbd>Right</kbd> skip</span>
+                <span><kbd>E</kbd> edit</span>
+                <span><kbd>U</kbd> uncheck</span>
+                <span><kbd>V</kbd> void</span>
+                <span><kbd>N</kbd> not used</span>
+                <span><kbd>L</kbd> encode later</span>
+                <span><kbd>Esc</kbd> close</span>
+            </div>
+        </div>
+        <div class="rv-edit hidden" id="rvEdit">
+            <div class="rv-edit-inner" id="rvEditBody"></div>
         </div>
     </div>
 

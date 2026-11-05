@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, paymentText
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, paymentText, mopText, reviewSequence, reviewProgress
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -20,6 +20,8 @@ const firebaseConfig = {
 const COLLECTION = "pr_encoder_entries";
 const db = getFirestore(initializeApp(firebaseConfig));
 const col = collection(db, COLLECTION);
+// Void / not-used sheets found during review (separate collection, one document per PR number).
+const marksCol = collection(db, "pr_encoder_marks");
 
 // ---------- State ----------
 const LS_ENTRIES = "pre_entries_v1";
@@ -32,6 +34,10 @@ let entries = loadLocal();
 let remoteOk = false;
 let editingId = null;
 let catalog = loadCatalog();
+const LS_MARKS = "pre_marks_v1";
+let marks = (() => { try { return JSON.parse(localStorage.getItem(LS_MARKS)) || []; } catch { return []; } })();
+let rv = null;                // review session: { start, pr, summary }
+let reviewEditing = false;    // the encoder card is open as a dialog inside the review
 let splitOn = false;          // split payment (part cash, part online) for the current form
 let splitAnchor = "cash";     // which split amount the user typed last; the other is calculated
 let formSum = 0;              // current receipt total
@@ -74,6 +80,7 @@ onSnapshot(col, snap => {
     saveLocal();
     setStatus("online", "Online");
     refresh();
+    if (rv && !reviewEditing) renderReview();
 }, err => {
     console.error("Firestore listener error", err);
     remoteOk = false;
@@ -81,6 +88,20 @@ onSnapshot(col, snap => {
     toast("Cloud sync unavailable. Data is saved on this device only.");
     refresh();
 });
+
+onSnapshot(marksCol, snap => {
+    marks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    localStorage.setItem(LS_MARKS, JSON.stringify(marks));
+    refresh();
+    if (rv) renderReview();
+}, err => {
+    console.error("Marks listener error", err);
+});
+
+function marksFail(err) {
+    console.error(err);
+    toast("Could not save the void / not-used mark to the cloud. Saved on this device only.");
+}
 
 function remoteFail(err) {
     console.error(err);
@@ -100,6 +121,37 @@ async function persist(entry, oldId) {
         if (oldId && oldId !== id) deleteDoc(doc(col, oldId)).catch(remoteFail);
         setDoc(doc(col, id), data).catch(remoteFail);
     } catch (e) { remoteFail(e); }
+}
+
+// Review: tick or untick one PR as verified against the paper sheet.
+function setChecked(id, on) {
+    const i = entries.findIndex(e => e.id === id);
+    if (i < 0) return;
+    const e = { ...entries[i] };
+    if (on) e.checkedAt = Date.now(); else delete e.checkedAt;
+    entries[i] = e;
+    saveLocal();
+    refresh();
+    const { id: _id, ...data } = e;
+    setDoc(doc(col, id), data).catch(remoteFail);
+}
+
+function setMark(pr, status) {
+    const id = `pr_${pr}`;
+    const m = { id, pr, status, at: Date.now() };
+    marks = marks.filter(x => x.id !== id).concat(m);
+    localStorage.setItem(LS_MARKS, JSON.stringify(marks));
+    refresh();
+    const { id: _id, ...data } = m;
+    setDoc(doc(marksCol, id), data).catch(marksFail);
+}
+
+function clearMark(pr) {
+    const id = `pr_${pr}`;
+    marks = marks.filter(x => x.id !== id);
+    localStorage.setItem(LS_MARKS, JSON.stringify(marks));
+    refresh();
+    deleteDoc(doc(marksCol, id)).catch(marksFail);
 }
 
 function removeEntry(id) {
@@ -432,6 +484,7 @@ function formFields() {
 }
 document.addEventListener("keydown", ev => {
     if (!$("catalogModal").classList.contains("hidden")) return;
+    if (rv && !reviewEditing) return; // review screen has its own keys
     const mod = ev.ctrlKey || ev.metaKey;
     if (mod && ev.key === "Enter") {
         ev.preventDefault();
@@ -457,6 +510,7 @@ document.addEventListener("keydown", ev => {
         $("fRef").focus(); // type the invoice number right away
     } else if (ev.key === "Escape" && editingId) {
         resetForm();
+        finishReviewEdit();
     }
 });
 $("prForm").addEventListener("keydown", ev => {
@@ -489,7 +543,7 @@ $("prForm").addEventListener("keydown", ev => {
         go();
     }
 });
-$("cancelEditBtn").addEventListener("click", resetForm);
+$("cancelEditBtn").addEventListener("click", () => { resetForm(); finishReviewEdit(); });
 
 let suppressSubmit = false;
 $("prForm").addEventListener("submit", ev => {
@@ -539,12 +593,13 @@ $("prForm").addEventListener("submit", ev => {
     localStorage.setItem(LS_LAST_DATE, entry.date);
     if (!wasEdit) localStorage.setItem(LS_LAST_PR, String(pr));
     resetForm();
+    if (reviewEditing) { finishReviewEdit(pr); return; }
     $("itemsList").querySelector(".item-name").focus();
 });
 
 // ---------- Output ----------
 function currentFilter() {
-    return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value, booklet: $("bookletFilter").value };
+    return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value, booklet: $("bookletFilter").value, unchecked: $("uncheckedOnly").checked };
 }
 function visibleRows() { return flatten(filterEntries(entries, currentFilter())); }
 
@@ -552,7 +607,12 @@ function visibleRows() { return flatten(filterEntries(entries, currentFilter()))
 const collapsedBooklets = new Set();
 
 function bookletHeaderHtml(start, rowsInBooklet) {
-    const st = bookletStats(entries, start);
+    const st = bookletStats(entries, start, marks);
+    const prog = reviewProgress(reviewSequence(entries, marks, start));
+    const verified = prog.done && prog.entries > 0;
+    const reviewBadge = prog.entries
+        ? `<span class="bk-badge ${verified ? "verified" : "checked"}" title="${prog.lastAt ? "Last checked " + esc(new Date(prog.lastAt).toLocaleString()) : "Nothing checked yet"}">${verified ? (st.complete ? "Verified" : "All checked") : `Checked ${prog.checked}/${prog.entries}`}</span>`
+        : "";
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
     const split = paymentSplit(rowsInBooklet);
@@ -573,6 +633,8 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                     <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
                     <span class="bk-bar"><span style="width:${pct}%"></span></span>
                     ${status}
+                    ${reviewBadge}
+                    <button type="button" class="btn btn-secondary btn-sm" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
                     ${missing}
                     <span class="bk-pay">
                         <span class="pay cash" title="Cash payments"><i class="ri-money-dollar-circle-line"></i> Cash <b>${peso(split.cash)}</b></span>
@@ -618,7 +680,7 @@ function rowHtml(r) {
     return `
         <tr class="${r.first ? "pr-first" : ""}">
             <td>${r.first ? esc(r.date) : ""}</td>
-            <td class="pr-no">${r.first ? esc(r.pr) : ""}</td>
+            <td class="pr-no">${r.first ? esc(r.pr) + (r.entry.checkedAt ? `<i class="ri-checkbox-circle-fill chk" title="Checked ${esc(new Date(r.entry.checkedAt).toLocaleString())}"></i>` : "") : ""}</td>
             <td>${r.first ? esc(r.buyer) : ""}</td>
             <td>${esc(r.desc)}</td>
             <td class="num">${r.qty}</td>
@@ -674,6 +736,7 @@ $("outBody").addEventListener("click", ev => {
         }
         return;
     }
+    if (b.dataset.review) openReview(Number(b.dataset.review));
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {
         const e = entries.find(x => x.id === b.dataset.del);
@@ -685,8 +748,9 @@ $("outBody").addEventListener("click", ev => {
 });
 
 ["searchInput", "fromDate", "toDate", "bookletFilter"].forEach(id => $(id).addEventListener("input", refresh));
+$("uncheckedOnly").addEventListener("change", refresh);
 $("clearFilterBtn").addEventListener("click", () => {
-    $("searchInput").value = ""; $("fromDate").value = ""; $("toDate").value = ""; $("bookletFilter").value = ""; refresh();
+    $("searchInput").value = ""; $("fromDate").value = ""; $("toDate").value = ""; $("bookletFilter").value = ""; $("uncheckedOnly").checked = false; refresh();
 });
 
 $("copyBtn").addEventListener("click", async () => {
@@ -723,6 +787,8 @@ $("clearBtn").addEventListener("click", async () => {
     if (!confirm("Really delete everything? Consider downloading a CSV first.")) return;
     const ids = entries.map(e => e.id);
     entries = [];
+    marks = [];
+    localStorage.setItem(LS_MARKS, "[]");
     saveLocal();
     localStorage.removeItem(LS_LAST_PR);
     resetForm();
@@ -733,6 +799,12 @@ $("clearBtn").addEventListener("click", async () => {
         snap.docs.forEach(d => batch.delete(d.ref)); // only this app's collection
         await batch.commit();
     } catch (e) { remoteFail(e); }
+    try { // void / not-used marks belong to the same receipts, so they go too (own collection only)
+        const mSnap = await getDocs(marksCol);
+        const mBatch = writeBatch(db);
+        mSnap.docs.forEach(d => mBatch.delete(d.ref));
+        await mBatch.commit();
+    } catch (e) { console.error(e); }
     toast(`Cleared ${ids.length} receipts.`);
 });
 
@@ -797,6 +869,274 @@ $("installBtn").addEventListener("click", async () => {
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     navigator.serviceWorker.register("./sw.js").catch(() => { });
 }
+
+// ---------- PR review ----------
+// Step through one booklet, PR number by PR number, and tick each one after checking it against the paper sheet.
+const fmtStamp = ts => new Date(ts).toLocaleString();
+
+function rvSeq() { return reviewSequence(entries, marks, rv.start); }
+function rvCurrent(seq = rvSeq()) { return seq.find(s => s.pr === rv.pr) || seq[0]; }
+
+function openReview(start, fromFirst = false) {
+    rv = { start, pr: null, summary: false };
+    const seq = rvSeq();
+    if (!seq.length) { rv = null; toast("Nothing to review in this booklet yet."); return; }
+    const first = fromFirst ? seq[0] : seq.find(s => !s.resolved);
+    if (first) rv.pr = first.pr; else { rv.pr = seq[seq.length - 1].pr; rv.summary = true; }
+    $("reviewOverlay").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    renderReview();
+}
+
+function closeReview() {
+    if (reviewEditing) return;
+    rv = null;
+    $("reviewOverlay").classList.add("hidden");
+    document.body.classList.remove("modal-open", "print-review");
+    refresh();
+}
+
+function rvGo(delta) {
+    const seq = rvSeq();
+    if (rv.summary) { if (delta < 0) rv.summary = false; renderReview(); return; }
+    const idx = seq.findIndex(s => s.pr === rv.pr);
+    const n = idx + delta;
+    if (n < 0) return;
+    if (n >= seq.length) rv.summary = true; else rv.pr = seq[n].pr;
+    renderReview();
+}
+
+function rvConfirm() {
+    if (rv.summary) return;
+    const s = rvCurrent();
+    if (s.type === "entry") { if (!s.checked) setChecked(s.entry.id, true); rvGo(1); }
+    else if (s.type === "mark") rvGo(1);
+    else toast(`PR #${s.pr} has no entry. Mark it first: V void, N not used, L encode later.`);
+}
+
+function rvUncheck() {
+    if (rv.summary) return;
+    const s = rvCurrent();
+    if (s.type === "entry" && s.checked) { setChecked(s.entry.id, false); renderReview(); }
+    else if (s.type === "mark") { clearMark(s.pr); renderReview(); }
+}
+
+function rvMark(status) {
+    if (rv.summary) return;
+    const s = rvCurrent();
+    if (s.type === "entry") { toast("This PR has an entry. Press Enter to check it, or E to edit."); return; }
+    setMark(s.pr, status);
+    rvGo(1);
+}
+
+function rvEncodeLater() {
+    if (rv.summary) return;
+    const s = rvCurrent();
+    if (s.type === "entry") return;
+    const pr = s.pr;
+    closeReview();
+    resetForm();
+    $("fPr").value = pr;
+    updatePrWarning();
+    updateBookletHint();
+    $("encoderCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("itemsList").querySelector(".item-name").focus();
+    toast(`Encoding PR #${pr}.`);
+}
+
+// Edit: the encoder card moves into a dialog on top of the review, and goes back afterwards.
+let encoderPlaceholder = null;
+function rvEdit() {
+    if (rv.summary) return;
+    const s = rvCurrent();
+    if (s.type !== "entry") return;
+    const card = $("encoderCard");
+    encoderPlaceholder = document.createComment("encoderCard");
+    card.before(encoderPlaceholder);
+    $("rvEditBody").appendChild(card);
+    $("rvEdit").classList.remove("hidden");
+    reviewEditing = true;
+    startEdit(s.entry.id);
+    $("fDate").focus();
+}
+
+function finishReviewEdit(savedPr) {
+    if (!reviewEditing) return;
+    reviewEditing = false;
+    encoderPlaceholder.replaceWith($("encoderCard"));
+    encoderPlaceholder = null;
+    $("rvEdit").classList.add("hidden");
+    if (rv) {
+        if (savedPr) { rv.pr = savedPr; toast(`PR #${savedPr} updated. Check it again with Enter.`); }
+        rv.summary = false;
+        renderReview();
+    }
+}
+
+function renderReview() {
+    const seq = rvSeq();
+    if (!seq.length) { closeReview(); return; }
+    const cur = rvCurrent(seq);
+    rv.pr = cur.pr;
+    const prog = reviewProgress(seq);
+    const idx = seq.indexOf(cur);
+
+    $("rvTitle").textContent = `Review booklet ${bookletLabel(rv.start)}`;
+    $("rvSub").textContent = `${prog.checked} of ${prog.entries} PRs checked` +
+        (prog.marks ? ` | ${prog.marks} void or not used` : "") + (prog.missing ? ` | ${prog.missing} missing` : "") +
+        (rv.summary ? "" : ` | now at ${idx + 1} of ${seq.length}`);
+    $("rvBar").style.width = `${seq.length ? Math.round((seq.filter(s => s.resolved).length / seq.length) * 100) : 0}%`;
+
+    $("rvStrip").innerHTML = seq.map(s => {
+        const cls = s.type === "entry" ? (s.checked ? "checked" : "") : s.type === "mark" ? "mark" : "missing";
+        const current = !rv.summary && s.pr === cur.pr ? " current" : "";
+        return `<button type="button" class="rv-chip ${cls}${current}" data-pr="${s.pr}" title="${s.type === "mark" ? s.status : s.type === "missing" ? "No entry" : s.checked ? "Checked" : "Not checked yet"}">${s.pr}</button>`;
+    }).join("");
+    const chip = $("rvStrip").querySelector(".current");
+    if (chip && chip.scrollIntoView) chip.scrollIntoView({ block: "nearest" });
+
+    if (rv.summary) { renderReviewSummary(seq, prog); return; }
+
+    const back = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back" ${idx === 0 ? "disabled" : ""}><i class="ri-arrow-left-line"></i> Back</button>`;
+    const skip = `<button type="button" class="btn btn-secondary btn-lg" data-rv="skip">Skip <i class="ri-arrow-right-line"></i></button>`;
+
+    if (cur.type === "entry") {
+        const e = cur.entry;
+        const pay = Array.isArray(e.payments) && e.payments.length
+            ? e.payments.map(p => esc(paymentText(p))).join("<br>") : esc(mopText(e) || "Cash");
+        $("rvCard").innerHTML = `
+            <div class="rv-pr-head">
+                <div class="rv-prno">PR #${esc(e.pr)}</div>
+                <span class="rv-status ${cur.checked ? "ok" : "todo"}">${cur.checked ? "Checked " + esc(fmtStamp(e.checkedAt)) : "Not checked yet"}</span>
+            </div>
+            <div class="rv-meta">
+                <div><span>Date</span><b>${esc(fmtDate(e.date))}</b></div>
+                <div><span>Buyer</span><b>${esc(e.buyer)}</b></div>
+                <div><span>MOP</span><b>${pay}</b></div>
+            </div>
+            <table class="rv-items">
+                <thead><tr><th>Sold item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th></tr></thead>
+                <tbody>${e.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${i.qty}</td><td class="num">${money(i.price)}</td><td class="num">${money(round2(i.qty * i.price))}</td></tr>`).join("")}</tbody>
+            </table>
+            <div class="rv-total">Receipt total <b>${peso(entryTotal(e))}</b></div>`;
+        $("rvActions").innerHTML = `${back}<div class="grp">
+            <button type="button" class="btn btn-secondary btn-lg" data-rv="edit"><i class="ri-edit-line"></i> Edit</button>
+            ${cur.checked ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Uncheck</button>` : ""}
+            ${skip}
+            <button type="button" class="btn btn-success btn-lg" data-rv="confirm"><i class="ri-check-line"></i> ${cur.checked ? "Next" : "Checked, next"}</button></div>`;
+    } else if (cur.type === "mark") {
+        $("rvCard").innerHTML = `
+            <div class="rv-empty">
+                <div class="rv-prno">PR #${cur.pr}</div>
+                <h3>Marked as ${cur.status === "void" ? "VOID" : "NOT USED"}</h3>
+                <p>${cur.status === "void" ? "A cancelled sheet." : "A blank or unissued sheet."} Saved ${esc(fmtStamp(cur.mark.at || Date.now()))}.</p>
+            </div>`;
+        $("rvActions").innerHTML = `${back}<div class="grp">
+            <button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Clear mark</button>
+            <button type="button" class="btn btn-success btn-lg" data-rv="confirm">Next</button></div>`;
+    } else {
+        $("rvCard").innerHTML = `
+            <div class="rv-empty">
+                <div class="rv-prno">PR #${cur.pr}</div>
+                <h3>No entry for this number</h3>
+                <p>Look at the paper sheet. Was it cancelled, never used, or just not encoded yet?</p>
+                <div class="rv-choices">
+                    <button type="button" class="btn btn-secondary btn-lg" data-rv="void"><kbd>V</kbd> Void</button>
+                    <button type="button" class="btn btn-secondary btn-lg" data-rv="unused"><kbd>N</kbd> Not used</button>
+                    <button type="button" class="btn btn-primary btn-lg" data-rv="later"><kbd>L</kbd> Encode it now</button>
+                </div>
+            </div>`;
+        $("rvActions").innerHTML = `${back}<div class="grp">${skip}</div>`;
+    }
+}
+
+function renderReviewSummary(seq, prog) {
+    const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
+    const rows = flatten(bookEntries);
+    const sales = rows.length ? rows[rows.length - 1].grand : 0;
+    const split = paymentSplit(rows);
+    const open = seq.filter(s => !s.resolved);
+    const allDone = open.length === 0;
+    $("rvCard").innerHTML = `
+        <div class="rv-pr-head">
+            <div class="rv-prno">${allDone ? "Booklet verified" : "Review finished"}</div>
+            <span class="rv-status ${allDone ? "ok" : "todo"}">${allDone ? "All PRs checked" : `${open.length} still to check`}</span>
+        </div>
+        <p style="color:var(--color-text-muted)">Booklet ${esc(bookletLabel(rv.start))}${prog.lastAt ? `, last checked ${esc(fmtStamp(prog.lastAt))}` : ""}.</p>
+        <div class="rv-sum">
+            <div><span>Receipts</span><b>${prog.entries}</b></div>
+            <div><span>Checked</span><b>${prog.checked} / ${prog.entries}</b></div>
+            <div><span>Void or not used</span><b>${prog.marks}</b></div>
+            <div><span>Total sales</span><b>${peso(sales)}</b></div>
+            <div><span>Cash</span><b>${peso(split.cash)}</b></div>
+            <div><span>Online</span><b>${peso(split.online)}</b></div>
+        </div>
+        ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
+    $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
+        <button type="button" class="btn btn-secondary btn-lg" data-rv="print"><i class="ri-printer-line"></i> Print</button>
+        ${allDone ? "" : `<button type="button" class="btn btn-secondary btn-lg" data-rv="firstopen">Go to first open</button>`}
+        <button type="button" class="btn btn-success btn-lg" data-rv="close">Done</button></div>`;
+}
+
+$("rvStrip").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-pr]");
+    if (!b || !rv) return;
+    rv.pr = Number(b.dataset.pr);
+    rv.summary = false;
+    renderReview();
+    b.blur();
+});
+$("rvActions").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-rv]");
+    if (!b || !rv) return;
+    b.blur(); // so Enter always means "checked", never "press the focused button again"
+    switch (b.dataset.rv) {
+        case "back": rvGo(-1); break;
+        case "skip": rvGo(1); break;
+        case "confirm": rvConfirm(); break;
+        case "uncheck": rvUncheck(); break;
+        case "edit": rvEdit(); break;
+        case "void": rvMark("void"); break;
+        case "unused": rvMark("unused"); break;
+        case "later": rvEncodeLater(); break;
+        case "print": document.body.classList.add("print-review"); window.print(); document.body.classList.remove("print-review"); break;
+        case "firstopen": { const s = rvSeq().find(x => !x.resolved); if (s) { rv.pr = s.pr; rv.summary = false; renderReview(); } break; }
+        case "close": closeReview(); break;
+    }
+});
+// The choice buttons live inside the card, not in the action bar
+$("rvCard").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-rv]");
+    if (!b || !rv) return;
+    b.blur();
+    if (b.dataset.rv === "void") rvMark("void");
+    else if (b.dataset.rv === "unused") rvMark("unused");
+    else if (b.dataset.rv === "later") rvEncodeLater();
+});
+$("rvClose").addEventListener("click", closeReview);
+$("rvFirst").addEventListener("click", () => { if (rv) { const seq = rvSeq(); rv.pr = seq[0].pr; rv.summary = false; renderReview(); } });
+
+document.addEventListener("keydown", ev => {
+    if (!rv || reviewEditing) return;
+    if (!$("catalogModal").classList.contains("hidden")) return;
+    const tag = ev.target.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const k = ev.key;
+    const used = ["Enter", "ArrowLeft", "ArrowRight", " ", "Escape", "e", "E", "u", "U", "v", "V", "n", "N", "l", "L"];
+    if (!used.includes(k)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (k === "Enter") rvConfirm();
+    else if (k === "ArrowLeft") rvGo(-1);
+    else if (k === "ArrowRight" || k === " ") rvGo(1);
+    else if (k === "Escape") closeReview();
+    else if (k.toLowerCase() === "e") rvEdit();
+    else if (k.toLowerCase() === "u") rvUncheck();
+    else if (k.toLowerCase() === "v") rvMark("void");
+    else if (k.toLowerCase() === "n") rvMark("unused");
+    else if (k.toLowerCase() === "l") rvEncodeLater();
+}, true);
 
 // ---------- Shortcuts legend (collapsible, remembered) ----------
 const scBox = $("shortcutsBox");

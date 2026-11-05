@@ -52,13 +52,58 @@ export function bookletLabel(start) {
 
 // Usage of one booklet: how many sheets are encoded and which numbers are missing
 // (missing = unused numbers up to the highest encoded sheet in that booklet).
-export function bookletStats(entries, start) {
+// `marks` (void / not used sheets found during review) are no longer counted as missing.
+export function bookletStats(entries, start, marks = []) {
     const nums = entries.map(e => Number(e.pr)).filter(n => bookletStart(n) === start);
     const used = new Set(nums);
+    const marked = new Set(marks.map(m => Number(m.pr)));
     const highest = nums.length ? Math.max(...nums) : start - 1;
     const missing = [];
-    for (let n = start; n <= highest; n++) if (!used.has(n)) missing.push(n);
+    for (let n = start; n <= highest; n++) if (!used.has(n) && !marked.has(n)) missing.push(n);
     return { start, end: start + BOOKLET_SIZE - 1, used: used.size, missing, complete: used.size === BOOKLET_SIZE };
+}
+
+// ---- Review: walk through every PR number of a booklet ----------------------------------
+// Each item is one PR number from the first sheet up to the highest one encoded or marked:
+//   type 'entry'   an encoded PR (checked = verified against the paper sheet)
+//   type 'mark'    a number the reviewer marked 'void' or 'unused'
+//   type 'missing' a number with no entry and no mark yet (the review stops on it)
+export function reviewSequence(entries, marks, start) {
+    const end = start + BOOKLET_SIZE - 1;
+    const byPr = new Map(entries.filter(e => bookletStart(e.pr) === start).map(e => [Number(e.pr), e]));
+    const markByPr = new Map(marks.filter(m => bookletStart(m.pr) === start).map(m => [Number(m.pr), m]));
+    const nums = [...byPr.keys(), ...markByPr.keys()];
+    if (!nums.length) return [];
+    const highest = Math.min(Math.max(...nums), end);
+    const seq = [];
+    for (let n = start; n <= highest; n++) {
+        if (byPr.has(n)) {
+            const entry = byPr.get(n);
+            seq.push({ pr: n, type: 'entry', entry, checked: !!entry.checkedAt, resolved: !!entry.checkedAt });
+        } else if (markByPr.has(n)) {
+            seq.push({ pr: n, type: 'mark', mark: markByPr.get(n), status: markByPr.get(n).status, resolved: true });
+        } else {
+            seq.push({ pr: n, type: 'missing', resolved: false });
+        }
+    }
+    return seq;
+}
+
+export function reviewProgress(seq) {
+    const entries = seq.filter(s => s.type === 'entry');
+    const checked = entries.filter(s => s.checked).length;
+    const marks = seq.filter(s => s.type === 'mark').length;
+    const missing = seq.filter(s => s.type === 'missing').length;
+    const times = [
+        ...entries.filter(s => s.checked).map(s => s.entry.checkedAt),
+        ...seq.filter(s => s.type === 'mark').map(s => s.mark.at || 0),
+    ];
+    return {
+        total: seq.length, entries: entries.length, checked, marks, missing,
+        unchecked: entries.length - checked,
+        done: seq.length > 0 && seq.every(s => s.resolved),
+        lastAt: times.length ? Math.max(...times) : 0,
+    };
 }
 
 export function bookletStarts(entries) {
@@ -132,9 +177,10 @@ export function paymentSplit(rows) {
     return out;
 }
 
-export function filterEntries(entries, { q = '', from = '', to = '', booklet = '' } = {}) {
+export function filterEntries(entries, { q = '', from = '', to = '', booklet = '', unchecked = false } = {}) {
     const needle = q.trim().toLowerCase();
     return entries.filter(e => {
+        if (unchecked && e.checkedAt) return false;
         if (booklet && bookletStart(e.pr) !== Number(booklet)) return false;
         if (from && e.date < from) return false;
         if (to && e.date > to) return false;
