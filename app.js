@@ -1250,6 +1250,85 @@ function fitPaper() {
 window.addEventListener("resize", fitPaper);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPaper);
 
+// ---- Cash count: count the actual money against the expected cash of the booklet ----
+const DENOMS = [
+    { key: "1000", value: 1000, label: "1,000 bill" }, { key: "500", value: 500, label: "500 bill" },
+    { key: "200", value: 200, label: "200 bill" }, { key: "100", value: 100, label: "100 bill" },
+    { key: "50", value: 50, label: "50 bill" }, { key: "20b", value: 20, label: "20 bill" },
+    { key: "20c", value: 20, label: "20 coin" }, { key: "10", value: 10, label: "10 coin" },
+    { key: "5", value: 5, label: "5 coin" }, { key: "1", value: 1, label: "1 coin" },
+    { key: "0.25", value: 0.25, label: "0.25 coin" }, { key: "0.10", value: 0.10, label: "0.10 coin" },
+    { key: "0.05", value: 0.05, label: "0.05 coin" }, { key: "0.01", value: 0.01, label: "0.01 coin" },
+];
+const cashKey = start => `pre_cashcount_${start}`;
+function loadCashCount(start) { try { return JSON.parse(localStorage.getItem(cashKey(start))) || {}; } catch { return {}; } }
+
+function cashCountHtml(start, expected) {
+    const saved = loadCashCount(start);
+    const rows = DENOMS.map(d => `
+        <tr><td>${money(d.value)} <span class="cc-kind">${d.label.split(" ")[1]}</span></td>
+            <td class="num"><input type="number" class="cc-in" data-denom="${d.key}" min="0" step="1" inputmode="numeric" value="${saved[d.key] || ""}" placeholder="0" aria-label="${esc(d.label)} count"></td>
+            <td class="num cc-amt">${money((Number(saved[d.key]) || 0) * d.value)}</td></tr>`).join("");
+    const counted = DENOMS.reduce((s, d) => round2(s + (Number(saved[d.key]) || 0) * d.value), 0);
+    const any = Object.keys(saved).length > 0;
+    const diff = round2(counted - expected);
+    return `
+        <table class="rs-table cc-table" data-expected="${expected}">
+            <thead>
+                <tr><th colspan="3" class="rs-title">CASH COUNT (actual money)</th></tr>
+                <tr><th>Denomination</th><th class="num">Count</th><th class="num">Amount</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+            <tfoot>
+                <tr><td colspan="2">TOTAL COUNTED</td><td class="num" id="ccTotal">${money(counted)}</td></tr>
+                <tr class="cc-expect"><td colspan="2">Expected cash (from PRs)</td><td class="num">${money(expected)}</td></tr>
+                <tr class="cc-diff"><td colspan="3" id="ccDiff" class="${!any ? "" : diff === 0 ? "ok" : diff > 0 ? "over" : "short"}">${ccMessage(any, diff)}</td></tr>
+            </tfoot>
+        </table>`;
+}
+function ccMessage(any, diff) {
+    return !any ? "Enter how many of each bill and coin you counted."
+        : diff === 0 ? "Balanced. The money matches the PRs."
+        : diff > 0 ? `Over by ${peso(diff)}` : `Short by ${peso(-diff)}`;
+}
+
+function updateCashCount() {
+    const table = $("rvCard").querySelector(".cc-table");
+    if (!table) return false;
+    const expected = Number(table.dataset.expected) || 0;
+    const counts = {};
+    let total = 0;
+    table.querySelectorAll(".cc-in").forEach(inp => {
+        const d = DENOMS.find(x => x.key === inp.dataset.denom);
+        const n = Math.max(0, Math.floor(Number(inp.value) || 0));
+        if (n) counts[d.key] = n;
+        total = round2(total + n * d.value);
+        inp.closest("tr").querySelector(".cc-amt").textContent = money(n * d.value);
+    });
+    localStorage.setItem(cashKey(rv.start), JSON.stringify(counts));
+    $("ccTotal").textContent = money(total);
+    const diff = round2(total - expected);
+    const any = Object.keys(counts).length > 0;
+    const el = $("ccDiff");
+    el.className = !any ? "" : diff === 0 ? "ok" : diff > 0 ? "over" : "short";
+    el.textContent = ccMessage(any, diff);
+    return any && diff === 0;
+}
+let ccWasBalanced = false;
+$("rvCard").addEventListener("input", ev => {
+    if (!ev.target.classList.contains("cc-in")) return;
+    const balanced = updateCashCount();
+    if (balanced && !ccWasBalanced) playCheckSound(true); // cute fanfare when the money matches
+    ccWasBalanced = balanced;
+});
+$("rvCard").addEventListener("keydown", ev => {
+    if (!ev.target.classList.contains("cc-in") || ev.key !== "Enter") return;
+    ev.preventDefault();
+    const ins = [...$("rvCard").querySelectorAll(".cc-in")];
+    const next = ins[ins.indexOf(ev.target) + 1];
+    if (next) next.focus(); else ev.target.blur();
+});
+
 // Booklet summary laid out like the paper tally sheet: CASH and ONLINE PAYMENT, items with QTY, price, total.
 function summaryHtml(bookEntries) {
     // The PR range is the whole booklet (e.g. 39851-39900), as on the tally sheet.
@@ -1267,7 +1346,7 @@ function summaryHtml(bookEntries) {
         </table>`;
     return `
         <div class="rs-head"><span class="rs-pr">PR No.: ${s.firstPr}-${s.lastPr}</span><span class="rs-date">Date: ${esc(s.dateRange)}</span></div>
-        <div class="rs-grid">${section("CASH", s.cash, "cash")}${section("ONLINE PAYMENT", s.online, "online")}</div>`;
+        <div class="rs-grid">${section("CASH", s.cash, "cash")}${section("ONLINE PAYMENT", s.online, "online")}${cashCountHtml(rv.start, s.cash.total)}</div>`;
 }
 
 function renderReviewSummary(seq, prog) {
