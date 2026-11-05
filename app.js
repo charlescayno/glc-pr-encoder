@@ -702,6 +702,16 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const reviewBadge = prog.entries
         ? `<span class="bk-badge ${verified ? "verified" : "partial"}" title="${prog.lastAt ? "Last checked " + esc(new Date(prog.lastAt).toLocaleString()) : "Nothing checked yet"}">${verified ? `<i class="ri-checkbox-circle-fill"></i> ${st.complete ? "Verified" : "All checked"}` : `Checked ${prog.checked}/${prog.entries}`}</span>`
         : "";
+    // Cash count status: tallied (counted money matches the PRs), off (counted but different) or not counted yet.
+    const cashSaved = loadCashCount(start);
+    const cashCounted = DENOMS.reduce((t, d) => round2(t + (Number(cashSaved[d.key]) || 0) * d.value), 0);
+    const cashExpected = bookletSummary(entries.filter(e => bookletStart(e.pr) === start)).cash.total;
+    const cashDiff = round2(cashCounted - cashExpected);
+    const cashBadge = !Object.keys(cashSaved).length
+        ? `<span class="bk-badge cc-none" title="Cash count not done yet. Open Review, go to the summary and count the cash."><i class="ri-calculator-line"></i> Cash not counted</span>`
+        : cashDiff === 0
+            ? `<span class="bk-badge cc-ok" title="Counted cash matches the PRs (${peso(cashExpected)})."><i class="ri-checkbox-circle-fill"></i> Cash tallied</span>`
+            : `<span class="bk-badge cc-off" title="Counted ${peso(cashCounted)}, expected ${peso(cashExpected)}."><i class="ri-error-warning-fill"></i> Cash ${cashDiff > 0 ? "over" : "short"} ${peso(Math.abs(cashDiff))}</span>`;
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
     const split = paymentSplit(rowsInBooklet);
@@ -723,6 +733,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                     <span class="bk-bar"><span style="width:${pct}%"></span></span>
                     ${status}
                     ${reviewBadge}
+                    ${cashBadge}
                     <button type="button" class="btn btn-sm ${locks.includes(start) ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${locks.includes(start) ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}"><i class="${locks.includes(start) ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i> ${locks.includes(start) ? "Locked" : "Lock"}</button>
                     <button type="button" class="btn btn-secondary btn-sm" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
                     ${missing}
