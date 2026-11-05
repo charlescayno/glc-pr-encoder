@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts } from "./logic.js";
 
 const entries = [
     { id: "pr_42751", pr: 42751, date: "2026-09-13", buyer: "Anonymous", mop: "", mopRef: "", items: [{ desc: "Book 1: One by One 4th Edition", qty: 2, price: 50 }] },
@@ -26,4 +26,17 @@ assert.equal(checkPr(entries, 42760).gap, true);
 assert.equal(checkPr(entries, 42757).gap, false);
 assert.equal(filterEntries(entries, { q: "real talk" }).length, 2);
 assert.equal(flatten(filterEntries(entries, { q: "real talk" })).at(-1).grand, 75 + 20 + 50); // whole PR is kept when any line matches
+// Booklets of 50 sheets: 42701-42750
+assert.equal(bookletStart(42701), 42701);
+assert.equal(bookletStart(42750), 42701);
+assert.equal(bookletStart(42751), 42751);
+assert.equal(bookletStart(42800), 42751);
+assert.equal(bookletStart(42801), 42801);
+assert.equal(bookletLabel(42701), "42701 - 42750");
+const bk = bookletStats([...entries, { id: "x", pr: 42760, items: [] }], 42751);
+assert.equal(bk.used, 7);
+assert.deepEqual(bk.missing, [42757, 42758, 42759]);
+assert.equal(bk.complete, false);
+assert.deepEqual(bookletStarts([...entries, { id: "y", pr: 42801, items: [] }]), [42751, 42801]);
+assert.equal(filterEntries([...entries, { id: "y", pr: 42801, date: "2026-09-14", items: [] }], { booklet: 42801 }).length, 1);
 console.log("all tests passed");

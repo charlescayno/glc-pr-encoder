@@ -225,6 +225,30 @@ input.invalid { border-color: var(--color-danger); }
 .search-bar { position: relative; flex: 1 1 260px; }
 .search-bar input { padding-left: 2.2rem; }
 .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--color-text-light); }
+.booklet-select { width: auto; min-width: 170px; }
+.hint { font-size: 0.72rem; font-weight: 500; color: var(--color-text-light); }
+
+/* --- PR booklet groups (50 sheets each) --- */
+tr.booklet-head { cursor: pointer; }
+tr.booklet-head > td {
+    padding: 0.6rem 0.75rem;
+    background: var(--color-bg-head);
+    border-top: 2px solid var(--color-primary);
+}
+tr.booklet-head:hover > td { background: var(--color-bg-hover); }
+.bk { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.9rem; }
+.bk strong { font-size: 0.95rem; }
+.bk-chevron { font-size: 1.2rem; color: var(--color-text-muted); }
+.bk-count { font-size: 0.8rem; color: var(--color-text-muted); }
+.bk-bar { width: 110px; height: 6px; background: var(--color-border); border-radius: 999px; overflow: hidden; }
+.bk-bar > span { display: block; height: 100%; background: var(--color-primary); }
+.bk-badge {
+    font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 999px;
+    background: var(--color-bg-surface); border: 1px solid var(--color-border); color: var(--color-text-muted);
+}
+.bk-badge.done { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.bk-missing { font-size: 0.78rem; color: var(--color-warning); font-weight: 500; }
+.bk-total { margin-left: auto; font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; }
 .inline-field { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--color-text-muted); }
 .inline-field input { width: auto; }
 

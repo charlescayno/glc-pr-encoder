@@ -3,7 +3,8 @@ import {
     getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
-    money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2
+    money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -199,6 +200,7 @@ function resetForm() {
     $("editBadge").classList.add("hidden");
     $("cancelEditBtn").classList.add("hidden");
     updatePrWarning();
+    updateBookletHint();
 }
 
 function startEdit(id) {
@@ -218,6 +220,7 @@ function startEdit(id) {
     $("editBadge").classList.remove("hidden");
     $("cancelEditBtn").classList.remove("hidden");
     updatePrWarning();
+    updateBookletHint();
     $("encoderCard").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -311,7 +314,7 @@ $("fDate").addEventListener("focus", () => $("fDate").select());
 $("dateToday").addEventListener("click", () => { setDate(todayISO()); localStorage.setItem(LS_LAST_DATE, todayISO()); });
 $("datePrev").addEventListener("click", () => shiftDate(-1));
 $("dateNext").addEventListener("click", () => shiftDate(1));
-$("fPr").addEventListener("input", updatePrWarning);
+$("fPr").addEventListener("input", () => { updatePrWarning(); updateBookletHint(); });
 $("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item-name").focus());
 
 // ---- Keyboard shortcuts ----
@@ -387,7 +390,9 @@ $("prForm").addEventListener("submit", ev => {
     const oldId = editingId;
     const wasEdit = !!editingId;
     persist(entry, oldId);
-    toast(wasEdit ? `PR #${pr} updated.` : `PR #${pr} added.`);
+    if (wasEdit) toast(`PR #${pr} updated.`);
+    else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is complete - next sheet starts a new booklet.`);
+    else toast(`PR #${pr} added.`);
     localStorage.setItem(LS_LAST_DATE, entry.date);
     if (!wasEdit) localStorage.setItem(LS_LAST_PR, String(pr));
     resetForm();
@@ -396,16 +401,65 @@ $("prForm").addEventListener("submit", ev => {
 
 // ---------- Output ----------
 function currentFilter() {
-    return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value };
+    return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value, booklet: $("bookletFilter").value };
 }
 function visibleRows() { return flatten(filterEntries(entries, currentFilter())); }
 
+// Booklets (50 sheets each) can be collapsed in the output table.
+const collapsedBooklets = new Set();
+
+function bookletHeaderHtml(start, rowsInBooklet) {
+    const st = bookletStats(entries, start);
+    const collapsed = collapsedBooklets.has(start);
+    const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
+    const pct = Math.round((st.used / BOOKLET_SIZE) * 100);
+    const shownMissing = st.missing.slice(0, 8).join(", ") + (st.missing.length > 8 ? `, +${st.missing.length - 8} more` : "");
+    const missing = st.missing.length
+        ? `<span class="bk-missing" title="Missing sheets: ${esc(st.missing.join(", "))}"><i class="ri-error-warning-line"></i> Missing ${st.missing.length}: ${esc(shownMissing)}</span>`
+        : "";
+    const status = st.complete ? `<span class="bk-badge done">Complete</span>` : `<span class="bk-badge">${BOOKLET_SIZE - st.used} left</span>`;
+    return `
+        <tr class="booklet-head" data-booklet="${start}" title="Click to ${collapsed ? "expand" : "collapse"}">
+            <td colspan="10">
+                <div class="bk">
+                    <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
+                    <strong>Booklet ${esc(bookletLabel(start))}</strong>
+                    <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
+                    <span class="bk-bar"><span style="width:${pct}%"></span></span>
+                    ${status}
+                    ${missing}
+                    <span class="bk-total">${peso(sales)}</span>
+                </div>
+            </td>
+        </tr>`;
+}
+
 function refresh() {
+    updateBookletOptions();
     const f = currentFilter();
     const shown = filterEntries(entries, f);
     const rows = flatten(shown);
     const body = $("outBody");
-    body.innerHTML = rows.map(r => `
+
+    const byBooklet = new Map();
+    rows.forEach(r => {
+        const b = bookletStart(r.pr);
+        if (!byBooklet.has(b)) byBooklet.set(b, []);
+        byBooklet.get(b).push(r);
+    });
+    let html = "";
+    let currentBooklet = null;
+    rows.forEach(r => {
+        const b = bookletStart(r.pr);
+        if (b !== currentBooklet) { currentBooklet = b; html += bookletHeaderHtml(b, byBooklet.get(b)); }
+        if (!collapsedBooklets.has(b)) html += rowHtml(r);
+    });
+    body.innerHTML = html;
+    afterRowsRendered(rows, shown, f);
+}
+
+function rowHtml(r) {
+    return `
         <tr class="${r.first ? "pr-first" : ""}">
             <td>${r.first ? esc(r.date) : ""}</td>
             <td class="pr-no">${r.first ? esc(r.pr) : ""}</td>
@@ -420,20 +474,50 @@ function refresh() {
                 <button class="btn btn-secondary btn-icon-only" data-edit="${esc(r.entry.id)}" title="Edit"><i class="ri-edit-line"></i></button>
                 <button class="btn btn-danger btn-icon-only" data-del="${esc(r.entry.id)}" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </div>` : ""}</td>
-        </tr>`).join("");
+        </tr>`;
+}
+
+function updateBookletOptions() {
+    const sel = $("bookletFilter");
+    const prev = sel.value;
+    const starts = bookletStarts(entries);
+    sel.innerHTML = `<option value="">All booklets</option>` +
+        starts.map(s => `<option value="${s}">Booklet ${esc(bookletLabel(s))}</option>`).join("");
+    sel.value = starts.includes(Number(prev)) ? prev : "";
+}
+
+function updateBookletHint() {
+    const pr = Number($("fPr").value);
+    const el = $("bookletHint");
+    if (!(pr > 0)) { el.textContent = ""; return; }
+    const st = bookletStats(entries.filter(e => e.id !== editingId), bookletStart(pr));
+    el.textContent = `Booklet ${bookletLabel(st.start)} - ${st.used}/${BOOKLET_SIZE} used`;
+}
+
+function afterRowsRendered(rows, shown, f) {
     $("emptyMsg").classList.toggle("hidden", rows.length > 0);
     $("emptyMsg").textContent = entries.length ? "No receipts match the filter." : "No receipts encoded yet.";
     const total = rows.length ? rows[rows.length - 1].grand : 0;
     $("valAmount").textContent = peso(total);
-    $("valSub").textContent = `${shown.length} receipt${shown.length === 1 ? "" : "s"}` + (f.q || f.from || f.to ? " (filtered)" : "");
+    $("valSub").textContent = `${shown.length} receipt${shown.length === 1 ? "" : "s"}` + (f.q || f.from || f.to || f.booklet ? " (filtered)" : "");
     const range = f.from || f.to ? `${f.from ? fmtDate(f.from) : "start"} to ${f.to ? fmtDate(f.to) : "latest"}` : "All dates";
-    $("printTitle").textContent = `PR Summary - ${range} - Total ${peso(total)}`;
+    const bk = f.booklet ? `Booklet ${bookletLabel(Number(f.booklet))} - ` : "";
+    $("printTitle").textContent = `PR Summary - ${bk}${range} - Total ${peso(total)}`;
     updatePrWarning();
+    updateBookletHint();
 }
 
 $("outBody").addEventListener("click", ev => {
     const b = ev.target.closest("button");
-    if (!b) return;
+    if (!b) {
+        const head = ev.target.closest("tr.booklet-head");
+        if (head) {
+            const s = Number(head.dataset.booklet);
+            if (collapsedBooklets.has(s)) collapsedBooklets.delete(s); else collapsedBooklets.add(s);
+            refresh();
+        }
+        return;
+    }
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {
         const e = entries.find(x => x.id === b.dataset.del);
@@ -444,9 +528,9 @@ $("outBody").addEventListener("click", ev => {
     }
 });
 
-["searchInput", "fromDate", "toDate"].forEach(id => $(id).addEventListener("input", refresh));
+["searchInput", "fromDate", "toDate", "bookletFilter"].forEach(id => $(id).addEventListener("input", refresh));
 $("clearFilterBtn").addEventListener("click", () => {
-    $("searchInput").value = ""; $("fromDate").value = ""; $("toDate").value = ""; refresh();
+    $("searchInput").value = ""; $("fromDate").value = ""; $("toDate").value = ""; $("bookletFilter").value = ""; refresh();
 });
 
 $("copyBtn").addEventListener("click", async () => {

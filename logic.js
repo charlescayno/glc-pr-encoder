@@ -30,9 +30,36 @@ export function sortEntries(entries) {
     return [...entries].sort((a, b) => Number(a.pr) - Number(b.pr));
 }
 
-export function filterEntries(entries, { q = '', from = '', to = '' } = {}) {
+// A PR booklet is 50 sheets: 42701-42750, 42751-42800, ...
+export const BOOKLET_SIZE = 50;
+
+export function bookletStart(pr) {
+    return Math.floor((Number(pr) - 1) / BOOKLET_SIZE) * BOOKLET_SIZE + 1;
+}
+
+export function bookletLabel(start) {
+    return `${start} - ${start + BOOKLET_SIZE - 1}`;
+}
+
+// Usage of one booklet: how many sheets are encoded and which numbers are missing
+// (missing = unused numbers up to the highest encoded sheet in that booklet).
+export function bookletStats(entries, start) {
+    const nums = entries.map(e => Number(e.pr)).filter(n => bookletStart(n) === start);
+    const used = new Set(nums);
+    const highest = nums.length ? Math.max(...nums) : start - 1;
+    const missing = [];
+    for (let n = start; n <= highest; n++) if (!used.has(n)) missing.push(n);
+    return { start, end: start + BOOKLET_SIZE - 1, used: used.size, missing, complete: used.size === BOOKLET_SIZE };
+}
+
+export function bookletStarts(entries) {
+    return [...new Set(entries.map(e => bookletStart(e.pr)))].sort((a, b) => a - b);
+}
+
+export function filterEntries(entries, { q = '', from = '', to = '', booklet = '' } = {}) {
     const needle = q.trim().toLowerCase();
     return entries.filter(e => {
+        if (booklet && bookletStart(e.pr) !== Number(booklet)) return false;
         if (from && e.date < from) return false;
         if (to && e.date > to) return false;
         if (!needle) return true;
@@ -104,6 +131,6 @@ export function checkPr(entries, pr, editingId = null) {
     const n = Number(pr);
     const duplicate = entries.some(e => Number(e.pr) === n && e.id !== editingId);
     const expected = nextPr(entries.filter(e => e.id !== editingId));
-    const gap = !duplicate && Number.isFinite(n) && n > expected;
+    const gap = !duplicate && Number.isFinite(n) && n > expected && entries.length > 0;
     return { duplicate, gap, expected };
 }

@@ -75,6 +75,7 @@
                         <label class="field">
                             <span>PR Number</span>
                             <input type="number" id="fPr" min="1" step="1" required>
+                            <small class="hint" id="bookletHint"></small>
                         </label>
                         <label class="field">
                             <span>Buyer</span>
@@ -135,6 +136,9 @@
                         <i class="ri-search-line search-icon"></i>
                         <input type="text" id="searchInput" placeholder="Search PR no., buyer, item, MOP...">
                     </div>
+                    <select id="bookletFilter" class="booklet-select" title="Show one PR booklet (50 sheets)">
+                        <option value="">All booklets</option>
+                    </select>
                     <label class="inline-field"><span>From</span><input type="date" id="fromDate"></label>
                     <label class="inline-field"><span>To</span><input type="date" id="toDate"></label>
                     <button class="btn btn-secondary" id="clearFilterBtn">Reset</button>
