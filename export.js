@@ -38,7 +38,7 @@ function headerLine(doc, s) {
 function sectionTable(doc, y, label, sec) {
     doc.autoTable({
         startY: y, margin: { left: 40, right: 40 }, theme: "grid",
-        head: [["Product Title", "QTY", "Selling Price", "Total"]],
+        head: [["Item Name", "QTY", "Selling Price", "Total"]],
         body: sec.rows.length ? sec.rows.map(r => [r.desc, qtyText(r.qty), money(r.price).replace(/\.00$/, ""), money(r.total)]) : [["None", "", "", ""]],
         foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
         headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, styles: BODY_STYLE,
@@ -129,13 +129,14 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         columnStyles: { 1: { halign: "right" } },
     });
     y = doc.lastAutoTable.finalY + 8;
-    if (y + 360 > 780) { doc.addPage(); y = 40; } // cash count + notes + signatures stay together
+    if (y + 420 > 780) { doc.addPage(); y = 40; } // cash count + notes + signatures stay together
     // Cash count breakdown: always printed; counts and amounts stay blank when nothing was counted.
     const counted = counts.filter(c => c.count > 0);
     doc.autoTable({
         startY: y, margin: { left: 30, right: 330 }, theme: "grid", styles: { ...BODY_STYLE, fontSize: 9, cellPadding: 2 },
         head: [["Cash Count", "Count", "Amount"]],
-        body: counts.map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? money(c.amount) : ""]),
+        // Only the denominations that were actually counted; if nothing was counted, the blank list is kept.
+        body: (counted.length ? counted : counts).map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? money(c.amount) : ""]),
         foot: [[{ content: "TOTAL COUNTED", colSpan: 2 }, counted.length ? money(round2(counted.reduce((t, c) => t + c.amount, 0))) : ""]],
         headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
         didParseCell: d => { if (d.section === "foot" && d.column.index === 2) d.cell.styles.halign = "right"; },
@@ -147,8 +148,8 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     y += 22;
     doc.setFontSize(10);
     doc.text(`Prepared By: ${preparedBy || ""}`, 30, y);
-    doc.text("Checked By:", 30, y + 22);
-    doc.text("Received By:", 30, y + 44);
+    doc.text("Checked By:", 30, y + 50);   // extra room between lines for signatures
+    doc.text("Received By:", 30, y + 100);
 }
 
 // XLSX with the tally sheet (cash, online, void, not used, cash count) and the full receipts table.
@@ -157,7 +158,7 @@ export async function downloadSummaryXlsx(s, bookEntries, counts) {
     const X = window.XLSX;
     const tally = [[`PR No.: ${s.firstPr}-${s.lastPr}`, "", "", `Date: ${s.dateRange}`], []];
     const block = (title, sec) => {
-        tally.push([title], ["Product Title", "QTY", "Selling Price", "Total"]);
+        tally.push([title], ["Item Name", "QTY", "Selling Price", "Total"]);
         sec.rows.forEach(r => tally.push([r.desc, r.qty, r.price, r.total]));
         tally.push(["TOTAL", "", "", sec.total], []);
     };
