@@ -64,6 +64,7 @@ export async function downloadTopSheet(s) {
 export async function downloadBookletSummary(s, bookEntries, counts, preparedBy) {
     const doc = await pdfDoc();
     const rows = flatten(bookEntries);
+    const online = rows.map(r => !!r.mop && r.mop.trim().toLowerCase() !== "cash");
     const body = rows.map(r => {
         const mop = r.first && r.mop && r.mop !== "Cash" ? r.mop : "";
         return [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.buyer : "", r.desc, qtyText(r.qty), money(r.price), money(r.total), money(r.grand), mop];
@@ -74,6 +75,10 @@ export async function downloadBookletSummary(s, bookEntries, counts, preparedBy)
         headStyles: HEAD_STYLE, styles: { ...BODY_STYLE, fontSize: 8, cellPadding: 2 },
         columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
         rowPageBreak: "avoid",
+        // Invoice / online payment receipts (every item row of the receipt) are highlighted blue.
+        didParseCell: d => {
+            if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
+        },
     });
     const need = 480;
     let y = doc.lastAutoTable.finalY + 14;
