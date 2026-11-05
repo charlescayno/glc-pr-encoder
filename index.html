@@ -46,6 +46,14 @@
         </header>
 
         <main class="app-main">
+            <div class="shortcuts no-print" aria-label="Keyboard shortcuts">
+                <span class="sc-title"><i class="ri-keyboard-line"></i> Shortcuts</span>
+                <span><kbd>Enter</kbd> next field</span>
+                <span><kbd>Alt</kbd> + <kbd>N</kbd> add item</span>
+                <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> add PR to output</span>
+                <span><kbd>Esc</kbd> cancel edit</span>
+            </div>
+
             <!-- Encoder -->
             <section class="card no-print" id="encoderCard">
                 <div class="card-head">
@@ -95,7 +103,7 @@
 
                     <div class="items-head">
                         <h3>Sold Items</h3>
-                        <button type="button" class="btn btn-secondary" id="addRowBtn"><i class="ri-add-line"></i> Add item</button>
+                        <button type="button" class="btn btn-secondary" id="addRowBtn" title="Add item (Alt+N)"><i class="ri-add-line"></i> Add item</button>
                     </div>
                     <div class="items-list" id="itemsList"></div>
                     <datalist id="catalogList"></datalist>
@@ -104,7 +112,7 @@
                         <div class="form-total">Receipt total: <strong id="formTotal">&#8369; 0.00</strong></div>
                         <div class="form-actions">
                             <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">Cancel edit</button>
-                            <button type="submit" class="btn btn-primary" id="submitBtn"><i class="ri-add-circle-line"></i> <span id="submitText">Add PR to output</span></button>
+                            <button type="submit" class="btn btn-primary" id="submitBtn" title="Add PR to output (Ctrl+Enter)"><i class="ri-add-circle-line"></i> <span id="submitText">Add PR to output</span></button>
                         </div>
                     </div>
                 </form>

@@ -164,6 +164,25 @@ input:focus, select:focus {
     border-color: var(--color-border-focus);
     box-shadow: 0 0 0 3px rgba(0, 158, 226, 0.15);
 }
+.shortcuts {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.1rem;
+    padding: 0.55rem 0.9rem;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 0.8rem; color: var(--color-text-muted);
+}
+.sc-title { font-weight: 600; color: var(--color-text-main); }
+kbd {
+    font-family: inherit; font-size: 0.72rem; font-weight: 600;
+    padding: 0.05rem 0.4rem;
+    background: var(--color-bg-head);
+    border: 1px solid var(--color-border);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text-main);
+}
+@media (max-width: 720px) { .shortcuts { display: none; } }
 .field-date { grid-column: span 2; }
 @media (max-width: 480px) { .field-date { grid-column: 1 / -1; } }
 .date-wrap { display: flex; gap: 0.3rem; align-items: center; }

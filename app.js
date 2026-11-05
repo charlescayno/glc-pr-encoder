@@ -138,6 +138,7 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     });
     $("itemsList").appendChild(row);
     updateFormTotal();
+    return row;
 }
 
 function readItems() {
@@ -278,11 +279,57 @@ $("dateToday").addEventListener("click", () => { setDate(todayISO()); localStora
 $("datePrev").addEventListener("click", () => shiftDate(-1));
 $("dateNext").addEventListener("click", () => shiftDate(1));
 $("fPr").addEventListener("input", updatePrWarning);
-$("addRowBtn").addEventListener("click", () => addItemRow());
+$("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item-name").focus());
+
+// ---- Keyboard shortcuts ----
+//  Enter       next field (after the last price, starts a new item row)
+//  Alt+N       add item row
+//  Ctrl+Enter  add PR to output (Cmd+Enter on Mac)
+//  Esc         cancel edit
+function formFields() {
+    const fixed = ["fDate", "fPr", "fBuyer", "fMop", "fRef"].map($).filter(el => el.offsetParent !== null);
+    const rows = [...$("itemsList").children].flatMap(r => [".item-name", ".item-qty", ".item-price"].map(s => r.querySelector(s)));
+    return [...fixed, ...rows];
+}
+document.addEventListener("keydown", ev => {
+    if (!$("catalogModal").classList.contains("hidden")) return;
+    const mod = ev.ctrlKey || ev.metaKey;
+    if (mod && ev.key === "Enter") {
+        ev.preventDefault();
+        $("prForm").requestSubmit();
+    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "n") {
+        ev.preventDefault();
+        addItemRow().querySelector(".item-name").focus();
+    } else if (ev.key === "Escape" && editingId) {
+        resetForm();
+    }
+});
+$("prForm").addEventListener("keydown", ev => {
+    if (ev.key !== "Enter" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const t = ev.target;
+    if (t.tagName !== "INPUT" && t.tagName !== "SELECT") return;
+    const fields = formFields();
+    const i = fields.indexOf(t);
+    if (i < 0) return;
+    const go = () => {
+        if (i === fields.length - 1) addItemRow().querySelector(".item-name").focus();
+        else fields[i + 1].focus();
+    };
+    if (t.classList.contains("item-name")) {
+        // Let the browser finish picking a suggestion from the list, but never submit.
+        suppressSubmit = true;
+        setTimeout(() => { suppressSubmit = false; go(); }, 0);
+    } else {
+        ev.preventDefault(); // plain Enter never submits by accident
+        go();
+    }
+});
 $("cancelEditBtn").addEventListener("click", resetForm);
 
+let suppressSubmit = false;
 $("prForm").addEventListener("submit", ev => {
     ev.preventDefault();
+    if (suppressSubmit) return;
     if (!updatePrWarning()) { toast("Duplicate PR number."); return; }
     completeYear();
     if (!getDate()) { toast("Enter a valid date (MM-DD-YYYY)."); $("fDate").focus(); return; }
