@@ -1,3 +1,4 @@
+import { downloadTopSheet, downloadBookletSummary, downloadSummaryXlsx } from "./export.js";
 import { markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -1425,6 +1426,27 @@ function summaryHtml(bookEntries) {
         <div class="rs-grid"><div class="rs-left">${section("CASH", s.cash, "cash")}${section("ONLINE PAYMENT", s.online, "online")}</div>${cashCountHtml(rv.start, s.cash.total)}</div>`;
 }
 
+// PDF / XLSX downloads of the verified booklet (see export.js).
+async function exportBooklet(kind) {
+    const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
+    const s = { ...bookletSummary(bookEntries), ...markSummary(marks, rv.start), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
+    const saved = loadCashCount(rv.start);
+    const counts = DENOMS.map(d => { const count = Number(saved[d.key]) || 0; return { value: d.value, count, amount: round2(count * d.value) }; });
+    try {
+        if (kind === "toppdf") await downloadTopSheet(s);
+        else if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
+        else {
+            const name = prompt("Prepared by:", localStorage.getItem("pre_preparedBy") || "Ynah Orgasan");
+            if (name === null) return;
+            localStorage.setItem("pre_preparedBy", name.trim());
+            await downloadBookletSummary(s, bookEntries, counts, name.trim());
+        }
+    } catch (err) {
+        console.error(err);
+        toast("Could not create the file. Check your internet connection and try again.");
+    }
+}
+
 function renderReviewSummary(seq, prog) {
     const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
     const rows = flatten(bookEntries);
@@ -1448,6 +1470,9 @@ function renderReviewSummary(seq, prog) {
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
     $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
         <button type="button" class="btn btn-secondary btn-lg" data-rv="copysummary"><i class="ri-file-copy-line"></i> Copy summary</button>
+        ${allDone ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="toppdf"><i class="ri-file-pdf-line"></i> TOP Sheet PDF</button>
+        <button type="button" class="btn btn-secondary btn-lg" data-rv="bookpdf"><i class="ri-file-pdf-line"></i> Booklet Summary PDF</button>
+        <button type="button" class="btn btn-secondary btn-lg" data-rv="xlsx"><i class="ri-file-excel-2-line"></i> Download XLSX</button>` : ""}
         <button type="button" class="btn btn-secondary btn-lg" data-rv="print"><i class="ri-printer-line"></i> Print</button>
         ${allDone ? "" : `<button type="button" class="btn btn-secondary btn-lg" data-rv="firstopen">Go to first open</button>`}
         <button type="button" class="btn btn-success btn-lg" data-rv="close">Done</button></div>`;
@@ -1479,6 +1504,7 @@ $("rvActions").addEventListener("click", ev => {
             navigator.clipboard.writeText(text).then(() => toast("Summary copied. Paste into Excel or Google Sheets."), () => toast("Could not copy."));
             break;
         }
+        case "toppdf": case "bookpdf": case "xlsx": exportBooklet(b.dataset.rv); break;
         case "print": document.body.classList.add("print-review"); window.print(); document.body.classList.remove("print-review"); break;
         case "firstopen": { const s = rvSeq().find(x => !x.resolved); if (s) { rv.pr = s.pr; rv.summary = false; renderReview(); } break; }
         case "close": closeReview(); break;

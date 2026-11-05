@@ -5,6 +5,7 @@ const PRECACHE_ASSETS = [
   './index.css',
   './app.js',
   './logic.js',
+  './export.js',
   './catalog.js',
   './manifest.json',
   './glc-logo.png',
