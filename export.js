@@ -57,7 +57,7 @@ export async function downloadTopSheet(s) {
     headerLine(doc, s);
     let y = sectionTable(doc, 60, "CASH", s.cash);
     sectionTable(doc, y + 8, "ONLINE PAYMENT", s.online);
-    save(doc, `TOP Sheet ${fileBase(s)}.pdf`);
+    save(doc, `${fileBase(s)} TOP Sheet.pdf`);
 }
 
 // Full booklet summary: every receipt row, cash/online totals, cash count and signature lines.
@@ -75,7 +75,7 @@ export async function downloadBookletSummary(s, bookEntries, counts, preparedBy)
         columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
         rowPageBreak: "avoid",
     });
-    const need = 330;
+    const need = 480;
     let y = doc.lastAutoTable.finalY + 14;
     if (y + need > 780) { doc.addPage(); y = 40; }
     doc.setFont("helvetica", "bold").setFontSize(10);
@@ -88,16 +88,17 @@ export async function downloadBookletSummary(s, bookEntries, counts, preparedBy)
         columnStyles: { 1: { halign: "right" } },
     });
     y = doc.lastAutoTable.finalY + 8;
-    const cc = counts.filter(c => c.count > 0);
-    if (cc.length) {
-        doc.autoTable({
-            startY: y, margin: { left: 30, right: 330 }, theme: "grid", styles: { ...BODY_STYLE, fontSize: 9, cellPadding: 2 },
-            body: cc.map(c => [money(c.value), c.count, money(c.amount)]),
-            foot: [[{ content: "", colSpan: 2 }, money(round2(cc.reduce((t, c) => t + c.amount, 0)))]],
-            footStyles: HEAD_STYLE, columnStyles: { 0: { halign: "right" }, 1: { halign: "right" }, 2: { halign: "right" } },
-        });
-        y = doc.lastAutoTable.finalY + 8;
-    }
+    // Cash count breakdown: always printed; counts and amounts stay blank when nothing was counted.
+    const counted = counts.filter(c => c.count > 0);
+    doc.autoTable({
+        startY: y, margin: { left: 30, right: 330 }, theme: "grid", styles: { ...BODY_STYLE, fontSize: 9, cellPadding: 2 },
+        head: [["Cash Count", "Count", "Amount"]],
+        body: counts.map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? money(c.amount) : ""]),
+        foot: [[{ content: "TOTAL COUNTED", colSpan: 2 }, counted.length ? money(round2(counted.reduce((t, c) => t + c.amount, 0))) : ""]],
+        headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
+        didParseCell: d => { if (d.section === "foot" && d.column.index === 2) d.cell.styles.halign = "right"; },
+    });
+    y = doc.lastAutoTable.finalY + 8;
     const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
     doc.setFont("helvetica", "normal").setFontSize(9);
     notes.forEach(n => { doc.text(n, 30, y + 8); y += 12; });
@@ -106,7 +107,7 @@ export async function downloadBookletSummary(s, bookEntries, counts, preparedBy)
     doc.text(`Prepared By: ${preparedBy || ""}`, 30, y);
     doc.text("Checked By:", 30, y + 22);
     doc.text("Received By:", 30, y + 44);
-    save(doc, `PR Booklet Summary ${fileBase(s)}.pdf`);
+    save(doc, `${fileBase(s)} PR Booklet Summary.pdf`);
 }
 
 // XLSX with the tally sheet (cash, online, void, not used, cash count) and the full receipts table.
@@ -139,5 +140,5 @@ export async function downloadSummaryXlsx(s, bookEntries, counts) {
     const wb = X.utils.book_new();
     X.utils.book_append_sheet(wb, ws1, "Booklet Summary");
     X.utils.book_append_sheet(wb, ws2, "Receipts");
-    X.writeFile(wb, `PR Booklet Summary ${fileBase(s)}.xlsx`);
+    X.writeFile(wb, `${fileBase(s)} PR Booklet Summary.xlsx`);
 }

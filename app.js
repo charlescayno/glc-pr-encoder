@@ -1437,7 +1437,7 @@ async function exportBooklet(kind) {
     const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
     const s = { ...bookletSummary(bookEntries), ...markSummary(marks, rv.start), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
     const saved = loadCashCount(rv.start);
-    const counts = DENOMS.map(d => { const count = Number(saved[d.key]) || 0; return { value: d.value, count, amount: round2(count * d.value) }; });
+    const counts = DENOMS.map(d => { const count = Number(saved[d.key]) || 0; return { value: d.value, kind: d.label.split(" ")[1], count, amount: round2(count * d.value) }; });
     try {
         if (kind === "toppdf") await downloadTopSheet(s);
         else if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
