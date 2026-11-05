@@ -684,3 +684,7 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 /* Item names in the color of their book cover */
 .item-c { color: var(--item-color); font-weight: 700; }
 [data-theme="dark"] .item-c { color: color-mix(in srgb, var(--item-color) 55%, #ffffff); } /* lighter shade so dark covers stay readable */
+
+/* New receipt form: item name field in the color of its book cover */
+.item-row input.item-name.item-c { color: var(--item-color); font-weight: 700; }
+[data-theme="dark"] .item-row input.item-name.item-c { color: color-mix(in srgb, var(--item-color) 55%, #ffffff); }

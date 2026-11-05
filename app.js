@@ -204,6 +204,13 @@ function catalogOptions() {
     $("catalogList").innerHTML = catalog.map(c => `<option value="${esc(c.desc)}" label="${esc(peso(c.price))}"></option>`).join("");
 }
 
+// Item name field in the color of its book cover (same colors as the output table); no color for other items.
+function tintItem(input) {
+    const c = itemColor(input.value);
+    input.classList.toggle("item-c", !!c);
+    if (c) input.style.setProperty("--item-color", c); else input.style.removeProperty("--item-color");
+}
+
 function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     const row = document.createElement("div");
     row.className = "item-row";
@@ -224,18 +231,20 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     name.addEventListener("input", () => {
         const hit = catalog.find(c => c.desc.toLowerCase() === name.value.trim().toLowerCase());
         if (hit) price.value = hit.price;
+        tintItem(name);
         showShortcutHint(name, hint);
         updateFormTotal();
     });
     // Shorthand is applied when you leave the field (Tab / click away) or press Enter.
-    name.addEventListener("change", () => { applyShortcut(name); showShortcutHint(name, hint); });
+    name.addEventListener("change", () => { applyShortcut(name); tintItem(name); showShortcutHint(name, hint); });
     name.addEventListener("blur", () => hint.classList.add("hidden"));
     qty.addEventListener("input", updateFormTotal);
     price.addEventListener("input", updateFormTotal);
     row.querySelector("button").addEventListener("click", () => {
-        if ($("itemsList").children.length > 1) row.remove(); else { name.value = ""; qty.value = 1; price.value = ""; }
+        if ($("itemsList").children.length > 1) row.remove(); else { name.value = ""; tintItem(name); qty.value = 1; price.value = ""; }
         updateFormTotal();
     });
+    tintItem(name);
     $("itemsList").appendChild(row);
     updateFormTotal();
     return row;
@@ -260,6 +269,7 @@ function applyShortcut(nameInput) {
     if (r.status !== "one") return false;
     const row = nameInput.closest(".item-row");
     nameInput.value = r.items[0].desc;
+    tintItem(nameInput);
     row.querySelector(".item-price").value = r.items[0].price;
     updateFormTotal();
     return true;
