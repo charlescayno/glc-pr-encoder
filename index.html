@@ -85,6 +85,39 @@
                 <form id="prForm" autocomplete="off">
                     <div class="rcpt">
                         <div class="rcpt-top">
+<div class="pay-box">
+                            <div class="pay-title">FORM OF PAYMENT</div>
+                            <div class="pay-grid">
+                                <label class="field">
+                                    <span>MOP</span>
+                                    <select id="fMop" title="Alt+C Cash, Alt+I Invoice">
+                                        <option value="Cash" selected>Cash</option>
+                                        <option value="Invoice">Invoice</option>
+                                        <option>GCash</option>
+                                        <option>Maya</option>
+                                        <option>Bank Transfer</option>
+                                        <option>Check</option>
+                                        <option>Other</option>
+                                    </select>
+                                </label>
+                                <label class="field hidden" id="refField">
+                                    <span id="refLabel">Invoice No.</span>
+                                    <input type="text" id="fRef" placeholder="e.g. 689746">
+                                </label>
+                                <div class="field split-toggle">
+                                    <span>Special case</span>
+                                    <button type="button" class="btn btn-secondary" id="splitBtn" title="Part cash, part online (Alt+S)"><i class="ri-split-cells-horizontal"></i> <span id="splitBtnText">Split payment</span></button>
+                                </div>
+                                <div class="field split-toggle">
+                                    <span>Cancelled / blank sheet</span>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-secondary" id="voidBtn" title="This PR number was cancelled (Alt+V)"><i class="ri-forbid-line"></i> Void</button>
+                                        <button type="button" class="btn btn-secondary" id="unusedBtn" title="This PR number was not used or skipped (Alt+U)"><i class="ri-file-unknow-line"></i> Not used</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                             <div class="rcpt-right">
                                 <div class="rcpt-title">PROVISIONAL RECEIPT</div>
                                 <label class="field field-pr">
@@ -141,38 +174,6 @@
                     </div>
 
                         <div class="rcpt-bottom">
-                            <div class="pay-box">
-                            <div class="pay-title">FORM OF PAYMENT</div>
-                            <div class="pay-grid">
-                                <label class="field">
-                                    <span>MOP</span>
-                                    <select id="fMop" title="Alt+C Cash, Alt+I Invoice">
-                                        <option value="Cash" selected>Cash</option>
-                                        <option value="Invoice">Invoice</option>
-                                        <option>GCash</option>
-                                        <option>Maya</option>
-                                        <option>Bank Transfer</option>
-                                        <option>Check</option>
-                                        <option>Other</option>
-                                    </select>
-                                </label>
-                                <label class="field hidden" id="refField">
-                                    <span id="refLabel">Invoice No.</span>
-                                    <input type="text" id="fRef" placeholder="e.g. 689746">
-                                </label>
-                                <div class="field split-toggle">
-                                    <span>Special case</span>
-                                    <button type="button" class="btn btn-secondary" id="splitBtn" title="Part cash, part online (Alt+S)"><i class="ri-split-cells-horizontal"></i> <span id="splitBtnText">Split payment</span></button>
-                                </div>
-                                <div class="field split-toggle">
-                                    <span>Cancelled / blank sheet</span>
-                                    <div class="btn-group">
-                                        <button type="button" class="btn btn-secondary" id="voidBtn" title="This PR number was cancelled (Alt+V)"><i class="ri-forbid-line"></i> Void</button>
-                                        <button type="button" class="btn btn-secondary" id="unusedBtn" title="This PR number was not used or skipped (Alt+U)"><i class="ri-file-unknow-line"></i> Not used</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                             <div class="form-actions">
                                 <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">Cancel edit</button>
                                 <button type="submit" class="btn btn-primary" id="submitBtn" title="Add PR to output (Ctrl+Enter)"><i class="ri-add-circle-line"></i> <span id="submitText">Add PR to output</span></button>

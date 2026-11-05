@@ -712,8 +712,8 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .total-box { display: flex; justify-content: flex-end; align-items: baseline; gap: 1.2rem; padding-top: 0.6rem; border-top: 2px solid var(--rc-teal); }
 .total-box span { font-weight: 800; font-size: 0.85rem; letter-spacing: 0.03em; }
 .total-box strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
-.rcpt-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
-.pay-box { flex: 1 1 560px; max-width: 720px; border: 2px solid var(--rc-teal); border-radius: 0.3rem; overflow: hidden; }
+.rcpt-bottom { display: flex; justify-content: flex-end; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.pay-box { flex: 1 1 460px; max-width: 640px; border: 2px solid var(--rc-teal); border-radius: 0.3rem; overflow: hidden; }
 .pay-title { background: var(--rc-teal); color: #fff; font-weight: 700; font-size: 0.8rem; padding: 0.3rem 0.7rem; letter-spacing: 0.03em; }
 .pay-grid { display: grid; grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1fr) minmax(210px, 1.3fr); gap: 0.7rem; padding: 0.7rem; }
 @media (max-width: 720px) { .rcpt-right { align-items: flex-start; margin-left: 0; } .rcpt-right .hint { text-align: left; } }
@@ -746,3 +746,19 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .cal-day.sel { background: var(--color-primary); color: #fff; font-weight: 700; }
 .cal-foot { display: flex; justify-content: center; margin-top: 0.5rem; }
 @media (max-width: 720px) { .cal-pop { right: auto; left: 0; } }
+
+#voidBtn, #unusedBtn { color: #b91c1c; border-color: #fca5a5; background: transparent; font-weight: 500; }
+#voidBtn:hover, #unusedBtn:hover { background: #fee2e2; border-color: #b91c1c; }
+[data-theme="dark"] #voidBtn, [data-theme="dark"] #unusedBtn { color: #fca5a5; border-color: #7f1d1d; }
+[data-theme="dark"] #voidBtn:hover, [data-theme="dark"] #unusedBtn:hover { background: #450a0a; }
+
+.items-list > .item-row:only-child > .btn-danger { visibility: hidden; }
+
+.rcpt-right .date-wrap input { width: 9.5rem; flex: none; }
+
+/* Dark mode tuning for the receipt-style form */
+[data-theme="dark"] #prForm { --rc-teal: #1f6f6c; }
+[data-theme="dark"] .rcpt-title, [data-theme="dark"] .rcpt-orgname { color: #5fd1cc; }
+[data-theme="dark"] .rcpt-right .field-pr > span, [data-theme="dark"] .rcpt-right .field-pr input { color: #f87171; }
+[data-theme="dark"] .total-box, [data-theme="dark"] .pay-box { border-color: #2a8d8a; }
+[data-theme="dark"] #voidBtn, [data-theme="dark"] #unusedBtn { background: transparent; }

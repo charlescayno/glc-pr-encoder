@@ -759,6 +759,7 @@ function markFromForm(status) {
     if (editingId) return toast("Finish or cancel the edit first.");
     if (isLocked(pr)) return lockedToast();
     if (entries.some(e => Number(e.pr) === pr)) return toast(`PR #${pr} already has a receipt. Delete it first if the sheet was cancelled.`);
+    if (!confirm(`Mark PR #${pr} as ${markLabel(status)}?`)) return;
     setMark(pr, status);
     localStorage.setItem(LS_LAST_PR, String(pr));
     toast(`PR #${pr} marked ${markLabel(status)}.`);
