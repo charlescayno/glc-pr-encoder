@@ -1178,7 +1178,8 @@ function receiptPaperHtml(e) {
     while (rows.length < 6) rows.push({ text: "", amt: "" });
     // Registered name on the paper: any non-cash payment (invoice, GCash, bank...) reads "Online Payment".
     const allCash = pays.every(p => !p.method || p.method === "Cash");
-    const regName = allCash ? `Cash - ${e.buyer || "Anonymous"}` : "Online Payment";
+    const named = (e.buyer || "").trim() && !/^an+onymous$/i.test(e.buyer.trim());
+    const regName = allCash ? `Cash - ${e.buyer || "Anonymous"}` : named ? `Online Payment - ${e.buyer.trim()}` : "Online Payment";
     const lines = rows.map(r => `<div class="pp-row"><span class="ink">${esc(r.text)}</span><span class="ink amt">${esc(r.amt)}</span></div>`).join("");
 
     return `
