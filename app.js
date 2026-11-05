@@ -1252,7 +1252,8 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPaper);
 
 // Booklet summary laid out like the paper tally sheet: CASH and ONLINE PAYMENT, items with QTY, price, total.
 function summaryHtml(bookEntries) {
-    const s = bookletSummary(bookEntries);
+    // The PR range is the whole booklet (e.g. 39851-39900), as on the tally sheet.
+    const s = { ...bookletSummary(bookEntries), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
     const qty = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
     const section = (title, sec, cls) => `
         <table class="rs-table ${cls}">
@@ -1319,7 +1320,7 @@ $("rvActions").addEventListener("click", ev => {
         case "unused": rvMark("unused"); break;
         case "later": rvEncodeLater(); break;
         case "copysummary": {
-            const text = summaryTSV(bookletSummary(entries.filter(e => bookletStart(e.pr) === rv.start)));
+            const text = summaryTSV({ ...bookletSummary(entries.filter(e => bookletStart(e.pr) === rv.start)), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 });
             navigator.clipboard.writeText(text).then(() => toast("Summary copied. Paste into Excel or Google Sheets."), () => toast("Could not copy."));
             break;
         }
