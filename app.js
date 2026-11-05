@@ -522,7 +522,6 @@ function completeYear() {
 $("fDate").addEventListener("blur", completeYear);
 $("fDate").addEventListener("keydown", ev => { if (ev.key === "Enter") completeYear(); });
 $("fDate").addEventListener("focus", () => $("fDate").select());
-$("dateToday").addEventListener("click", () => { setDate(todayISO()); localStorage.setItem(LS_LAST_DATE, todayISO()); });
 $("datePrev").addEventListener("click", () => shiftDate(-1));
 $("dateNext").addEventListener("click", () => shiftDate(1));
 
@@ -601,7 +600,6 @@ const cal = (() => {
     document.addEventListener("click", ev => { if (isOpen() && !ev.target.closest(".field-date")) close(); });
     $("datePrev").addEventListener("click", () => { if (isOpen()) close(); });
     $("dateNext").addEventListener("click", () => { if (isOpen()) close(); });
-    $("dateToday").addEventListener("click", () => { if (isOpen()) close(); });
     return { close };
 })();
 $("fPr").addEventListener("input", () => { updatePrWarning(); updateBookletHint(); });
