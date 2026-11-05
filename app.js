@@ -602,7 +602,7 @@ $("prForm").addEventListener("submit", ev => {
     persist(entry, oldId);
     if (marks.some(m => Number(m.pr) === pr)) clearMark(pr); // a real receipt replaces a void / not-used mark
     if (wasEdit) toast(`PR #${pr} updated.`);
-    else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is complete - next sheet starts a new booklet.`);
+    else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is fully encoded - next sheet starts a new booklet.`);
     else toast(`PR #${pr} added.`);
     localStorage.setItem(LS_LAST_DATE, entry.date);
     if (!wasEdit) localStorage.setItem(LS_LAST_PR, String(pr));
@@ -667,7 +667,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const missing = st.missing.length
         ? `<span class="bk-missing" title="Missing sheets: ${esc(st.missing.join(", "))}"><i class="ri-error-warning-line"></i> Missing ${st.missing.length}: ${esc(shownMissing)}</span>`
         : "";
-    const status = st.complete ? `<span class="bk-badge done">Complete</span>` : `<span class="bk-badge">${BOOKLET_SIZE - st.used} left</span>`;
+    const status = st.complete ? `<span class="bk-badge done" title="All 50 sheets are encoded. This does not mean they are checked yet.">All encoded</span>` : `<span class="bk-badge" title="Sheets not yet encoded">${BOOKLET_SIZE - st.used} to encode</span>`;
     return `
         <tr class="booklet-head" data-booklet="${start}" title="Click to ${collapsed ? "expand" : "collapse"}">
             <td colspan="10">
