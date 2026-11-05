@@ -86,12 +86,14 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
             if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
         },
     });
-    const need = 480;
+    // "NOTHING FOLLOWS" sits right under the last row; the totals, cash count and signatures move to the next page if they do not fit.
     let y = doc.lastAutoTable.finalY + 14;
-    if (y + need > 780) { doc.addPage(); y = 40; }
+    if (y > 770) { doc.addPage(); y = 40; }
     doc.setFont("helvetica", "bold").setFontSize(10);
     doc.text("*** NOTHING FOLLOWS ***", 306, y, { align: "center" });
     y += 22;
+    const need = 480;
+    if (y + need > 780) { doc.addPage(); y = 40; }
     const sales = round2(s.cash.total + s.online.total);
     doc.autoTable({
         startY: y, margin: { left: 30, right: 330 }, theme: "plain", styles: { fontSize: 10, fontStyle: "bold", textColor: 0 },
