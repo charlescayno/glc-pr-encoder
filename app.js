@@ -1347,8 +1347,7 @@ const DENOMS = [
     { key: "50", value: 50, label: "50 bill" }, { key: "20b", value: 20, label: "20 bill" },
     { key: "20c", value: 20, label: "20 coin" }, { key: "10", value: 10, label: "10 coin" },
     { key: "5", value: 5, label: "5 coin" }, { key: "1", value: 1, label: "1 coin" },
-    { key: "0.25", value: 0.25, label: "0.25 coin" }, { key: "0.10", value: 0.10, label: "0.10 coin" },
-    { key: "0.05", value: 0.05, label: "0.05 coin" }, { key: "0.01", value: 0.01, label: "0.01 coin" },
+    { key: "0.25", value: 0.25, label: "0.25 coin" },
 ];
 const cashKey = start => `pre_cashcount_${start}`;
 function loadCashCount(start) { try { return JSON.parse(localStorage.getItem(cashKey(start))) || {}; } catch { return {}; } }
