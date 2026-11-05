@@ -956,6 +956,7 @@ function rvCurrent(seq = rvSeq()) { return seq.find(s => s.pr === rv.pr) || seq[
 
 function openReview(start, fromFirst = false) {
     rv = { start, pr: null, summary: false };
+    rvStreak = 0;
     const seq = rvSeq();
     if (!seq.length) { rv = null; toast("Nothing to review in this booklet yet."); return; }
     const first = fromFirst ? seq[0] : seq.find(s => !s.resolved);
@@ -983,15 +984,59 @@ function rvGo(delta) {
     renderReview();
 }
 
+// ---- Cute check sounds (Web Audio, no files): a rising pentatonic "pling" as you check PRs in a row ----
+const LS_SOUND = "pre_sound";
+let soundOn = localStorage.getItem(LS_SOUND) !== "off";
+let audioCtx = null;
+let rvStreak = 0;
+function tone(freq, start, dur, vol = 0.18, type = "sine") {
+    const t0 = audioCtx.currentTime + start;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function playCheckSound(done) {
+    if (!soundOn) return;
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        const scale = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51]; // C major pentatonic, rising
+        const f = scale[Math.min(rvStreak, scale.length - 1)];
+        tone(f, 0, 0.22); tone(f * 2, 0.06, 0.2, 0.08, "triangle"); // soft pling with a sparkle on top
+        if (done) [523.25, 659.25, 783.99, 1046.5, 1318.51].forEach((n, i) => tone(n, 0.28 + i * 0.09, 0.3, 0.16)); // booklet done!
+    } catch { /* sound is optional */ }
+}
+function updateSoundBtn() {
+    $("rvSound").innerHTML = soundOn ? '<i class="ri-volume-up-line"></i>' : '<i class="ri-volume-mute-line"></i>';
+    $("rvSound").title = soundOn ? "Check sound on (click to mute)" : "Check sound off (click to turn on)";
+}
+$("rvSound").addEventListener("click", () => {
+    soundOn = !soundOn; localStorage.setItem(LS_SOUND, soundOn ? "on" : "off"); updateSoundBtn();
+    if (soundOn) playCheckSound(false);
+});
+updateSoundBtn();
+
 function rvConfirm() {
     if (rv.summary) return;
     const s = rvCurrent();
-    if (s.type === "entry") { if (!s.checked) setChecked(s.entry.id, true); rvGo(1); }
+    if (s.type === "entry") {
+        if (!s.checked) {
+            setChecked(s.entry.id, true);
+            playCheckSound(reviewProgress(rvSeq()).done);
+            rvStreak++;
+        }
+        rvGo(1);
+    }
     else if (s.type === "mark") rvGo(1);
     else toast(`PR #${s.pr} has no entry. Mark it first: V void, N not used, L encode later.`);
 }
 
 function rvUncheck() {
+    rvStreak = 0;
     if (rv.summary) return;
     const s = rvCurrent();
     if (s.type === "entry" && s.checked) { setChecked(s.entry.id, false); renderReview(); }
