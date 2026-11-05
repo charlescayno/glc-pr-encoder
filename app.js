@@ -1,4 +1,4 @@
-import { downloadBookletPdf, downloadSummaryXlsx } from "./export.js";
+import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
 import { markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -1450,11 +1450,17 @@ async function exportBooklet(kind) {
     const s = { ...bookletSummary(bookEntries), ...markSummary(marks, rv.start), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
     const saved = loadCashCount(rv.start);
     const counts = DENOMS.map(d => { const count = Number(saved[d.key]) || 0; return { value: d.value, kind: d.label.split(" ")[1], count, amount: round2(count * d.value) }; });
+    // The view tab must be opened right on the click, before the async work, or popup blockers stop it.
+    const win = kind === "viewpdf" ? window.open("", "_blank") : null;
+    if (win) win.document.write("<title>PR Booklet</title><p style='font-family:sans-serif'>Preparing PDF...</p>");
     try {
         if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
+        else if (kind === "viewpdf") await viewBookletPdf(s, bookEntries, counts, PREPARED_BY, win);
+        else if (kind === "printpdf") await printBookletPdf(s, bookEntries, counts, PREPARED_BY);
         else await downloadBookletPdf(s, bookEntries, counts, PREPARED_BY);
     } catch (err) {
         console.error(err);
+        if (win) win.close();
         toast("Could not create the file. Check your internet connection and try again.");
     }
 }
@@ -1482,7 +1488,8 @@ function renderReviewSummary(seq, prog) {
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
     $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
         <button type="button" class="btn btn-secondary btn-lg" data-rv="copysummary"><i class="ri-file-copy-line"></i> Copy summary</button>
-        ${allDone ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="pdf"><i class="ri-file-pdf-line"></i> Download PDF</button>
+        ${allDone ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="viewpdf"><i class="ri-eye-line"></i> View PDF</button>
+        <button type="button" class="btn btn-secondary btn-lg" data-rv="pdf"><i class="ri-file-pdf-line"></i> Download PDF</button>
         <button type="button" class="btn btn-secondary btn-lg" data-rv="xlsx"><i class="ri-file-excel-2-line"></i> Download XLSX</button>` : ""}
         <button type="button" class="btn btn-secondary btn-lg" data-rv="print"><i class="ri-printer-line"></i> Print</button>
         ${allDone ? "" : `<button type="button" class="btn btn-secondary btn-lg" data-rv="firstopen">Go to first open</button>`}
@@ -1515,8 +1522,8 @@ $("rvActions").addEventListener("click", ev => {
             navigator.clipboard.writeText(text).then(() => toast("Summary copied. Paste into Excel or Google Sheets."), () => toast("Could not copy."));
             break;
         }
-        case "pdf": case "xlsx": exportBooklet(b.dataset.rv); break;
-        case "print": document.body.classList.add("print-review"); window.print(); document.body.classList.remove("print-review"); break;
+        case "pdf": case "viewpdf": case "xlsx": exportBooklet(b.dataset.rv); break;
+        case "print": exportBooklet("printpdf"); break; // prints the same PDF as Download PDF
         case "firstopen": { const s = rvSeq().find(x => !x.resolved); if (s) { rv.pr = s.pr; rv.summary = false; renderReview(); } break; }
         case "close": closeReview(); break;
     }

@@ -59,12 +59,40 @@ function drawTopSheet(doc, s) {
 }
 
 // One PDF (letter size): page 1 is the TOP sheet, the following pages are the booklet summary.
-export async function downloadBookletPdf(s, bookEntries, counts, preparedBy) {
+async function buildBookletPdf(s, bookEntries, counts, preparedBy) {
     const doc = await pdfDoc();
     drawTopSheet(doc, s);
     doc.addPage();
     drawBookletSummary(doc, s, bookEntries, counts, preparedBy);
-    save(doc, `${fileBase(s)} PR Booklet.pdf`);
+    return doc;
+}
+
+export async function downloadBookletPdf(s, bookEntries, counts, preparedBy) {
+    save(await buildBookletPdf(s, bookEntries, counts, preparedBy), `${fileBase(s)} PR Booklet.pdf`);
+}
+
+// Prints the PDF (same pages as the download) through a hidden frame, so the printout matches the PDF exactly.
+export async function printBookletPdf(s, bookEntries, counts, preparedBy) {
+    const doc = await buildBookletPdf(s, bookEntries, counts, preparedBy);
+    const url = URL.createObjectURL(new Blob([doc.output("arraybuffer")], { type: "application/pdf" }));
+    const frame = document.createElement("iframe");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+    frame.onload = () => {
+        try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+        catch { window.open(url, "_blank"); } // browser would not print inside a frame: open it so Ctrl+P works
+        setTimeout(() => { frame.remove(); URL.revokeObjectURL(url); }, 60 * 1000);
+    };
+    frame.src = url;
+    document.body.appendChild(frame);
+}
+
+// Opens the PDF in a new browser tab (no download). `win` is a tab opened on the click, so popup blockers allow it.
+export async function viewBookletPdf(s, bookEntries, counts, preparedBy, win) {
+    const doc = await buildBookletPdf(s, bookEntries, counts, preparedBy);
+    const blob = new Blob([doc.output("arraybuffer")], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    if (win && !win.closed) win.location.href = url; else window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
 }
 
 // Booklet summary: every receipt row, cash/online totals, cash count and signature lines.
