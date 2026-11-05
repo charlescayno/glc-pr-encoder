@@ -1,5 +1,5 @@
 import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
-import { markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
+import { itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
@@ -848,13 +848,19 @@ function markRowHtml(r) {
         </tr>`;
 }
 
+// Item name in the color of its book cover (see itemColor in logic.js).
+function itemNameHtml(desc) {
+    const c = itemColor(desc);
+    return c ? `<span class="item-c" style="--item-color:${c}">${esc(desc)}</span>` : esc(desc);
+}
+
 function rowHtml(r) {
     return `
         <tr class="${r.first ? "pr-first" : ""}">
             <td>${r.first ? esc(r.date) : ""}</td>
             <td class="pr-no">${r.first ? esc(r.pr) + (r.entry.checkedAt ? `<i class="ri-checkbox-circle-fill chk" title="Checked ${esc(new Date(r.entry.checkedAt).toLocaleString())}"></i>` : "") : ""}</td>
             <td>${r.first ? esc(r.buyer) : ""}</td>
-            <td>${esc(r.desc)}</td>
+            <td>${itemNameHtml(r.desc)}</td>
             <td class="num">${r.qty}</td>
             <td class="num">${money(r.price)}</td>
             <td class="num">${money(r.total)}</td>
@@ -1519,7 +1525,7 @@ function summaryHtml(bookEntries) {
                 <tr><th colspan="4" class="rs-title">${title}</th></tr>
                 <tr><th>Item</th><th class="num">QTY</th><th class="num">Selling Price</th><th class="num">Total</th></tr>
             </thead>
-            <tbody>${sec.rows.length ? sec.rows.map(r => `<tr><td>${esc(r.desc)}</td><td class="num">${qty(r.qty)}</td><td class="num">${money(r.price)}</td><td class="num">${money(r.total)}</td></tr>`).join("")
+            <tbody>${sec.rows.length ? sec.rows.map(r => `<tr><td>${itemNameHtml(r.desc)}</td><td class="num">${qty(r.qty)}</td><td class="num">${money(r.price)}</td><td class="num">${money(r.total)}</td></tr>`).join("")
                 : `<tr><td colspan="4" class="rs-none">None</td></tr>`}</tbody>
             <tfoot><tr><td colspan="3">TOTAL</td><td class="num">${money(sec.total)}</td></tr></tfoot>
         </table>`;

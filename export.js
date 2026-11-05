@@ -1,5 +1,5 @@
 // Booklet exports: TOP Sheet PDF, PR Booklet Summary PDF and XLSX. Libraries are bundled in ./vendor and load on demand (cached for offline use).
-import { flatten, money, round2 } from "./logic.js";
+import { flatten, money, round2, itemColor } from "./logic.js";
 
 const LIBS = {
     jspdf: "./vendor/jspdf.umd.min.js",
@@ -29,6 +29,13 @@ function save(doc, name) { doc.save(name); }
 const HEAD_STYLE = { fillColor: [235, 235, 235], textColor: 0, fontStyle: "bold", lineColor: 0, lineWidth: 0.5 };
 // Everything inside the bordered tables (header, body, footer) is centered horizontally and vertically in its cell.
 const centerHead = d => { d.cell.styles.halign = "center"; d.cell.styles.valign = "middle"; };
+// Item names are printed in the color of their book cover.
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function colorItem(d, col) {
+    if (d.section !== "body" || d.column.index !== col) return;
+    const c = itemColor(d.cell.raw);
+    if (c) { d.cell.styles.textColor = hexRgb(c); d.cell.styles.fontStyle = "bold"; }
+}
 const BODY_STYLE = { textColor: 0, lineColor: 0, lineWidth: 0.5, fontSize: 10 };
 
 function headerLine(doc, s) {
@@ -48,7 +55,7 @@ function sectionTable(doc, y, label, sec) {
         foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
         headStyles: { ...HEAD_STYLE, halign: "center" }, footStyles: HEAD_STYLE, styles: BODY_STYLE,
         columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
-        didParseCell: centerHead,
+        didParseCell: d => { centerHead(d); colorItem(d, 0); },
     });
     return doc.lastAutoTable.finalY + 20;
 }
@@ -113,7 +120,7 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         rowPageBreak: "avoid",
         // Invoice / online payment receipts (every item row of the receipt) are highlighted blue.
         didParseCell: d => {
-            centerHead(d);
+            centerHead(d); colorItem(d, 3);
             if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
         },
     });
@@ -194,6 +201,12 @@ function writeTable(ws, row, col, head, body, foot, fmts = [], fills = []) {
     return end + 1;
 }
 
+// Item name in the color of its book cover (bold), same as on screen and in the PDF.
+function colorItemCell(cell, desc) {
+    const c = itemColor(desc);
+    if (c) cell.font = { bold: true, color: { argb: "FF" + c.slice(1).toUpperCase() } };
+}
+
 function cashCountRows(counts) {
     const counted = counts.filter(c => c.count > 0);
     return {
@@ -219,9 +232,11 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
     for (const [label, sec] of [["CASH", s.cash], ["ONLINE PAYMENT", s.online]]) {
         top.getCell(r, 1).value = label;
         top.getCell(r, 1).font = { bold: true, size: 11 };
+        const firstBody = r + 2; // label row r, header row r+1, items start at r+2
         r = writeTable(top, r + 1, 1, ["Sold Item", "QTY", "Selling Price", "Total"],
             sec.rows.length ? sec.rows.map(x => [x.desc, x.qty, x.price, x.total]) : [["None", "", "", ""]],
             { values: ["TOTAL", "", "", sec.total], span: 3 }, [null, QTY, NUM, NUM]) + 1;
+        sec.rows.forEach((x, i) => colorItemCell(top.getCell(firstBody + i, 1), x.desc));
     }
 
     // ---- Sheet 2: PR Booklet ----
@@ -234,6 +249,7 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
     const fills = rows.map(x => (!!x.mop && x.mop.trim().toLowerCase() !== "cash") ? BLUE : null);
     r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
         [null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
+    rows.forEach((x, i) => colorItemCell(bk.getCell(2 + i, 4), x.desc));
     bk.getCell(r, 1).value = "*** NOTHING FOLLOWS ***";
     bk.mergeCells(r, 1, r, 9);
     bk.getCell(r, 1).font = { bold: true };

@@ -426,3 +426,17 @@ export function markSummary(marks, start) {
     const v = pick('void'), u = pick('unused');
     return { void: v, unused: u, voidText: compressRanges(v), unusedText: compressRanges(u) };
 }
+
+// Book cover colors, so every item name can be shown in the color of its book (null = no special color).
+const BOOK_COLORS = {
+    1: '#C9A21B', 2: '#5E9A27', 3: '#A8174F', 4: '#0A6CB8', 5: '#D9701E', 6: '#4A2D63',
+    7: '#11788A', 9: '#0B7A5C', 10: '#A85A10', 11: '#5A1818', 12: '#12304F',
+};
+export function itemColor(desc) {
+    const s = String(desc || '');
+    const m = /\bbook\s*(\d+)\b/i.exec(s);
+    if (m) return BOOK_COLORS[Number(m[1])] || null;
+    if (/gospel\s*tract/i.test(s)) return '#1B8EA0';
+    if (/life\s*goals/i.test(s)) return '#6B7280';
+    return null;
+}

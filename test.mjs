@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -163,5 +163,10 @@ assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shor
 assert.equal(compressRanges([42750,42746,42747,42748,42703]), "42703, 42746-42748, 42750");
 { const m = markSummary([{ pr: 42703, status: "void" }, { pr: 42749, status: "unused" }, { pr: 42750, status: "unused" }, { pr: 42801, status: "void" }], 42701);
   assert.equal(m.voidText, "42703"); assert.equal(m.unusedText, "42749-42750"); assert.equal(m.void.length, 1, "other booklets excluded"); }
+assert.equal(itemColor("GLC Book 4: CCF DNA"), "#0A6CB8", "book 4 is blue");
+assert.equal(itemColor("Book 11: Spiritual Warfare"), "#5A1818", "book 11 is maroon");
+assert.equal(itemColor("GLC Book 1: Filipino One by One"), itemColor("GLC Book 1: One by One"), "same book, same color");
+assert.equal(itemColor("Gospel Tracts English (New)"), "#1B8EA0", "tracts are teal");
+assert.equal(itemColor("PCS Card"), null, "no color for other items");
 console.log("all tests passed");
 

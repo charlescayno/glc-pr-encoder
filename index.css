@@ -655,3 +655,32 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .export-menu { position: absolute; right: 0; bottom: calc(100% + 0.4rem); min-width: 13rem; z-index: 5; display: flex; flex-direction: column; padding: 0.3rem; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 0.6rem; box-shadow: var(--shadow-md); }
 .export-menu button { display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem 0.8rem; border: 0; background: none; color: var(--color-text-main); font: inherit; text-align: left; border-radius: 0.4rem; cursor: pointer; }
 .export-menu button:hover, .export-menu button:focus-visible { background: var(--color-bg-hover); }
+
+/* Review action buttons: bold and colored so they are easy to spot */
+.rv-actions .btn { font-weight: 700; }
+.rv-actions .btn i { font-size: 1.1em; }
+.rv-actions [data-rv="back"], .rv-actions [data-rv="skip"] { border: 2px solid var(--color-primary); color: var(--color-primary); }
+.rv-actions [data-rv="edit"] { border: 2px solid #7c3aed; color: #7c3aed; }
+.rv-actions [data-rv="uncheck"] { border: 2px solid var(--color-warning); color: #b45309; }
+.rv-actions [data-rv="summary"] { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.rv-actions [data-rv="summary"]:hover { background: #6d28d9; border-color: #6d28d9; }
+.rv-actions [data-rv="exportmenu"] { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.rv-actions [data-rv="exportmenu"]:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
+.rv-actions [data-rv="firstopen"] { background: var(--color-warning); border-color: var(--color-warning); color: #1f2937; }
+.rv-actions [data-rv="firstopen"]:hover { filter: brightness(0.95); }
+.rv-actions [data-rv="confirm"], .rv-actions [data-rv="close"] { box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35); }
+.rv-actions [data-rv="back"]:disabled { border-color: var(--color-border); color: var(--color-text-light); }
+[data-theme="dark"] .rv-actions [data-rv="edit"] { color: #a78bfa; border-color: #a78bfa; }
+[data-theme="dark"] .rv-actions [data-rv="uncheck"] { color: #fbbf24; }
+/* Export menu items: bold with a colored icon each */
+.export-menu button { font-weight: 700; }
+.export-menu [data-rv="copysummary"] i { color: var(--color-primary); }
+.export-menu [data-rv="print"] i { color: #64748b; }
+.export-menu [data-rv="viewpdf"] i { color: #7c3aed; }
+.export-menu [data-rv="pdf"] i { color: #dc2626; }
+.export-menu [data-rv="xlsx"] i { color: #16a34a; }
+.export-menu button i { font-size: 1.2em; }
+
+/* Item names in the color of their book cover */
+.item-c { color: var(--item-color); font-weight: 700; }
+[data-theme="dark"] .item-c { color: color-mix(in srgb, var(--item-color) 55%, #ffffff); } /* lighter shade so dark covers stay readable */
