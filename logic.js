@@ -39,6 +39,37 @@ export function sortEntries(entries) {
     return [...entries].sort((a, b) => Number(a.pr) - Number(b.pr));
 }
 
+// Amount in words for the "Received the Amount of" line: 120 -> "One hundred twenty pesos only"
+const ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+    'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+function wordsBelow1000(n) {
+    const parts = [];
+    if (n >= 100) { parts.push(ONES[Math.floor(n / 100)] + ' hundred'); n %= 100; }
+    if (n >= 20) { parts.push(TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '')); }
+    else if (n > 0) parts.push(ONES[n]);
+    return parts.join(' ');
+}
+export function pesoWords(amount) {
+    const total = Math.round(Number(amount || 0) * 100);
+    let pesos = Math.floor(total / 100);
+    const cents = total % 100;
+    let words = '';
+    if (pesos === 0) words = 'zero';
+    else {
+        const scales = [[1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand'], [1, '']];
+        const out = [];
+        for (const [size, name] of scales) {
+            const chunk = Math.floor(pesos / size);
+            if (chunk > 0) { out.push(wordsBelow1000(chunk) + (name ? ' ' + name : '')); pesos %= size; }
+        }
+        words = out.join(' ');
+    }
+    const head = words.charAt(0).toUpperCase() + words.slice(1);
+    const unit = Math.floor(total / 100) === 1 ? 'peso' : 'pesos';
+    return cents ? `${head} ${unit} and ${String(cents).padStart(2, '0')}/100 only` : `${head} ${unit} only`;
+}
+
 // A PR booklet is 50 sheets: 42701-42750, 42751-42800, ...
 export const BOOKLET_SIZE = 50;
 

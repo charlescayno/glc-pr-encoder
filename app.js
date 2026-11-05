@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, paymentText, mopText, reviewSequence, reviewProgress
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -973,6 +973,65 @@ function finishReviewEdit(savedPr) {
     }
 }
 
+// A replica of the paper Provisional Receipt, filled in with what was encoded.
+function receiptPaperHtml(e) {
+    const total = entryTotal(e);
+    const pays = Array.isArray(e.payments) && e.payments.length
+        ? e.payments : [{ method: e.mop && e.mop !== "Split" ? e.mop : "Cash", amount: total, ref: e.mopRef || "" }];
+    const multi = pays.length > 1;
+    const hasCash = pays.some(p => !p.method || p.method === "Cash");
+    const check = pays.find(p => p.method === "Check");
+    const bank = pays.find(p => p.method === "Bank Transfer");
+    const online = pays.filter(p => p.method && !["Cash", "Check", "Bank Transfer"].includes(p.method));
+    const invoiceRef = online.map(p => `${p.method}${p.ref ? " " + p.ref : ""}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
+    const bankText = bank ? `Bank Transfer${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
+
+    const rows = e.items.map(i => ({ text: `${i.qty} pcs  ${i.desc}${i.price ? " @ " + money(i.price) : ""}`, amt: money(round2(i.qty * i.price)) }));
+    while (rows.length < 6) rows.push({ text: "", amt: "" });
+    const lines = rows.map(r => `<div class="pp-row"><span class="ink">${esc(r.text)}</span><span class="ink amt">${esc(r.amt)}</span></div>`).join("");
+
+    return `
+    <div class="paper" aria-label="Replica of the provisional receipt">
+        <div class="pp-head">
+            <div class="pp-logo">ccf</div>
+            <div class="pp-org">
+                <div class="pp-name">CHRIST'S COMMISSION FOUNDATION, INC.</div>
+                <div class="pp-addr">CCF Center, Ortigas East, Ortigas Avenue Corner C5 Road,<br>Brgy. Ugong Pasig City, Metro Manila, 1604<br>NON VAT Reg. TIN: 000-092-507-00000</div>
+            </div>
+            <div class="pp-title">
+                <div class="pp-pr">PROVISIONAL RECEIPT</div>
+                <div class="pp-no">N<sup>o</sup> <span>${esc(e.pr)}</span></div>
+            </div>
+        </div>
+        <div class="pp-date">Date: <span class="ink fill">${esc(fmtDate(e.date))}</span></div>
+        <div class="pp-bar">Received From:</div>
+        <div class="pp-field">Registered Name: <span class="ink fill">${esc(e.buyer)}</span></div>
+        <div class="pp-field">Business Address: <span class="ink fill"></span></div>
+        <div class="pp-field pp-tin">TIN <span class="ink fill"></span></div>
+        <div class="pp-bar center">Description of Transaction/Nature of Service</div>
+        <div class="pp-desc">${lines}</div>
+        <div class="pp-total"><span>TOTAL PAID AMOUNT</span><span class="ink amt">${money(total)}</span></div>
+        <div class="pp-field">Received the Amount of <span class="ink fill">${esc(pesoWords(total))}</span></div>
+        <div class="pp-bottom">
+            <div class="pp-pay">
+                <div class="pp-pay-head">FORM OF PAYMENT <span class="pp-box">${hasCash ? "&#10003;" : ""}</span> Cash <span class="pp-box">${check ? "&#10003;" : ""}</span> Check</div>
+                <div class="pp-pay-row">Check No.: <span class="ink">${esc(check && check.ref ? check.ref : "")}</span></div>
+                <div class="pp-pay-row">Check Date: <span class="ink"></span></div>
+                <div class="pp-pay-row">Bank/Branch <span class="ink">${esc(bankText)}</span></div>
+                <div class="pp-pay-row">Total Amount <span class="ink amt">${money(total)}</span></div>
+            </div>
+            <div class="pp-mid">
+                <div class="pp-invoice">Invoice Reference No. <span class="ink fill">${esc(invoiceRef)}</span></div>
+            </div>
+            <div class="pp-by">
+                <div class="pp-sign">By:</div>
+                <div class="pp-cashier">Cashier / Authorized Representative</div>
+            </div>
+        </div>
+        <div class="pp-foot">THIS DOCUMENT IS NOT VALID FOR CLAIMING INPUT TAXES</div>
+    </div>`;
+}
+
 function renderReview() {
     const seq = rvSeq();
     if (!seq.length) { closeReview(); return; }
@@ -1006,19 +1065,11 @@ function renderReview() {
             ? e.payments.map(p => esc(paymentText(p))).join("<br>") : esc(mopText(e) || "Cash");
         $("rvCard").innerHTML = `
             <div class="rv-pr-head">
-                <div class="rv-prno">PR #${esc(e.pr)}</div>
+                <div class="rv-sheet-label">Compare this with the paper PR #${esc(e.pr)}</div>
                 <span class="rv-status ${cur.checked ? "ok" : "todo"}">${cur.checked ? "Checked " + esc(fmtStamp(e.checkedAt)) : "Not checked yet"}</span>
             </div>
-            <div class="rv-meta">
-                <div><span>Date</span><b>${esc(fmtDate(e.date))}</b></div>
-                <div><span>Buyer</span><b>${esc(e.buyer)}</b></div>
-                <div><span>MOP</span><b>${pay}</b></div>
-            </div>
-            <table class="rv-items">
-                <thead><tr><th>Sold item</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th></tr></thead>
-                <tbody>${e.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="num">${i.qty}</td><td class="num">${money(i.price)}</td><td class="num">${money(round2(i.qty * i.price))}</td></tr>`).join("")}</tbody>
-            </table>
-            <div class="rv-total">Receipt total <b>${peso(entryTotal(e))}</b></div>`;
+            ${receiptPaperHtml(e)}
+            <div class="rv-sys"><b>Encoded MOP:</b> ${pay}</div>`;
         $("rvActions").innerHTML = `${back}<div class="grp">
             <button type="button" class="btn btn-secondary btn-lg" data-rv="edit"><i class="ri-edit-line"></i> Edit</button>
             ${cur.checked ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Uncheck</button>` : ""}

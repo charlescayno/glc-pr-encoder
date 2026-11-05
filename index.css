@@ -365,6 +365,73 @@ td.pr-no { font-weight: 600; }
     border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
     padding: 1.5rem; min-height: 280px;
 }
+.rv-sheet-label { font-weight: 600; color: var(--color-text-muted); }
+.rv-sys { margin-top: 0.8rem; font-size: 0.85rem; color: var(--color-text-muted); }
+
+/* Replica of the yellow CCF Provisional Receipt */
+.paper {
+    --paper: #f5e27a; --teal: #2b8a86; --ink: #1b3a8f; --red: #c62828;
+    position: relative;
+    background: linear-gradient(135deg, #f8e888 0%, #f3df73 55%, #efd964 100%);
+    color: #1f3b3a;
+    border: 1px solid #d8c258;
+    border-radius: 6px;
+    padding: 1.1rem 1.4rem 0.8rem;
+    font-family: Georgia, 'Times New Roman', serif;
+    box-shadow: 0 6px 16px rgba(120, 100, 20, 0.25);
+    max-width: 820px; margin: 0 auto;
+    color-scheme: light;
+}
+.paper .ink { font-family: 'Caveat', 'Segoe Script', cursive; font-weight: 700; font-size: 1.35rem; color: var(--ink); line-height: 1.1; }
+.pp-head { display: grid; grid-template-columns: auto 1fr auto; gap: 0.9rem; align-items: start; }
+.pp-logo {
+    width: 64px; height: 64px; border-radius: 50%; border: 4px solid var(--teal);
+    display: flex; align-items: center; justify-content: center;
+    font-family: Arial, sans-serif; font-weight: 800; font-size: 1.35rem; color: var(--teal); letter-spacing: -0.04em;
+}
+.pp-name { font-size: 1.25rem; font-weight: 700; color: var(--teal); letter-spacing: 0.01em; }
+.pp-addr { font-size: 0.72rem; color: #2a4f4d; line-height: 1.35; margin-top: 0.15rem; }
+.pp-title { text-align: right; }
+.pp-pr { font-family: Arial, sans-serif; font-weight: 800; font-style: italic; font-size: 0.95rem; color: var(--teal); }
+.pp-no { font-size: 1.6rem; font-weight: 700; color: var(--red); margin-top: 0.15rem; }
+.pp-no sup { font-size: 0.7rem; color: #2a4f4d; }
+.pp-date { text-align: right; margin: 0.2rem 0 0.35rem; font-size: 0.95rem; }
+.pp-date .fill { display: inline-block; min-width: 9rem; border-bottom: 1px solid #5a6b5a; text-align: center; }
+.pp-bar { background: var(--teal); color: #fff; font-weight: 700; font-size: 0.85rem; padding: 0.15rem 0.6rem; margin: 0.3rem 0; }
+.pp-bar.center { text-align: center; }
+.pp-field { display: flex; align-items: baseline; gap: 0.4rem; margin: 0.45rem 0; font-size: 0.95rem; }
+.pp-field .fill { flex: 1; border-bottom: 1px solid #5a6b5a; min-height: 1.5rem; padding-left: 0.3rem; }
+.pp-tin { justify-content: flex-end; }
+.pp-tin .fill { flex: 0 0 45%; }
+.pp-desc { border: 1px solid #4a6a66; border-top: 0; background: rgba(255, 255, 255, 0.12); }
+.pp-row { display: grid; grid-template-columns: 1fr 120px; min-height: 1.7rem; border-bottom: 1px solid #7e9690; align-items: center; }
+.pp-row > span { padding: 0 0.5rem; }
+.pp-row > .amt, .pp-total .amt { border-left: 1px solid #4a6a66; text-align: right; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; }
+.pp-total { display: grid; grid-template-columns: 1fr 120px; border: 1px solid #4a6a66; border-top: 0; font-size: 0.8rem; font-weight: 700; align-items: center; }
+.pp-total > span:first-child { text-align: right; padding: 0.2rem 0.6rem; }
+.pp-total .amt { padding: 0.15rem 0.5rem; min-height: 2rem; }
+.pp-bottom { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 0.9rem; margin-top: 0.6rem; align-items: start; }
+.pp-pay { background: var(--teal); color: #fff; font-family: Arial, sans-serif; font-size: 0.72rem; border: 1px solid #1f6b68; }
+.pp-pay-head { padding: 0.25rem 0.5rem; font-weight: 700; letter-spacing: 0.02em; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.pp-box {
+    display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem;
+    background: #fbf0a8; border: 1px solid #1f6b68; color: var(--ink); font-weight: 900; font-size: 0.8rem;
+}
+.pp-pay-row { background: #f1e07a; color: #1f3b3a; border-top: 1px solid #1f6b68; padding: 0.2rem 0.5rem; min-height: 1.75rem; display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.pp-pay-row .ink { font-size: 1.05rem; }
+.pp-mid { font-family: Arial, sans-serif; font-size: 0.72rem; }
+.pp-invoice { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem; }
+.pp-invoice .fill { flex: 1; min-width: 6rem; border-bottom: 1px solid #5a6b5a; min-height: 1.4rem; }
+.pp-by { font-size: 0.78rem; }
+.pp-sign { border-bottom: 1px solid #5a6b5a; min-height: 2.6rem; font-style: italic; }
+.pp-cashier { text-align: center; font-size: 0.72rem; color: #2a4f4d; margin-top: 0.2rem; }
+.pp-foot { text-align: center; font-family: Arial, sans-serif; font-size: 0.7rem; font-weight: 700; color: #1d5aa6; text-decoration: underline; margin-top: 0.7rem; }
+@media (max-width: 720px) {
+    .pp-head { grid-template-columns: auto 1fr; }
+    .pp-title { grid-column: 1 / -1; text-align: left; }
+    .pp-bottom { grid-template-columns: 1fr; }
+    .pp-name { font-size: 1rem; }
+}
 .rv-pr-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
 .rv-prno { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
 .rv-status { font-size: 0.8rem; font-weight: 600; padding: 0.2rem 0.75rem; border-radius: 999px; border: 1px solid var(--color-border); color: var(--color-text-muted); }
@@ -386,7 +453,11 @@ td.pr-no { font-weight: 600; }
 .rv-sum > div { background: var(--color-bg-head); border-radius: var(--radius-md); padding: 0.8rem 1rem; }
 .rv-sum span { display: block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-light); }
 .rv-sum b { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
-.rv-actions { display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem; }
+.rv-actions {
+    display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.8rem;
+    position: sticky; bottom: 0; z-index: 2;
+    padding: 0.7rem 0; background: var(--color-bg-app); border-top: 1px solid var(--color-border);
+}
 .rv-actions .grp { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .btn-lg { padding: 0.7rem 1.4rem; font-size: 1rem; }
 .btn-success { background: var(--color-success); color: #fff; }

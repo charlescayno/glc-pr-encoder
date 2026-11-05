@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords } from "./logic.js";
 
 const entries = [
     { id: "pr_42751", pr: 42751, date: "2026-09-13", buyer: "Anonymous", mop: "", mopRef: "", items: [{ desc: "Book 1: One by One 4th Edition", qty: 2, price: 50 }] },
@@ -44,6 +44,15 @@ const split = paymentSplit(flatten(entries));
 assert.equal(split.online, 100);            // PR 42753 paid by invoice
 assert.equal(split.cash, 565 - 100);
 assert.deepEqual(split.byMethod, { Cash: 465, Invoice: 100 });
+// Amount in words
+assert.equal(pesoWords(30), "Thirty pesos only");
+assert.equal(pesoWords(120), "One hundred twenty pesos only");
+assert.equal(pesoWords(1), "One peso only");
+assert.equal(pesoWords(1255.5), "One thousand two hundred fifty-five pesos and 50/100 only");
+assert.equal(pesoWords(0), "Zero pesos only");
+assert.equal(pesoWords(1000), "One thousand pesos only");
+assert.equal(pesoWords(2500000), "Two million five hundred thousand pesos only");
+
 // Review: sequence, progress, marks
 {
     const es = [
