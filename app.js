@@ -1,4 +1,4 @@
-import { parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
+import { bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
@@ -1250,6 +1250,25 @@ function fitPaper() {
 window.addEventListener("resize", fitPaper);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPaper);
 
+// Booklet summary laid out like the paper tally sheet: CASH and ONLINE PAYMENT, items with QTY, price, total.
+function summaryHtml(bookEntries) {
+    const s = bookletSummary(bookEntries);
+    const qty = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    const section = (title, sec, cls) => `
+        <table class="rs-table ${cls}">
+            <thead>
+                <tr><th colspan="4" class="rs-title">${title}</th></tr>
+                <tr><th>Item</th><th class="num">QTY</th><th class="num">Selling Price</th><th class="num">Total</th></tr>
+            </thead>
+            <tbody>${sec.rows.length ? sec.rows.map(r => `<tr><td>${esc(r.desc)}</td><td class="num">${qty(r.qty)}</td><td class="num">${money(r.price)}</td><td class="num">${money(r.total)}</td></tr>`).join("")
+                : `<tr><td colspan="4" class="rs-none">None</td></tr>`}</tbody>
+            <tfoot><tr><td colspan="3">TOTAL</td><td class="num">${money(sec.total)}</td></tr></tfoot>
+        </table>`;
+    return `
+        <div class="rs-head"><span class="rs-pr">PR No.: ${s.firstPr}-${s.lastPr}</span><span class="rs-date">Date: ${esc(s.dateRange)}</span></div>
+        <div class="rs-grid">${section("CASH", s.cash, "cash")}${section("ONLINE PAYMENT", s.online, "online")}</div>`;
+}
+
 function renderReviewSummary(seq, prog) {
     const bookEntries = entries.filter(e => bookletStart(e.pr) === rv.start);
     const rows = flatten(bookEntries);
@@ -1263,16 +1282,16 @@ function renderReviewSummary(seq, prog) {
             <span class="rv-status ${allDone ? "ok" : "todo"}">${allDone ? "All PRs checked" : `${open.length} still to check`}</span>
         </div>
         <p style="color:var(--color-text-muted)">Booklet ${esc(bookletLabel(rv.start))}${prog.lastAt ? `, last checked ${esc(fmtStamp(prog.lastAt))}` : ""}.</p>
-        <div class="rv-sum">
-            <div><span>Receipts</span><b>${prog.entries}</b></div>
-            <div><span>Checked</span><b>${prog.checked} / ${prog.entries}</b></div>
-            <div><span>Void or not used</span><b>${prog.marks}</b></div>
-            <div><span>Total sales</span><b>${peso(sales)}</b></div>
-            <div><span>Cash</span><b>${peso(split.cash)}</b></div>
-            <div><span>Online</span><b>${peso(split.online)}</b></div>
+        <div class="rs-stats">
+            <span><b>${prog.entries}</b> receipts</span>
+            <span><b>${prog.checked}/${prog.entries}</b> checked</span>
+            <span><b>${prog.marks}</b> void or not used</span>
+            <span>Total sales <b>${peso(sales)}</b></span>
         </div>
+        ${summaryHtml(bookEntries)}
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
     $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
+        <button type="button" class="btn btn-secondary btn-lg" data-rv="copysummary"><i class="ri-file-copy-line"></i> Copy summary</button>
         <button type="button" class="btn btn-secondary btn-lg" data-rv="print"><i class="ri-printer-line"></i> Print</button>
         ${allDone ? "" : `<button type="button" class="btn btn-secondary btn-lg" data-rv="firstopen">Go to first open</button>`}
         <button type="button" class="btn btn-success btn-lg" data-rv="close">Done</button></div>`;
@@ -1299,6 +1318,11 @@ $("rvActions").addEventListener("click", ev => {
         case "void": rvMark("void"); break;
         case "unused": rvMark("unused"); break;
         case "later": rvEncodeLater(); break;
+        case "copysummary": {
+            const text = summaryTSV(bookletSummary(entries.filter(e => bookletStart(e.pr) === rv.start)));
+            navigator.clipboard.writeText(text).then(() => toast("Summary copied. Paste into Excel or Google Sheets."), () => toast("Could not copy."));
+            break;
+        }
         case "print": document.body.classList.add("print-review"); window.print(); document.body.classList.remove("print-review"); break;
         case "firstopen": { const s = rvSeq().find(x => !x.resolved); if (s) { rv.pr = s.pr; rv.summary = false; renderReview(); } break; }
         case "close": closeReview(); break;

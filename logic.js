@@ -344,3 +344,63 @@ export function parseSheet(text) {
     }
     return { entries: out, skipped };
 }
+
+// End-of-review summary: items sold in the booklet, split into CASH and ONLINE PAYMENT (anything not cash),
+// grouped by item + selling price. For a split PR the cash amount is filled first, in item order,
+// and the remaining quantity goes online.
+export function bookletSummary(entries) {
+    const sorted = sortEntries(entries);
+    const sections = { cash: new Map(), online: new Map() };
+    const add = (kind, desc, price, qty) => {
+        if (!(qty > 0)) return;
+        const key = desc + '\u0000' + price;
+        const m = sections[kind];
+        const cur = m.get(key) || { desc, price, qty: 0 };
+        cur.qty = Math.round((cur.qty + qty) * 100) / 100;
+        m.set(key, cur);
+    };
+    for (const e of sorted) {
+        const pays = Array.isArray(e.payments) && e.payments.length ? e.payments : null;
+        if (!pays) {
+            const kind = !(e.mop || '').trim() || e.mop === 'Cash' ? 'cash' : 'online';
+            (e.items || []).forEach(i => add(kind, i.desc, i.price, i.qty));
+            continue;
+        }
+        let cashLeft = pays.filter(p => !p.method || p.method === 'Cash').reduce((s, p) => round2(s + (Number(p.amount) || 0)), 0);
+        for (const i of e.items || []) {
+            const lineTotal = round2(i.qty * i.price);
+            const takeCash = Math.min(lineTotal, cashLeft);
+            cashLeft = round2(cashLeft - takeCash);
+            const cashQty = i.price > 0 ? Math.round((takeCash / i.price) * 100) / 100 : 0;
+            add('cash', i.desc, i.price, cashQty);
+            add('online', i.desc, i.price, Math.round((i.qty - cashQty) * 100) / 100);
+        }
+    }
+    const finish = m => {
+        const rows = [...m.values()].sort((a, b) => a.desc.localeCompare(b.desc) || a.price - b.price)
+            .map(r => ({ ...r, total: round2(r.qty * r.price) }));
+        return { rows, total: round2(rows.reduce((s, r) => s + r.total, 0)) };
+    };
+    const prs = sorted.map(e => Number(e.pr));
+    const dates = sorted.map(e => e.date).filter(Boolean).sort();
+    const md = iso => { const [y, m, d] = iso.split('-'); return `${Number(m)}/${Number(d)}/${y}`; };
+    return {
+        cash: finish(sections.cash),
+        online: finish(sections.online),
+        firstPr: prs.length ? Math.min(...prs) : null,
+        lastPr: prs.length ? Math.max(...prs) : null,
+        dateRange: dates.length ? (dates[0] === dates[dates.length - 1] ? md(dates[0]) : `${md(dates[0])} \u2013 ${md(dates[dates.length - 1])}`) : '',
+    };
+}
+
+// Same summary as tab-separated text, ready to paste into Excel / Google Sheets.
+export function summaryTSV(s) {
+    const qty = n => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const block = (title, sec) => [
+        [title], ['Item', 'QTY', 'Selling Price', 'Total'],
+        ...sec.rows.map(r => [r.desc, qty(r.qty), money(r.price), money(r.total)]),
+        ['TOTAL', '', '', money(sec.total)], [],
+    ];
+    return [[`PR No.: ${s.firstPr}-${s.lastPr}`, '', '', `Date: ${s.dateRange}`], [],
+        ...block('CASH', s.cash), ...block('ONLINE PAYMENT', s.online)].map(r => r.join('\t')).join('\n');
+}

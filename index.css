@@ -587,3 +587,19 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .bk-badge.partial { background: rgba(245, 158, 11, 0.16); border-color: var(--color-warning); color: #b45309; }
 [data-theme="dark"] .bk-badge.partial { color: #fbbf24; }
 .bk-badge.verified { display: inline-flex; align-items: center; gap: 0.25rem; }
+
+/* Booklet summary (end of review), like the paper tally sheet */
+.rs-stats { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; font-size: 0.85rem; color: var(--color-text-muted); margin: 0.3rem 0 0.6rem; }
+.rs-stats b { color: var(--color-text-main); font-variant-numeric: tabular-nums; }
+.rs-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.rs-pr { background: #ffff00; color: #111; font-weight: 700; padding: 0.2rem 0.7rem; border-radius: 3px; }
+.rs-date { font-weight: 700; }
+.rs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; }
+.rs-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.rs-table th, .rs-table td { padding: 0.3rem 0.6rem; text-align: left; }
+.rs-table .num { text-align: right; }
+.rs-table thead th { background: #bdd7ee; color: #1b2a3a; font-weight: 700; }
+.rs-table .rs-title { font-size: 1rem; }
+.rs-table tbody td { border-bottom: 1px solid var(--color-border); }
+.rs-table tfoot td { font-weight: 700; border-top: 2px solid var(--color-text-main); border-bottom: 3px double var(--color-text-main); }
+.rs-none { color: var(--color-text-light); text-align: center; }

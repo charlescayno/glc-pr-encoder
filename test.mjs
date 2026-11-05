@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, parseSheet, skipMarked, withMarks } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -142,4 +142,23 @@ assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shor
     assert.equal(toTSV(rows).split("\n")[2], "\t2\t\tVOID\t\t\t\t\t");
     assert.equal(withMarks(flatten(es), mk, { booklet: 51 }).length, 2, "other booklets hide marks");
 }
+{
+    const mk = (pr, mop, items, x = {}) => ({ id: "pr_" + pr, pr, date: "2026-08-23", buyer: "A", mop, mopRef: "", items, ...x });
+    const es = [
+        mk(1, "Cash", [{ desc: "English", qty: 10, price: 3 }]),
+        mk(2, "Invoice", [{ desc: "English", qty: 200, price: 3 }, { desc: "Tagalog", qty: 150, price: 3 }]),
+        mk(3, "Split", [{ desc: "Tagalog", qty: 10, price: 3 }, { desc: "English", qty: 10, price: 3 }], { date: "2026-08-30", payments: [{ method: "Cash", amount: 45 }, { method: "GCash", amount: 15 }] }),
+    ];
+    const s = bookletSummary(es);
+    assert.equal(s.dateRange, "8/23/2026 \u2013 8/30/2026");
+    assert.equal(s.firstPr + "-" + s.lastPr, "1-3");
+    assert.equal(s.cash.total, 75, "cash: 30 + 45");
+    assert.equal(s.online.total, 1065, "online: 1050 + 15");
+    assert.equal(s.cash.rows.find(r => r.desc === "English").qty, 15, "10 + 5 split");
+    assert.equal(s.online.rows.find(r => r.desc === "English").qty, 205);
+    assert.equal(s.cash.total + s.online.total, 1140, "nothing lost");
+    assert.equal(summaryTSV(s).split("\n")[0], "PR No.: 1-3\t\t\tDate: 8/23/2026 \u2013 8/30/2026");
+    assert.equal(summaryTSV(s).includes("English\t205\t3.00\t615.00"), true, "2-decimal price and total");
+}
 console.log("all tests passed");
+
