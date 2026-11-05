@@ -1065,6 +1065,8 @@ function renderReview() {
     if (!seq.length) { closeReview(); return; }
     const cur = rvCurrent(seq);
     rv.pr = cur.pr;
+    $("rvCard").style.flex = ""; $("rvCard").style.width = ""; $("rvCard").style.alignSelf = "";
+    $("rvHead").innerHTML = "";
     const prog = reviewProgress(seq);
     const idx = seq.indexOf(cur);
 
@@ -1091,13 +1093,12 @@ function renderReview() {
         const e = cur.entry;
         const pay = Array.isArray(e.payments) && e.payments.length
             ? e.payments.map(p => esc(paymentText(p))).join("<br>") : esc(mopText(e) || "Cash");
-        $("rvCard").innerHTML = `
-            <div class="rv-pr-head">
+        $("rvHead").innerHTML = `
                 <div class="rv-sheet-label">Compare with paper PR #${esc(e.pr)}</div>
                 <div class="rv-sys"><b>Encoded MOP:</b> ${pay.replace(/<br>/g, " + ")}</div>
                 <span class="rv-status ${cur.checked ? "ok" : "todo"}">${cur.checked ? "Checked " + esc(fmtStamp(e.checkedAt)) : "Not checked yet"}</span>
-            </div>
-            <div class="rv-stage">${receiptPaperHtml(e)}</div>`;
+`;
+        $("rvCard").innerHTML = `<div class="rv-stage">${receiptPaperHtml(e)}</div>`;
         $("rvActions").innerHTML = `${back}<div class="grp">
             <button type="button" class="btn btn-secondary btn-lg" data-rv="edit"><i class="ri-edit-line"></i> Edit</button>
             ${cur.checked ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Uncheck</button>` : ""}
@@ -1131,12 +1132,23 @@ function renderReview() {
 }
 
 function fitPaper() {
-    const stage = $("rvCard").querySelector(".rv-stage");
+    const card = $("rvCard");
+    // Reset so the card fills the free space, then shrink the card to the receipt's own proportions.
+    card.style.flex = ""; card.style.width = ""; card.style.alignSelf = "";
+    const stage = card.querySelector(".rv-stage");
     const paper = stage && stage.querySelector(".paper");
-    if (!paper) return;
+    if (!stage || !paper) return;
+    stage.style.height = ""; stage.style.flex = "";
     paper.style.zoom = 1;
-    const z = Math.min(stage.clientWidth / paper.offsetWidth, stage.clientHeight / paper.offsetHeight, 1.6);
-    paper.style.zoom = Math.max(0.3, z).toFixed(3);
+    const nw = paper.offsetWidth, nh = paper.offsetHeight;
+    const padX = card.offsetWidth - stage.clientWidth;
+    const z = Math.max(0.3, Math.min(stage.clientWidth / nw, stage.clientHeight / nh, 1.6));
+    paper.style.zoom = z.toFixed(4);
+    stage.style.flex = "none";
+    stage.style.height = Math.ceil(nh * z) + 2 + "px";
+    card.style.flex = "none";
+    card.style.alignSelf = "center";
+    card.style.width = Math.ceil(nw * z + padX) + 2 + "px";
 }
 window.addEventListener("resize", fitPaper);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPaper);
