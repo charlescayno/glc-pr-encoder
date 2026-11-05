@@ -129,9 +129,10 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         columnStyles: { 1: { halign: "right" } },
     });
     y = doc.lastAutoTable.finalY + 8;
-    if (y + 420 > 780) { doc.addPage(); y = 40; } // cash count + notes + signatures stay together
     // Cash count breakdown: always printed; counts and amounts stay blank when nothing was counted.
     const counted = counts.filter(c => c.count > 0);
+    // It follows the totals directly; it only moves to the next page when the whole table does not fit.
+    if (y + ((counted.length || counts.length) + 2) * 17 > 780) { doc.addPage(); y = 40; }
     doc.autoTable({
         startY: y, margin: { left: 30, right: 330 }, theme: "grid", styles: { ...BODY_STYLE, fontSize: 9, cellPadding: 2 },
         head: [["Cash Count", "Count", "Amount"]],
@@ -144,6 +145,7 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     y = doc.lastAutoTable.finalY + 8;
     const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
     doc.setFont("helvetica", "normal").setFontSize(9);
+    if (y + notes.length * 12 + 22 + 120 > 780) { doc.addPage(); y = 40; } // signatures stay together
     notes.forEach(n => { doc.text(n, 30, y + 8); y += 12; });
     y += 22;
     doc.setFontSize(10);
