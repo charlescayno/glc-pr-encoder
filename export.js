@@ -36,8 +36,11 @@ function headerLine(doc, s) {
 }
 
 function sectionTable(doc, y, label, sec) {
+    // Section title (CASH / ONLINE PAYMENT) sits above the table.
+    doc.setFont("helvetica", "bold").setFontSize(11);
+    doc.text(label, 40, y + 10);
     doc.autoTable({
-        startY: y, margin: { left: 40, right: 40 }, theme: "grid",
+        startY: y + 18, margin: { left: 40, right: 40 }, theme: "grid",
         head: [["Item Name", "QTY", "Selling Price", "Total"]],
         body: sec.rows.length ? sec.rows.map(r => [r.desc, qtyText(r.qty), money(r.price).replace(/\.00$/, ""), money(r.total)]) : [["None", "", "", ""]],
         foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
@@ -45,17 +48,14 @@ function sectionTable(doc, y, label, sec) {
         columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
         didParseCell: d => { if (d.section === "foot" && d.column.index === 3) d.cell.styles.halign = "right"; },
     });
-    const end = doc.lastAutoTable.finalY;
-    doc.setFont("helvetica", "bold").setFontSize(11);
-    doc.text(label, 40, end + 16);
-    return end + 34;
+    return doc.lastAutoTable.finalY + 20;
 }
 
 // TOP sheet page: booklet range, then the cash and online item tallies.
 function drawTopSheet(doc, s) {
     headerLine(doc, s);
-    let y = sectionTable(doc, 60, "CASH", s.cash);
-    sectionTable(doc, y + 8, "ONLINE PAYMENT", s.online);
+    const y = sectionTable(doc, 62, "CASH", s.cash);
+    sectionTable(doc, y, "ONLINE PAYMENT", s.online);
 }
 
 // One PDF (letter size): page 1 is the TOP sheet, the following pages are the booklet summary.
