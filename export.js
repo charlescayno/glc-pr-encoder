@@ -27,8 +27,8 @@ const fileBase = s => `${s.firstPr}-${s.lastPr}`;
 function save(doc, name) { doc.save(name); }
 
 const HEAD_STYLE = { fillColor: [235, 235, 235], textColor: 0, fontStyle: "bold", lineColor: 0, lineWidth: 0.5 };
-// Column headers are always centered, whatever the column alignment of the body.
-const centerHead = d => { if (d.section === "head") d.cell.styles.halign = "center"; };
+// Everything inside the bordered tables (header, body, footer) is centered horizontally and vertically in its cell.
+const centerHead = d => { d.cell.styles.halign = "center"; d.cell.styles.valign = "middle"; };
 const BODY_STYLE = { textColor: 0, lineColor: 0, lineWidth: 0.5, fontSize: 10 };
 
 function headerLine(doc, s) {
@@ -48,7 +48,7 @@ function sectionTable(doc, y, label, sec) {
         foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
         headStyles: { ...HEAD_STYLE, halign: "center" }, footStyles: HEAD_STYLE, styles: BODY_STYLE,
         columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
-        didParseCell: d => { centerHead(d); if (d.section === "foot" && d.column.index === 3) d.cell.styles.halign = "right"; },
+        didParseCell: centerHead,
     });
     return doc.lastAutoTable.finalY + 20;
 }
@@ -143,7 +143,7 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         body: (counted.length ? counted : counts).map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? money(c.amount) : ""]),
         foot: [[{ content: "TOTAL COUNTED", colSpan: 2 }, counted.length ? money(round2(counted.reduce((t, c) => t + c.amount, 0))) : ""]],
         headStyles: { ...HEAD_STYLE, halign: "center" }, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
-        didParseCell: d => { centerHead(d); if (d.section === "foot" && d.column.index === 2) d.cell.styles.halign = "right"; },
+        didParseCell: centerHead,
     });
     y = Math.max(totalsEnd, doc.lastAutoTable.finalY) + 8;
     const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
