@@ -565,3 +565,22 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .mark-tag.void { color: var(--color-danger, #dc2626); border-color: currentColor; }
 .mark-tag.unused { color: var(--color-text-muted); }
 .mark-note { font-size: 0.8rem; margin-left: 0.4rem; }
+
+/* Receipt proportions: 7 in wide x 5.5 in tall (aspect-ratio never clips; it only grows if a PR has many items) */
+.paper { aspect-ratio: 7 / 5.5; box-sizing: border-box; display: flex; flex-direction: column; padding: 0.7rem 1.2rem 0.5rem; }
+.pp-logo { width: 54px; height: 54px; font-size: 1.15rem; border-width: 3px; }
+.pp-name { font-size: 1.15rem; }
+.pp-addr { font-size: 0.68rem; line-height: 1.25; margin-top: 0; }
+.pp-no { font-size: 1.4rem; margin-top: 0; }
+.pp-date { margin: 0.1rem 0 0.2rem; }
+.pp-bar { margin: 0.2rem 0; padding: 0.1rem 0.6rem; }
+.pp-field { margin: 0.2rem 0; }
+.pp-field .fill { min-height: 1.3rem; }
+.pp-desc { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.pp-row { flex: 1 1 0; min-height: 1.25rem; }
+.paper .ink { font-size: 1.2rem; }
+.pp-total .amt { min-height: 1.7rem; }
+.pp-bottom { margin-top: 0.4rem; }
+.pp-pay-row { min-height: 1.35rem; padding: 0.1rem 0.5rem; }
+.pp-sign { min-height: 1.9rem; }
+.pp-foot { margin-top: 0.35rem; }

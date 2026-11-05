@@ -1065,6 +1065,9 @@ function receiptPaperHtml(e) {
 
     const rows = e.items.map(i => ({ text: `${i.desc} - ${i.qty}`, amt: money(round2(i.qty * i.price)) }));
     while (rows.length < 6) rows.push({ text: "", amt: "" });
+    // Registered name on the paper: any non-cash payment (invoice, GCash, bank...) reads "Online Payment".
+    const allCash = pays.every(p => !p.method || p.method === "Cash");
+    const regName = allCash ? `Cash - ${e.buyer || "Anonymous"}` : "Online Payment";
     const lines = rows.map(r => `<div class="pp-row"><span class="ink">${esc(r.text)}</span><span class="ink amt">${esc(r.amt)}</span></div>`).join("");
 
     return `
@@ -1082,7 +1085,7 @@ function receiptPaperHtml(e) {
         </div>
         <div class="pp-date">Date: <span class="ink fill">${esc(fmtDate(e.date))}</span></div>
         <div class="pp-bar">Received From:</div>
-        <div class="pp-field">Registered Name: <span class="ink fill">${esc(e.buyer)}</span></div>
+        <div class="pp-field">Registered Name: <span class="ink fill">${esc(regName)}</span></div>
         <div class="pp-field">Business Address: <span class="ink fill"></span></div>
         <div class="pp-field pp-tin">TIN <span class="ink fill"></span></div>
         <div class="pp-bar center">Description of Transaction/Nature of Service</div>
