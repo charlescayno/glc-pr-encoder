@@ -1711,10 +1711,11 @@ document.addEventListener("keydown", ev => {
 
 // ---------- Shortcuts legend (collapsible, remembered) ----------
 const scBox = $("shortcutsBox");
-if (localStorage.getItem("pre_sc_open") === "0") scBox.open = false;
+// Collapsed by default; once you open it, that choice is remembered on this device (new key, so everyone starts collapsed).
+if (localStorage.getItem("pre_sc_open_v2") === "1") scBox.open = true;
 const syncScLabel = () => { scBox.querySelector(".sc-toggle").textContent = scBox.open ? "hide" : "show"; };
 syncScLabel();
-scBox.addEventListener("toggle", () => { localStorage.setItem("pre_sc_open", scBox.open ? "1" : "0"); syncScLabel(); });
+scBox.addEventListener("toggle", () => { localStorage.setItem("pre_sc_open_v2", scBox.open ? "1" : "0"); syncScLabel(); });
 
 // ---------- Init ----------
 setStatus("offline", "Connecting");

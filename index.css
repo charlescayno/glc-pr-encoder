@@ -720,3 +720,13 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 
 .pay-grid .field.hidden { display: none; }
 @media (max-width: 720px) { .pay-grid { grid-template-columns: 1fr 1fr; } }
+
+/* Keyboard shortcuts card styled as a help box */
+.shortcuts.helpbox { background: #eaf6fd; border: 1px solid #b6def5; border-left: 4px solid var(--color-primary); }
+.shortcuts.helpbox .sc-title { color: #0b5f8f; }
+.shortcuts.helpbox .helpbox-icon { font-size: 1.15rem; color: var(--color-primary); }
+.shortcuts.helpbox .sc-toggle { color: #0b5f8f; font-weight: 600; }
+.shortcuts.helpbox .sc-grid { border-top-color: #b6def5; }
+[data-theme="dark"] .shortcuts.helpbox { background: #13283a; border-color: #1f4a6b; border-left-color: var(--color-primary); }
+[data-theme="dark"] .shortcuts.helpbox .sc-title, [data-theme="dark"] .shortcuts.helpbox .sc-toggle { color: #7cc7ee; }
+[data-theme="dark"] .shortcuts.helpbox .sc-grid { border-top-color: #1f4a6b; }
