@@ -46,18 +46,32 @@
         </header>
 
         <main class="app-main">
-            <div class="shortcuts no-print" aria-label="Keyboard shortcuts">
-                <span class="sc-title"><i class="ri-keyboard-line"></i> Shortcuts</span>
-                <span><kbd>Enter</kbd> next field</span>
-                <span><kbd>Tab</kbd> on Unit Price adds an item</span>
-                <span><kbd>Alt</kbd> + <kbd>N</kbd> add item</span>
-                <span><kbd>Alt</kbd> + <kbd>S</kbd> split payment</span>
-                <span><kbd>Alt</kbd> + <kbd>C</kbd> MOP Cash</span>
-                <span><kbd>Alt</kbd> + <kbd>I</kbd> MOP Invoice</span>
-                <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> add PR to output</span>
-                <span><kbd>gte</kbd> + <kbd>Enter</kbd> item shorthand</span>
-                <span><kbd>Esc</kbd> cancel edit</span>
-            </div>
+            <details class="shortcuts no-print" id="shortcutsBox" open>
+                <summary class="sc-title"><i class="ri-keyboard-line"></i> Keyboard shortcuts <span class="sc-toggle">hide</span></summary>
+                <div class="sc-grid">
+                    <div class="sc-group">
+                        <h4>Moving around</h4>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Enter</kbd></span><span>Next field</span></div>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Esc</kbd></span><span>Cancel edit</span></div>
+                    </div>
+                    <div class="sc-group">
+                        <h4>Sold items</h4>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>N</kbd></span><span>Add item</span></div>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Tab</kbd></span><span>Add item (on last price)</span></div>
+                        <div class="sc-row"><span class="sc-keys"><kbd>gte</kbd> <kbd>Enter</kbd></span><span>Item shorthand</span></div>
+                    </div>
+                    <div class="sc-group">
+                        <h4>Payment (MOP)</h4>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>C</kbd></span><span>Cash</span></div>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>I</kbd></span><span>Invoice</span></div>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>S</kbd></span><span>Split (cash + online)</span></div>
+                    </div>
+                    <div class="sc-group">
+                        <h4>Receipt</h4>
+                        <div class="sc-row"><span class="sc-keys"><kbd>Ctrl</kbd> <kbd>Enter</kbd></span><span>Add PR to output</span></div>
+                    </div>
+                </div>
+            </details>
 
             <!-- Encoder -->
             <section class="card no-print" id="encoderCard">

@@ -798,6 +798,13 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     navigator.serviceWorker.register("./sw.js").catch(() => { });
 }
 
+// ---------- Shortcuts legend (collapsible, remembered) ----------
+const scBox = $("shortcutsBox");
+if (localStorage.getItem("pre_sc_open") === "0") scBox.open = false;
+const syncScLabel = () => { scBox.querySelector(".sc-toggle").textContent = scBox.open ? "hide" : "show"; };
+syncScLabel();
+scBox.addEventListener("toggle", () => { localStorage.setItem("pre_sc_open", scBox.open ? "1" : "0"); syncScLabel(); });
+
 // ---------- Init ----------
 setStatus("offline", "Connecting");
 catalogOptions();
