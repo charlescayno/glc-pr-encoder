@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit } from "./logic.js";
 
 const entries = [
     { id: "pr_42751", pr: 42751, date: "2026-09-13", buyer: "Anonymous", mop: "", mopRef: "", items: [{ desc: "Book 1: One by One 4th Edition", qty: 2, price: 50 }] },
@@ -39,4 +39,9 @@ assert.deepEqual(bk.missing, [42757, 42758, 42759]);
 assert.equal(bk.complete, false);
 assert.deepEqual(bookletStarts([...entries, { id: "y", pr: 42801, items: [] }]), [42751, 42801]);
 assert.equal(filterEntries([...entries, { id: "y", pr: 42801, date: "2026-09-14", items: [] }], { booklet: 42801 }).length, 1);
+// Cash vs online split (no MOP counts as cash; Invoice is online)
+const split = paymentSplit(flatten(entries));
+assert.equal(split.online, 100);            // PR 42753 paid by invoice
+assert.equal(split.cash, 565 - 100);
+assert.deepEqual(split.byMethod, { Cash: 465, Invoice: 100 });
 console.log("all tests passed");

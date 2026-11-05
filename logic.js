@@ -56,6 +56,19 @@ export function bookletStarts(entries) {
     return [...new Set(entries.map(e => bookletStart(e.pr)))].sort((a, b) => a - b);
 }
 
+// Cash vs online split of flattened rows. Online = every non-cash MOP (Invoice, GCash, Maya, Bank Transfer, ...).
+// An empty MOP (older receipts) counts as cash.
+export function paymentSplit(rows) {
+    const out = { cash: 0, online: 0, byMethod: {} };
+    for (const r of rows) {
+        const m = (r.entry.mop || '').trim() || 'Cash';
+        out.byMethod[m] = round2((out.byMethod[m] || 0) + r.total);
+        if (m === 'Cash') out.cash = round2(out.cash + r.total);
+        else out.online = round2(out.online + r.total);
+    }
+    return out;
+}
+
 export function filterEntries(entries, { q = '', from = '', to = '', booklet = '' } = {}) {
     const needle = q.trim().toLowerCase();
     return entries.filter(e => {

@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -412,6 +412,9 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const st = bookletStats(entries, start);
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
+    const split = paymentSplit(rowsInBooklet);
+    const onlineTip = Object.entries(split.byMethod).filter(([m]) => m !== "Cash")
+        .map(([m, v]) => `${m}: ${peso(v)}`).join("\n") || "No online payments";
     const pct = Math.round((st.used / BOOKLET_SIZE) * 100);
     const shownMissing = st.missing.slice(0, 8).join(", ") + (st.missing.length > 8 ? `, +${st.missing.length - 8} more` : "");
     const missing = st.missing.length
@@ -428,7 +431,11 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                     <span class="bk-bar"><span style="width:${pct}%"></span></span>
                     ${status}
                     ${missing}
-                    <span class="bk-total">${peso(sales)}</span>
+                    <span class="bk-pay">
+                        <span class="pay cash" title="Cash payments"><i class="ri-money-dollar-circle-line"></i> Cash <b>${peso(split.cash)}</b></span>
+                        <span class="pay online" title="${esc(onlineTip)}"><i class="ri-smartphone-line"></i> Online <b>${peso(split.online)}</b></span>
+                    </span>
+                    <span class="bk-total" title="Booklet total">${peso(sales)}</span>
                 </div>
             </td>
         </tr>`;
