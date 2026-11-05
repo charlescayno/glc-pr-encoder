@@ -24,6 +24,8 @@ const col = collection(db, COLLECTION);
 const LS_ENTRIES = "pre_entries_v1";
 const LS_CATALOG = "pre_catalog_v1";
 const LS_THEME = "pre_theme";
+const LS_LAST_DATE = "pre_last_date";
+const LS_LAST_PR = "pre_last_pr";
 
 let entries = loadLocal();
 let remoteOk = false;
@@ -177,12 +179,15 @@ function updatePrWarning() {
 
 function resetForm() {
     editingId = null;
-    $("fDate").value = todayISO();
-    $("fPr").value = nextPr(entries);
+    // Date stays on the last one used until the user changes it.
+    $("fDate").value = localStorage.getItem(LS_LAST_DATE) || todayISO();
+    // Batch encoding: continue from the last encoded PR (42701 -> 42702).
+    const lastPr = Number(localStorage.getItem(LS_LAST_PR));
+    $("fPr").value = lastPr > 0 ? lastPr + 1 : nextPr(entries);
     $("fBuyer").value = "Anonymous";
-    $("fMop").value = "";
+    $("fMop").value = "Cash";
     $("fRef").value = "";
-    $("refField").classList.add("hidden");
+    updateRefField();
     $("itemsList").innerHTML = "";
     addItemRow();
     $("formTitle").textContent = "New Provisional Receipt";
@@ -199,9 +204,9 @@ function startEdit(id) {
     $("fDate").value = e.date;
     $("fPr").value = e.pr;
     $("fBuyer").value = e.buyer || "";
-    $("fMop").value = e.mop || "";
+    $("fMop").value = e.mop || "Cash";
     $("fRef").value = e.mopRef || "";
-    $("refField").classList.toggle("hidden", !e.mop || e.mop === "Cash");
+    updateRefField();
     $("itemsList").innerHTML = "";
     e.items.forEach(addItemRow);
     $("formTitle").textContent = `Edit PR #${e.pr}`;
@@ -212,10 +217,19 @@ function startEdit(id) {
     $("encoderCard").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-$("fMop").addEventListener("change", () => {
+function updateRefField() {
     const v = $("fMop").value;
-    $("refField").classList.toggle("hidden", !v || v === "Cash");
-    if (!v || v === "Cash") $("fRef").value = "";
+    const show = !!v && v !== "Cash";
+    $("refField").classList.toggle("hidden", !show);
+    $("refLabel").textContent = v === "Invoice" ? "Invoice No." : "Reference No.";
+    if (!show) $("fRef").value = "";
+}
+$("fMop").addEventListener("change", () => {
+    updateRefField();
+    if (!$("refField").classList.contains("hidden")) $("fRef").focus();
+});
+$("fDate").addEventListener("change", () => {
+    if ($("fDate").value) localStorage.setItem(LS_LAST_DATE, $("fDate").value);
 });
 $("fPr").addEventListener("input", updatePrWarning);
 $("addRowBtn").addEventListener("click", () => addItemRow());
@@ -246,9 +260,10 @@ $("prForm").addEventListener("submit", ev => {
     const wasEdit = !!editingId;
     persist(entry, oldId);
     toast(wasEdit ? `PR #${pr} updated.` : `PR #${pr} added.`);
-    const keepDate = entry.date;
+    localStorage.setItem(LS_LAST_DATE, entry.date);
+    if (!wasEdit) localStorage.setItem(LS_LAST_PR, String(pr));
     resetForm();
-    $("fDate").value = keepDate;
+    $("itemsList").querySelector(".item-name").focus();
 });
 
 // ---------- Output ----------
@@ -341,6 +356,7 @@ $("clearBtn").addEventListener("click", async () => {
     const ids = entries.map(e => e.id);
     entries = [];
     saveLocal();
+    localStorage.removeItem(LS_LAST_PR);
     resetForm();
     refresh();
     try {

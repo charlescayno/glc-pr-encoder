@@ -70,8 +70,8 @@
                         <label class="field">
                             <span>MOP</span>
                             <select id="fMop">
-                                <option value="">- None -</option>
-                                <option>Cash</option>
+                                <option value="Cash" selected>Cash</option>
+                                <option value="Invoice">Invoice</option>
                                 <option>GCash</option>
                                 <option>Maya</option>
                                 <option>Bank Transfer</option>
@@ -81,7 +81,7 @@
                             </select>
                         </label>
                         <label class="field hidden" id="refField">
-                            <span>Reference No.</span>
+                            <span id="refLabel">Invoice No.</span>
                             <input type="text" id="fRef" placeholder="e.g. 689746">
                         </label>
                     </div>
