@@ -123,7 +123,7 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
         <label class="cell"><span>Unit Price</span>
             <input class="item-price" type="number" min="0" step="0.01" placeholder="0.00" value="${item.price}"></label>
         <div class="cell"><span>Total</span><div class="line-total">${peso(item.qty * (item.price || 0))}</div></div>
-        <button type="button" class="btn btn-danger btn-icon-only" title="Remove item"><i class="ri-close-line"></i></button>`;
+        <button type="button" class="btn btn-danger btn-icon-only" title="Remove item" tabindex="-1"><i class="ri-close-line"></i></button>`;
     const name = row.querySelector(".item-name");
     const qty = row.querySelector(".item-qty");
     const price = row.querySelector(".item-price");
@@ -383,6 +383,15 @@ document.addEventListener("keydown", ev => {
     }
 });
 $("prForm").addEventListener("keydown", ev => {
+    // Tab on the last Unit Price adds a new item row below (empty rows are ignored on submit).
+    if (ev.key === "Tab" && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey && ev.target.classList.contains("item-price")) {
+        const rows = [...$("itemsList").children];
+        if (ev.target.closest(".item-row") === rows[rows.length - 1]) {
+            ev.preventDefault();
+            addItemRow().querySelector(".item-name").focus();
+        }
+        return;
+    }
     if (ev.key !== "Enter" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const t = ev.target;
     if (t.tagName !== "INPUT" && t.tagName !== "SELECT") return;
