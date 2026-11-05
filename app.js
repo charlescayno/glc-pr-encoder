@@ -113,6 +113,8 @@ function remoteFail(err) {
 }
 
 async function persist(entry, oldId) {
+    const old = oldId && entries.find(e => e.id === oldId);
+    if (isLocked(entry.pr) || (old && isLocked(old.pr))) return lockedToast();
     const idx = entries.findIndex(e => e.id === entry.id);
     if (oldId && oldId !== entry.id) entries = entries.filter(e => e.id !== oldId);
     if (idx >= 0) entries[idx] = entry; else entries.push(entry);
@@ -125,10 +127,39 @@ async function persist(entry, oldId) {
     } catch (e) { remoteFail(e); }
 }
 
+// ---------- Booklet locks: a locked booklet cannot be changed until it is unlocked ----------
+const LS_LOCKS = "pre_locks_v1";
+const locksCol = collection(db, "pr_encoder_locks");
+let locks = (() => { try { return JSON.parse(localStorage.getItem(LS_LOCKS)) || []; } catch { return []; } })(); // booklet start numbers
+onSnapshot(locksCol, snap => {
+    locks = snap.docs.map(d => Number(d.data().start)).filter(Number.isFinite);
+    localStorage.setItem(LS_LOCKS, JSON.stringify(locks));
+    refresh();
+    if (rv && !reviewEditing) renderReview();
+}, err => console.error("Locks listener error", err));
+
+const isLocked = pr => locks.includes(bookletStart(Number(pr)));
+const lockedToast = () => toast("This booklet is locked. Unlock it first to make changes.");
+
+function toggleLock(start) {
+    const on = !locks.includes(start);
+    if (!on && !confirm(`Unlock booklet ${bookletLabel(start)}? It can be changed again.`)) return;
+    locks = on ? [...locks, start] : locks.filter(s => s !== start);
+    localStorage.setItem(LS_LOCKS, JSON.stringify(locks));
+    const ref = doc(locksCol, `bk_${start}`);
+    (on ? setDoc(ref, { start, at: Date.now() }) : deleteDoc(ref)).catch(err => {
+        console.error(err); toast("Could not save the lock to the cloud. Saved on this device only.");
+    });
+    refresh();
+    if (rv) renderReview();
+    toast(on ? `Booklet ${bookletLabel(start)} locked.` : `Booklet ${bookletLabel(start)} unlocked.`);
+}
+
 // Review: tick or untick one PR as verified against the paper sheet.
 function setChecked(id, on) {
     const i = entries.findIndex(e => e.id === id);
     if (i < 0) return;
+    if (isLocked(entries[i].pr)) return lockedToast();
     const e = { ...entries[i] };
     if (on) e.checkedAt = Date.now(); else delete e.checkedAt;
     entries[i] = e;
@@ -139,6 +170,7 @@ function setChecked(id, on) {
 }
 
 function setMark(pr, status) {
+    if (isLocked(pr)) return lockedToast();
     const id = `pr_${pr}`;
     const m = { id, pr, status, at: Date.now() };
     marks = marks.filter(x => x.id !== id).concat(m);
@@ -149,6 +181,7 @@ function setMark(pr, status) {
 }
 
 function clearMark(pr) {
+    if (isLocked(pr)) return lockedToast();
     const id = `pr_${pr}`;
     marks = marks.filter(x => x.id !== id);
     localStorage.setItem(LS_MARKS, JSON.stringify(marks));
@@ -157,6 +190,8 @@ function clearMark(pr) {
 }
 
 function removeEntry(id) {
+    const cur = entries.find(e => e.id === id);
+    if (cur && isLocked(cur.pr)) return lockedToast();
     entries = entries.filter(e => e.id !== id);
     saveLocal();
     refresh();
@@ -305,6 +340,12 @@ function updatePrWarning() {
     if (!pr) { el.classList.add("hidden"); return true; }
     const { duplicate, gap, expected, marked } = checkPr(entries, pr, editingId, marks);
     el.classList.remove("error");
+    if (isLocked(pr)) {
+        el.textContent = `Booklet ${bookletLabel(bookletStart(Number(pr)))} is locked. Unlock it to add or change PR #${pr}.`;
+        el.classList.add("error");
+        el.classList.remove("hidden");
+        return false;
+    }
     if (marked && !duplicate) {
         el.textContent = `PR #${pr} is marked ${markLabel(marked)}. Adding a receipt with this number clears that mark.`;
         el.classList.remove("hidden");
@@ -350,6 +391,7 @@ function resetForm() {
 function startEdit(id) {
     const e = entries.find(x => x.id === id);
     if (!e) return;
+    if (isLocked(e.pr)) { lockedToast(); return; }
     editingId = id;
     setDate(e.date);
     $("fPr").value = e.pr;
@@ -562,7 +604,7 @@ let suppressSubmit = false;
 $("prForm").addEventListener("submit", ev => {
     ev.preventDefault();
     if (suppressSubmit) return;
-    if (!updatePrWarning()) { toast("Duplicate PR number."); return; }
+    if (!updatePrWarning()) { toast(isLocked($("fPr").value) ? "This booklet is locked." : "Duplicate PR number."); return; }
     completeYear();
     $("itemsList").querySelectorAll(".item-name").forEach(applyShortcut); // e.g. submitted with Ctrl+Enter while still on "gte"
     if (!getDate()) { toast("Enter a valid date (MM-DD-YYYY)."); $("fDate").focus(); return; }
@@ -627,6 +669,7 @@ function markFromForm(status) {
     const pr = Number($("fPr").value);
     if (!(pr > 0)) return toast("Enter the PR number first.");
     if (editingId) return toast("Finish or cancel the edit first.");
+    if (isLocked(pr)) return lockedToast();
     if (entries.some(e => Number(e.pr) === pr)) return toast(`PR #${pr} already has a receipt. Delete it first if the sheet was cancelled.`);
     setMark(pr, status);
     localStorage.setItem(LS_LAST_PR, String(pr));
@@ -678,6 +721,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                     <span class="bk-bar"><span style="width:${pct}%"></span></span>
                     ${status}
                     ${reviewBadge}
+                    <button type="button" class="btn btn-sm ${locks.includes(start) ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${locks.includes(start) ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}"><i class="${locks.includes(start) ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i> ${locks.includes(start) ? "Locked" : "Lock"}</button>
                     <button type="button" class="btn btn-secondary btn-sm" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
                     ${missing}
                     <span class="bk-pay">
@@ -733,9 +777,9 @@ function markRowHtml(r) {
             <td></td>
             <td class="pr-no">${esc(r.pr)}</td>
             <td colspan="7"><span class="mark-tag ${esc(r.status)}">${markLabel(r.status)}</span> <span class="mark-note">${note}</span></td>
-            <td class="no-print"><div class="row-actions">
+            <td class="no-print">${isLocked(r.pr) ? `<i class="ri-lock-fill row-lock" title="Locked"></i>` : `<div class="row-actions">
                 <button class="btn btn-secondary btn-icon-only" data-unmark="${esc(r.pr)}" title="Clear this mark"><i class="ri-close-line"></i></button>
-            </div></td>
+            </div>`}</td>
         </tr>`;
 }
 
@@ -751,7 +795,7 @@ function rowHtml(r) {
             <td class="num">${money(r.total)}</td>
             <td class="num">${money(r.grand)}</td>
             <td>${r.first ? mopCellHtml(r) : ""}</td>
-            <td class="no-print">${r.first ? `<div class="row-actions">
+            <td class="no-print">${r.first && isLocked(r.pr) ? `<i class="ri-lock-fill row-lock" title="Locked"></i>` : r.first ? `<div class="row-actions">
                 <button class="btn btn-secondary btn-icon-only" data-edit="${esc(r.entry.id)}" title="Edit"><i class="ri-edit-line"></i></button>
                 <button class="btn btn-danger btn-icon-only" data-del="${esc(r.entry.id)}" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </div>` : ""}</td>
@@ -799,6 +843,7 @@ $("outBody").addEventListener("click", ev => {
         }
         return;
     }
+    if (b.dataset.lock) toggleLock(Number(b.dataset.lock));
     if (b.dataset.unmark) clearMark(Number(b.dataset.unmark));
     if (b.dataset.review) openReview(Number(b.dataset.review));
     if (b.dataset.edit) startEdit(b.dataset.edit);
@@ -860,19 +905,23 @@ $("importClose").addEventListener("click", () => $("importModal").classList.add(
 $("importText").addEventListener("input", importPreview);
 $("importSample").addEventListener("click", () => { $("importText").value = SHEET_0920; importPreview(); });
 $("importGo").addEventListener("click", () => {
-    const es = importPreview();
+    let es = importPreview();
     if (!es.length) return;
+    const locked = es.filter(e => isLocked(e.pr)).length;
+    es = es.filter(e => !isLocked(e.pr)); // locked booklets are never touched by an import
+    if (!es.length) return toast("Every PR in that paste belongs to a locked booklet.");
     const ids = new Set(es.map(e => e.id));
     entries = entries.filter(e => !ids.has(e.id)).concat(es);
     saveLocal();
     refresh();
     for (const { id, ...data } of es) setDoc(doc(col, id), data).catch(remoteFail);
     $("importModal").classList.add("hidden");
-    toast(`Imported ${es.length} PRs`);
+    toast(`Imported ${es.length} PRs` + (locked ? `, skipped ${locked} in locked booklets` : ""));
 });
 
 $("clearBtn").addEventListener("click", async () => {
     if (!entries.length) return toast("Nothing to clear.");
+    if (locks.length) return toast("Some booklets are locked. Unlock them first to clear everything.");
     if (!confirm(`Delete ALL ${entries.length} receipts? This cannot be undone.`)) return;
     if (!confirm("Really delete everything? Consider downloading a CSV first.")) return;
     const ids = entries.map(e => e.id);
@@ -1037,6 +1086,7 @@ function rvConfirm() {
     if (rv.summary) return;
     const s = rvCurrent();
     if (s.type === "entry") {
+        if (!s.checked && isLocked(s.pr)) { lockedToast(); return; }
         if (!s.checked) {
             setChecked(s.entry.id, true);
             playCheckSound(reviewProgress(rvSeq()).done);
@@ -1051,6 +1101,7 @@ function rvConfirm() {
 function rvUncheck() {
     rvStreak = 0;
     if (rv.summary) return;
+    if (isLocked(rv.pr)) return lockedToast();
     const s = rvCurrent();
     if (s.type === "entry" && s.checked) { setChecked(s.entry.id, false); renderReview(); }
     else if (s.type === "mark") { clearMark(s.pr); renderReview(); }
@@ -1058,6 +1109,7 @@ function rvUncheck() {
 
 function rvMark(status) {
     if (rv.summary) return;
+    if (isLocked(rv.pr)) return lockedToast();
     const s = rvCurrent();
     if (s.type === "entry") { toast("This PR has an entry. Press Enter to check it, or E to edit."); return; }
     setMark(s.pr, status);
@@ -1083,6 +1135,7 @@ function rvEncodeLater() {
 let encoderPlaceholder = null;
 function rvEdit() {
     if (rv.summary) return;
+    if (isLocked(rv.pr)) return lockedToast();
     const s = rvCurrent();
     if (s.type !== "entry") return;
     const card = $("encoderCard");
@@ -1180,7 +1233,12 @@ function renderReview() {
     const prog = reviewProgress(seq);
     const idx = seq.indexOf(cur);
 
-    $("rvTitle").textContent = `Review booklet ${bookletLabel(rv.start)}`;
+    const lockedNow = locks.includes(rv.start);
+    $("rvTitle").innerHTML = `Review booklet ${esc(bookletLabel(rv.start))}${lockedNow ? ' <i class="ri-lock-fill rv-lockmark" title="Locked"></i>' : ""}`;
+    $("rvLock").innerHTML = lockedNow ? '<i class="ri-lock-fill"></i> Locked' : '<i class="ri-lock-unlock-line"></i> Lock';
+    $("rvLock").classList.toggle("btn-locked", lockedNow);
+    $("rvLock").title = lockedNow ? "Locked: nothing can be changed. Click to unlock." : "Lock this booklet so it cannot be changed";
+    $("rvRestart").disabled = lockedNow;
     $("rvSub").textContent = `${prog.checked} of ${prog.entries} PRs checked` +
         (prog.marks ? ` | ${prog.marks} void or not used` : "") + (prog.missing ? ` | ${prog.missing} missing` : "") +
         (rv.summary ? "" : ` | now at ${idx + 1} of ${seq.length}`);
@@ -1280,7 +1338,7 @@ function cashCountHtml(start, expected) {
     const saved = loadCashCount(start);
     const rows = DENOMS.map(d => `
         <tr><td>${money(d.value)} <span class="cc-kind">${d.label.split(" ")[1]}</span></td>
-            <td class="num"><input type="number" class="cc-in" data-denom="${d.key}" min="0" step="1" inputmode="numeric" value="${saved[d.key] || ""}" placeholder="0" aria-label="${esc(d.label)} count"></td>
+            <td class="num"><input type="number" class="cc-in" ${locks.includes(start) ? "disabled" : ""} data-denom="${d.key}" min="0" step="1" inputmode="numeric" value="${saved[d.key] || ""}" placeholder="0" aria-label="${esc(d.label)} count"></td>
             <td class="num cc-amt">${money((Number(saved[d.key]) || 0) * d.value)}</td></tr>`).join("");
     const counted = DENOMS.reduce((s, d) => round2(s + (Number(saved[d.key]) || 0) * d.value), 0);
     const any = Object.keys(saved).length > 0;
@@ -1432,8 +1490,10 @@ $("rvCard").addEventListener("click", ev => {
 });
 $("rvClose").addEventListener("click", closeReview);
 // Uncheck every PR of the booklet and restart the review from the first sheet.
+$("rvLock").addEventListener("click", () => { if (rv) toggleLock(rv.start); });
 $("rvRestart").addEventListener("click", () => {
     if (!rv) return;
+    if (locks.includes(rv.start)) return lockedToast();
     const checked = entries.filter(e => bookletStart(e.pr) === rv.start && e.checkedAt);
     if (!checked.length) return toast("Nothing is checked in this booklet.");
     if (!confirm(`Uncheck all ${checked.length} checked PRs in booklet ${bookletLabel(rv.start)} and restart the review?`)) return;

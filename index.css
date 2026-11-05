@@ -620,3 +620,9 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .cc-in { padding: 0.05rem 0.4rem; width: 4.8rem; }
 .cc-table thead th { padding: 0.25rem 0.6rem; }
 @media (max-width: 760px) { .rs-grid { grid-template-columns: 1fr; } }
+
+.btn-locked { background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; }
+[data-theme="dark"] .btn-locked { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.row-lock { color: var(--color-text-light); }
+.rv-lockmark { color: #d97706; font-size: 0.9em; }
+#rvRestart:disabled { opacity: 0.5; cursor: not-allowed; }
