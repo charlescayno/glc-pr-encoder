@@ -256,6 +256,20 @@ $("fDate").addEventListener("input", () => {
     const iso = getDate();
     if (iso) localStorage.setItem(LS_LAST_DATE, iso);
 });
+// "09-21" -> "09-21-<current year>", "09-21-26" -> "09-21-2026"
+function completeYear() {
+    const el = $("fDate");
+    const digits = el.value.replace(/\D/g, "");
+    const year = new Date().getFullYear();
+    if (digits.length === 4) el.value = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${year}`;
+    else if (digits.length === 6) el.value = `${digits.slice(0, 2)}-${digits.slice(2, 4)}-20${digits.slice(4)}`;
+    else return;
+    el.classList.toggle("invalid", !getDate());
+    const iso = getDate();
+    if (iso) localStorage.setItem(LS_LAST_DATE, iso);
+}
+$("fDate").addEventListener("blur", completeYear);
+$("fDate").addEventListener("keydown", ev => { if (ev.key === "Enter") completeYear(); });
 $("fDate").addEventListener("focus", () => $("fDate").select());
 $("dateToday").addEventListener("click", () => { setDate(todayISO()); localStorage.setItem(LS_LAST_DATE, todayISO()); });
 $("datePrev").addEventListener("click", () => shiftDate(-1));
@@ -267,6 +281,7 @@ $("cancelEditBtn").addEventListener("click", resetForm);
 $("prForm").addEventListener("submit", ev => {
     ev.preventDefault();
     if (!updatePrWarning()) { toast("Duplicate PR number."); return; }
+    completeYear();
     if (!getDate()) { toast("Enter a valid date (MM-DD-YYYY)."); $("fDate").focus(); return; }
     const items = readItems().filter(i => i.desc);
     if (!items.length) { toast("Add at least one sold item."); return; }
