@@ -1,4 +1,4 @@
-import { downloadTopSheet, downloadBookletSummary, downloadSummaryXlsx } from "./export.js";
+import { downloadBookletPdf, downloadSummaryXlsx } from "./export.js";
 import { markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -1439,13 +1439,12 @@ async function exportBooklet(kind) {
     const saved = loadCashCount(rv.start);
     const counts = DENOMS.map(d => { const count = Number(saved[d.key]) || 0; return { value: d.value, kind: d.label.split(" ")[1], count, amount: round2(count * d.value) }; });
     try {
-        if (kind === "toppdf") await downloadTopSheet(s);
-        else if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
+        if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
         else {
             const name = prompt("Prepared by:", localStorage.getItem("pre_preparedBy") || "Ynah Orgasan");
             if (name === null) return;
             localStorage.setItem("pre_preparedBy", name.trim());
-            await downloadBookletSummary(s, bookEntries, counts, name.trim());
+            await downloadBookletPdf(s, bookEntries, counts, name.trim());
         }
     } catch (err) {
         console.error(err);
@@ -1476,8 +1475,7 @@ function renderReviewSummary(seq, prog) {
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
     $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
         <button type="button" class="btn btn-secondary btn-lg" data-rv="copysummary"><i class="ri-file-copy-line"></i> Copy summary</button>
-        ${allDone ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="toppdf"><i class="ri-file-pdf-line"></i> TOP Sheet PDF</button>
-        <button type="button" class="btn btn-secondary btn-lg" data-rv="bookpdf"><i class="ri-file-pdf-line"></i> Booklet Summary PDF</button>
+        ${allDone ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="pdf"><i class="ri-file-pdf-line"></i> Download PDF</button>
         <button type="button" class="btn btn-secondary btn-lg" data-rv="xlsx"><i class="ri-file-excel-2-line"></i> Download XLSX</button>` : ""}
         <button type="button" class="btn btn-secondary btn-lg" data-rv="print"><i class="ri-printer-line"></i> Print</button>
         ${allDone ? "" : `<button type="button" class="btn btn-secondary btn-lg" data-rv="firstopen">Go to first open</button>`}
@@ -1510,7 +1508,7 @@ $("rvActions").addEventListener("click", ev => {
             navigator.clipboard.writeText(text).then(() => toast("Summary copied. Paste into Excel or Google Sheets."), () => toast("Could not copy."));
             break;
         }
-        case "toppdf": case "bookpdf": case "xlsx": exportBooklet(b.dataset.rv); break;
+        case "pdf": case "xlsx": exportBooklet(b.dataset.rv); break;
         case "print": document.body.classList.add("print-review"); window.print(); document.body.classList.remove("print-review"); break;
         case "firstopen": { const s = rvSeq().find(x => !x.resolved); if (s) { rv.pr = s.pr; rv.summary = false; renderReview(); } break; }
         case "close": closeReview(); break;

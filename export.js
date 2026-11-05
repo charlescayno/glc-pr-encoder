@@ -51,18 +51,24 @@ function sectionTable(doc, y, label, sec) {
     return end + 34;
 }
 
-// One-page TOP sheet: booklet range, then the cash and online item tallies.
-export async function downloadTopSheet(s) {
-    const doc = await pdfDoc();
+// TOP sheet page: booklet range, then the cash and online item tallies.
+function drawTopSheet(doc, s) {
     headerLine(doc, s);
     let y = sectionTable(doc, 60, "CASH", s.cash);
     sectionTable(doc, y + 8, "ONLINE PAYMENT", s.online);
-    save(doc, `${fileBase(s)} TOP Sheet.pdf`);
 }
 
-// Full booklet summary: every receipt row, cash/online totals, cash count and signature lines.
-export async function downloadBookletSummary(s, bookEntries, counts, preparedBy) {
+// One PDF (letter size): page 1 is the TOP sheet, the following pages are the booklet summary.
+export async function downloadBookletPdf(s, bookEntries, counts, preparedBy) {
     const doc = await pdfDoc();
+    drawTopSheet(doc, s);
+    doc.addPage();
+    drawBookletSummary(doc, s, bookEntries, counts, preparedBy);
+    save(doc, `${fileBase(s)} PR Booklet.pdf`);
+}
+
+// Booklet summary: every receipt row, cash/online totals, cash count and signature lines.
+function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     const rows = flatten(bookEntries);
     const online = rows.map(r => !!r.mop && r.mop.trim().toLowerCase() !== "cash");
     const body = rows.map(r => {
@@ -112,7 +118,6 @@ export async function downloadBookletSummary(s, bookEntries, counts, preparedBy)
     doc.text(`Prepared By: ${preparedBy || ""}`, 30, y);
     doc.text("Checked By:", 30, y + 22);
     doc.text("Received By:", 30, y + 44);
-    save(doc, `${fileBase(s)} PR Booklet Summary.pdf`);
 }
 
 // XLSX with the tally sheet (cash, online, void, not used, cash count) and the full receipts table.
