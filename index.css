@@ -688,3 +688,35 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 /* New receipt form: item name field in the color of its book cover */
 .item-row input.item-name.item-c { color: var(--item-color); font-weight: 700; }
 [data-theme="dark"] .item-row input.item-name.item-c { color: color-mix(in srgb, var(--item-color) 55%, #ffffff); }
+
+/* --- New receipt form laid out like the paper Provisional Receipt --- */
+#prForm { --rc-teal: #2a8d8a; }
+.rcpt { display: flex; flex-direction: column; gap: 0.7rem; }
+.rcpt-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem 2rem; flex-wrap: wrap; }
+.rcpt-org { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.rcpt-logo { flex: none; width: 2.9rem; height: 2.9rem; border: 3px solid var(--rc-teal); border-radius: 50%; display: grid; place-items: center; color: var(--rc-teal); font-weight: 800; font-size: 0.95rem; }
+.rcpt-orgname { font-weight: 800; color: var(--rc-teal); font-size: 1rem; letter-spacing: 0.01em; }
+.rcpt-addr { font-size: 0.72rem; color: var(--color-text-muted); }
+.rcpt-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; margin-left: auto; }
+.rcpt-title { font-weight: 800; font-style: italic; letter-spacing: 0.05em; color: var(--rc-teal); font-size: 1rem; }
+.rcpt-right .field-pr, .rcpt-right .field-date { flex-direction: row; align-items: center; gap: 0.5rem; grid-column: auto; }
+.rcpt-right .field-pr > span { font-size: 1.3rem; font-weight: 800; color: #b91c1c; }
+.rcpt-right .field-pr input { width: 9.5rem; font-size: 1.25rem; font-weight: 800; color: #b91c1c; text-align: right; }
+.rcpt-right .field-date > span { font-weight: 600; color: var(--color-text-main); }
+.rcpt-right .hint { text-align: right; }
+.band { background: var(--rc-teal); color: #fff; font-weight: 700; font-size: 0.85rem; padding: 0.3rem 0.75rem; border-radius: 0.25rem; }
+.band-desc { text-align: center; }
+.field-buyer { flex-direction: row; align-items: center; gap: 0.6rem; font-size: 0.9rem; font-weight: 600; color: var(--color-text-main); }
+.field-buyer > span { flex: none; }
+.items-add { display: flex; justify-content: flex-start; }
+.total-box { display: flex; justify-content: flex-end; align-items: baseline; gap: 1.2rem; padding-top: 0.6rem; border-top: 2px solid var(--rc-teal); }
+.total-box span { font-weight: 800; font-size: 0.85rem; letter-spacing: 0.03em; }
+.total-box strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.rcpt-bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.pay-box { flex: 1 1 560px; max-width: 720px; border: 2px solid var(--rc-teal); border-radius: 0.3rem; overflow: hidden; }
+.pay-title { background: var(--rc-teal); color: #fff; font-weight: 700; font-size: 0.8rem; padding: 0.3rem 0.7rem; letter-spacing: 0.03em; }
+.pay-grid { display: grid; grid-template-columns: minmax(110px, 0.8fr) minmax(150px, 1fr) minmax(210px, 1.3fr); gap: 0.7rem; padding: 0.7rem; }
+@media (max-width: 720px) { .rcpt-right { align-items: flex-start; margin-left: 0; } .rcpt-right .hint { text-align: left; } }
+
+.pay-grid .field.hidden { display: none; }
+@media (max-width: 720px) { .pay-grid { grid-template-columns: 1fr 1fr; } }

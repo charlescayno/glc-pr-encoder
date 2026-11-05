@@ -83,55 +83,50 @@
                 </div>
 
                 <form id="prForm" autocomplete="off">
-                    <div class="form-grid">
-                        <div class="field field-date">
-                            <span>Date</span>
-                            <div class="date-wrap">
-                                <button type="button" class="btn btn-secondary btn-icon-only" id="datePrev" title="Previous day"><i class="ri-arrow-left-s-line"></i></button>
-                                <input type="text" id="fDate" inputmode="numeric" maxlength="10" placeholder="MM-DD-YYYY" required>
-                                <button type="button" class="btn btn-secondary btn-icon-only" id="dateNext" title="Next day"><i class="ri-arrow-right-s-line"></i></button>
-                                <button type="button" class="btn btn-secondary" id="dateToday" title="Set to today">Today</button>
+                    <div class="rcpt">
+                        <div class="rcpt-top">
+                            <div class="rcpt-org">
+                                <span class="rcpt-logo">ccf</span>
+                                <div>
+                                    <div class="rcpt-orgname">CHRIST'S COMMISSION FOUNDATION, INC.</div>
+                                    <div class="rcpt-addr">CCF Center, Ortigas East, Ortigas Avenue Corner C5 Road, Pasig City</div>
+                                </div>
+                            </div>
+                            <div class="rcpt-right">
+                                <div class="rcpt-title">PROVISIONAL RECEIPT</div>
+                                <label class="field field-pr">
+                                    <span>N&ordm;</span>
+                                    <input type="number" id="fPr" min="1" step="1" required>
+                                </label>
+                                <small class="hint" id="bookletHint"></small>
+                                <div class="field field-date">
+                                    <span>Date:</span>
+                                    <div class="date-wrap">
+                                        <button type="button" class="btn btn-secondary btn-icon-only" id="datePrev" title="Previous day"><i class="ri-arrow-left-s-line"></i></button>
+                                        <input type="text" id="fDate" inputmode="numeric" maxlength="10" placeholder="MM-DD-YYYY" required>
+                                        <button type="button" class="btn btn-secondary btn-icon-only" id="dateNext" title="Next day"><i class="ri-arrow-right-s-line"></i></button>
+                                        <button type="button" class="btn btn-secondary" id="dateToday" title="Set to today">Today</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <label class="field">
-                            <span>PR Number</span>
-                            <input type="number" id="fPr" min="1" step="1" required>
-                            <small class="hint" id="bookletHint"></small>
-                        </label>
-                        <label class="field">
-                            <span>Buyer</span>
+
+                        <div class="band band-from">Received From:</div>
+                        <label class="field field-buyer">
+                            <span>Registered Name:</span>
                             <input type="text" id="fBuyer" value="Anonymous">
                         </label>
-                        <label class="field">
-                            <span>MOP</span>
-                            <select id="fMop" title="Alt+C Cash, Alt+I Invoice">
-                                <option value="Cash" selected>Cash</option>
-                                <option value="Invoice">Invoice</option>
-                                <option>GCash</option>
-                                <option>Maya</option>
-                                <option>Bank Transfer</option>
-                                <option>Check</option>
-                                <option>Other</option>
-                            </select>
-                        </label>
-                        <label class="field hidden" id="refField">
-                            <span id="refLabel">Invoice No.</span>
-                            <input type="text" id="fRef" placeholder="e.g. 689746">
-                        </label>
-                        <div class="field split-toggle">
-                            <span>Special case</span>
-                            <button type="button" class="btn btn-secondary" id="splitBtn" title="Part cash, part online (Alt+S)"><i class="ri-split-cells-horizontal"></i> <span id="splitBtnText">Split payment</span></button>
-                        </div>
-                        <div class="field split-toggle">
-                            <span>Cancelled / blank sheet</span>
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-secondary" id="voidBtn" title="This PR number was cancelled (Alt+V)"><i class="ri-forbid-line"></i> Void</button>
-                                <button type="button" class="btn btn-secondary" id="unusedBtn" title="This PR number was not used or skipped (Alt+U)"><i class="ri-file-unknow-line"></i> Not used</button>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="split-panel hidden" id="splitPanel">
+                        <div class="band band-desc">Description of Transaction / Nature of Service</div>
+                        <div id="prWarn" class="warn hidden"></div>
+                        <div class="items-list" id="itemsList"></div>
+                        <datalist id="catalogList"></datalist>
+                        <div class="items-add">
+                            <button type="button" class="btn btn-secondary" id="addRowBtn" title="Add item (Alt+N)"><i class="ri-add-line"></i> Add item</button>
+                        </div>
+                        <div class="total-box"><span>TOTAL PAID AMOUNT</span><strong id="formTotal">&#8369; 0.00</strong></div>
+
+                        <div class="split-panel hidden" id="splitPanel">
                         <div class="split-title"><i class="ri-split-cells-horizontal"></i> Split payment: part cash, part online. The two amounts must add up to the receipt total.</div>
                         <div class="split-grid">
                             <label class="field"><span>Cash amount</span>
@@ -153,20 +148,43 @@
                         <div class="split-note" id="splitNote"></div>
                     </div>
 
-                    <div id="prWarn" class="warn hidden"></div>
-
-                    <div class="items-head">
-                        <h3>Sold Items</h3>
-                        <button type="button" class="btn btn-secondary" id="addRowBtn" title="Add item (Alt+N)"><i class="ri-add-line"></i> Add item</button>
-                    </div>
-                    <div class="items-list" id="itemsList"></div>
-                    <datalist id="catalogList"></datalist>
-
-                    <div class="form-foot">
-                        <div class="form-total">Receipt total: <strong id="formTotal">&#8369; 0.00</strong></div>
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">Cancel edit</button>
-                            <button type="submit" class="btn btn-primary" id="submitBtn" title="Add PR to output (Ctrl+Enter)"><i class="ri-add-circle-line"></i> <span id="submitText">Add PR to output</span></button>
+                        <div class="rcpt-bottom">
+                            <div class="pay-box">
+                            <div class="pay-title">FORM OF PAYMENT</div>
+                            <div class="pay-grid">
+                                <label class="field">
+                                    <span>MOP</span>
+                                    <select id="fMop" title="Alt+C Cash, Alt+I Invoice">
+                                        <option value="Cash" selected>Cash</option>
+                                        <option value="Invoice">Invoice</option>
+                                        <option>GCash</option>
+                                        <option>Maya</option>
+                                        <option>Bank Transfer</option>
+                                        <option>Check</option>
+                                        <option>Other</option>
+                                    </select>
+                                </label>
+                                <label class="field hidden" id="refField">
+                                    <span id="refLabel">Invoice No.</span>
+                                    <input type="text" id="fRef" placeholder="e.g. 689746">
+                                </label>
+                                <div class="field split-toggle">
+                                    <span>Special case</span>
+                                    <button type="button" class="btn btn-secondary" id="splitBtn" title="Part cash, part online (Alt+S)"><i class="ri-split-cells-horizontal"></i> <span id="splitBtnText">Split payment</span></button>
+                                </div>
+                                <div class="field split-toggle">
+                                    <span>Cancelled / blank sheet</span>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-secondary" id="voidBtn" title="This PR number was cancelled (Alt+V)"><i class="ri-forbid-line"></i> Void</button>
+                                        <button type="button" class="btn btn-secondary" id="unusedBtn" title="This PR number was not used or skipped (Alt+U)"><i class="ri-file-unknow-line"></i> Not used</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">Cancel edit</button>
+                                <button type="submit" class="btn btn-primary" id="submitBtn" title="Add PR to output (Ctrl+Enter)"><i class="ri-add-circle-line"></i> <span id="submitText">Add PR to output</span></button>
+                            </div>
                         </div>
                     </div>
                 </form>
