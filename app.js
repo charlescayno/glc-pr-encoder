@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -108,7 +108,7 @@ function removeEntry(id) {
 
 // ---------- Form ----------
 function catalogOptions() {
-    $("catalogList").innerHTML = catalog.map(c => `<option value="${esc(c.desc)}"></option>`).join("");
+    $("catalogList").innerHTML = catalog.map(c => `<option value="${esc(c.desc)}" label="${esc(peso(c.price))}"></option>`).join("");
 }
 
 function addItemRow(item = { desc: "", qty: 1, price: "" }) {
@@ -116,7 +116,8 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     row.className = "item-row";
     row.innerHTML = `
         <label class="cell item-name-cell"><span>Item</span>
-            <input class="item-name" type="text" list="catalogList" placeholder="Search or type item" value="${esc(item.desc)}"></label>
+            <input class="item-name" type="text" list="catalogList" placeholder="Search, or type a shorthand (e.g. gte, b1)" value="${esc(item.desc)}">
+            <small class="sc-hint hidden"></small></label>
         <label class="cell"><span>Qty</span>
             <input class="item-qty" type="number" min="1" step="1" placeholder="Qty" value="${item.qty}"></label>
         <label class="cell"><span>Unit Price</span>
@@ -126,11 +127,16 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     const name = row.querySelector(".item-name");
     const qty = row.querySelector(".item-qty");
     const price = row.querySelector(".item-price");
+    const hint = row.querySelector(".sc-hint");
     name.addEventListener("input", () => {
         const hit = catalog.find(c => c.desc.toLowerCase() === name.value.trim().toLowerCase());
         if (hit) price.value = hit.price;
+        showShortcutHint(name, hint);
         updateFormTotal();
     });
+    // Shorthand is applied when you leave the field (Tab / click away) or press Enter.
+    name.addEventListener("change", () => { applyShortcut(name); showShortcutHint(name, hint); });
+    name.addEventListener("blur", () => hint.classList.add("hidden"));
     qty.addEventListener("input", updateFormTotal);
     price.addEventListener("input", updateFormTotal);
     row.querySelector("button").addEventListener("click", () => {
@@ -140,6 +146,30 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     $("itemsList").appendChild(row);
     updateFormTotal();
     return row;
+}
+
+// ---- Item shorthand: type "gte" -> Gospel Tracts English (New) ----
+function showShortcutHint(nameInput, hintEl) {
+    const r = resolveShortcut(catalog, nameInput.value);
+    if (r.status === "one") {
+        hintEl.textContent = `Enter \u2192 ${r.items[0].desc} (${peso(r.items[0].price)})`;
+        hintEl.classList.remove("hidden", "warn-text");
+    } else if (r.status === "many") {
+        hintEl.textContent = `${r.items.length} matches: ` + r.items.slice(0, 3).map(i => i.desc).join(" | ") + (r.items.length > 3 ? " ..." : "");
+        hintEl.classList.remove("hidden");
+        hintEl.classList.add("warn-text");
+    } else {
+        hintEl.classList.add("hidden");
+    }
+}
+function applyShortcut(nameInput) {
+    const r = resolveShortcut(catalog, nameInput.value);
+    if (r.status !== "one") return false;
+    const row = nameInput.closest(".item-row");
+    nameInput.value = r.items[0].desc;
+    row.querySelector(".item-price").value = r.items[0].price;
+    updateFormTotal();
+    return true;
 }
 
 function readItems() {
@@ -364,6 +394,7 @@ $("prForm").addEventListener("keydown", ev => {
         else fields[i + 1].focus();
     };
     if (t.classList.contains("item-name")) {
+        applyShortcut(t);
         // Let the browser finish picking a suggestion from the list, but never submit.
         suppressSubmit = true;
         setTimeout(() => { suppressSubmit = false; go(); }, 0);
@@ -380,6 +411,7 @@ $("prForm").addEventListener("submit", ev => {
     if (suppressSubmit) return;
     if (!updatePrWarning()) { toast("Duplicate PR number."); return; }
     completeYear();
+    $("itemsList").querySelectorAll(".item-name").forEach(applyShortcut); // e.g. submitted with Ctrl+Enter while still on "gte"
     if (!getDate()) { toast("Enter a valid date (MM-DD-YYYY)."); $("fDate").focus(); return; }
     const items = readItems().filter(i => i.desc);
     if (!items.length) { toast("Add at least one sold item."); return; }
@@ -604,6 +636,7 @@ function renderCatalogRows() {
     $("catalogBody").innerHTML = catalog.map((c, i) => `
         <div class="cat-row">
             <input type="text" value="${esc(c.desc)}" data-i="${i}" data-k="desc">
+            <input type="text" value="${esc(c.code || "")}" data-i="${i}" data-k="code" placeholder="shorthand" title="Optional custom shorthand, e.g. gte">
             <input type="number" min="0" step="0.01" value="${c.price}" data-i="${i}" data-k="price">
             <button class="btn btn-danger btn-icon-only" data-rm="${i}"><i class="ri-close-line"></i></button>
         </div>`).join("");
@@ -628,7 +661,11 @@ $("catalogReset").addEventListener("click", () => {
     catalog = loadCatalog(); renderCatalogRows();
 });
 $("catalogSave").addEventListener("click", () => {
-    catalog = catalog.filter(c => c.desc.trim()).map(c => ({ desc: c.desc.trim(), price: Number(c.price) || 0 }));
+    catalog = catalog.filter(c => c.desc.trim()).map(c => {
+        const item = { desc: c.desc.trim(), price: Number(c.price) || 0 };
+        if (c.code && c.code.trim()) item.code = c.code.trim();
+        return item;
+    });
     localStorage.setItem(LS_CATALOG, JSON.stringify(catalog));
     catalogOptions();
     $("catalogModal").classList.add("hidden");

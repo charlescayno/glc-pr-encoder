@@ -56,6 +56,49 @@ export function bookletStarts(entries) {
     return [...new Set(entries.map(e => bookletStart(e.pr)))].sort((a, b) => a - b);
 }
 
+// ---- Item shorthand ----------------------------------------------------------------
+// Every catalog item gets automatic codes, e.g.
+//   "Gospel Tracts English (New)"   -> gte   (initials, text in brackets ignored)
+//   "GLC Book 7: The Family Life"   -> b7
+//   "GLC Book 5: Starting Point (Old)" -> b5o  (book number + bracket initial)
+//   "GLC Book 1: Filipino One by One"  -> fb1
+// plus an optional custom code typed in the catalog editor.
+function itemAutoCodes(desc) {
+    const paren = (/\(([^)]*)\)/.exec(desc) || [])[1] || '';
+    const main = desc.replace(/\([^)]*\)/g, ' ').trim();
+    const words = main.split(/[\s:]+/).filter(Boolean);
+    const initials = words.map(w => w[0].toLowerCase()).join('');
+    const pi = paren ? paren.trim()[0].toLowerCase() : '';
+    const codes = new Set([initials]);
+    if (words[0] && words[0].toLowerCase() === 'glc') codes.add(words.slice(1).map(w => w[0].toLowerCase()).join(''));
+    if (pi) codes.add(initials + pi);
+    const book = /book\s+(\d+)/i.exec(main);
+    if (book) {
+        const base = (/filipino/i.test(main) ? 'fb' : 'b') + book[1];
+        codes.add(base);
+        if (pi) codes.add(base + pi);
+    }
+    return { codes: [...codes].filter(Boolean), hasParen: !!paren };
+}
+
+const normCode = s => String(s || '').toLowerCase().replace(/[\s\-_.]+/g, '');
+
+// Returns { status: 'none' | 'one' | 'many', items: [catalogItem...] }
+export function resolveShortcut(catalog, text) {
+    const t = normCode(text);
+    if (!t) return { status: 'none', items: [] };
+    // An exact item name always wins over a code.
+    if (catalog.some(c => c.desc.trim().toLowerCase() === String(text).trim().toLowerCase())) return { status: 'none', items: [] };
+    const custom = catalog.filter(c => normCode(c.code) === t);
+    if (custom.length) return { status: custom.length === 1 ? 'one' : 'many', items: custom };
+    let hits = catalog.filter(c => itemAutoCodes(c.desc).codes.includes(t));
+    if (hits.length > 1) {
+        const plain = hits.filter(c => !itemAutoCodes(c.desc).hasParen);
+        if (plain.length === 1) hits = plain; // "b7" -> the plain item rather than "(New)"
+    }
+    return { status: hits.length === 0 ? 'none' : hits.length === 1 ? 'one' : 'many', items: hits };
+}
+
 // Cash vs online split of flattened rows. Online = every non-cash MOP (Invoice, GCash, Maya, Bank Transfer, ...).
 // An empty MOP (older receipts) counts as cash.
 export function paymentSplit(rows) {

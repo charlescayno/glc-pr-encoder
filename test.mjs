@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut } from "./logic.js";
 
 const entries = [
     { id: "pr_42751", pr: 42751, date: "2026-09-13", buyer: "Anonymous", mop: "", mopRef: "", items: [{ desc: "Book 1: One by One 4th Edition", qty: 2, price: 50 }] },
@@ -44,4 +44,26 @@ const split = paymentSplit(flatten(entries));
 assert.equal(split.online, 100);            // PR 42753 paid by invoice
 assert.equal(split.cash, 565 - 100);
 assert.deepEqual(split.byMethod, { Cash: 465, Invoice: 100 });
+// Item shorthand
+const cat = [
+    "GLC Book 1: One by One", "GLC Book 1: Filipino One by One", "GLC Book 5: Starting Point for small group (New)",
+    "GLC Book 5: Starting Point for small group (Old)", "GLC Book 7: The Family Life (New)", "GLC Book 7: The Family Life",
+    "GLC Book 12: Leadership Skills", "Gospel Tracts English (New)", "Gospel Tracts Tagalog (New)", "Dare 2 Share", "Accountability Card", "Real Talk Booklet",
+].map((desc, i) => ({ desc, price: i + 1 }));
+cat.push({ desc: "Motivate English", price: 250, code: "mot" });
+const one = t => { const r = resolveShortcut(cat, t); return r.status === "one" ? r.items[0].desc : r.status; };
+assert.equal(one("gte"), "Gospel Tracts English (New)");
+assert.equal(one("GTT"), "Gospel Tracts Tagalog (New)");
+assert.equal(one("b1"), "GLC Book 1: One by One");
+assert.equal(one("fb1"), "GLC Book 1: Filipino One by One");
+assert.equal(one("b12"), "GLC Book 12: Leadership Skills");
+assert.equal(one("b5"), "many");
+assert.equal(one("b5n"), "GLC Book 5: Starting Point for small group (New)");
+assert.equal(one("b5o"), "GLC Book 5: Starting Point for small group (Old)");
+assert.equal(one("b7"), "GLC Book 7: The Family Life");
+assert.equal(one("d2s"), "Dare 2 Share");
+assert.equal(one("ac"), "Accountability Card");
+assert.equal(one("mot"), "Motivate English");
+assert.equal(one("zzz"), "none");
+assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shorthand");
 console.log("all tests passed");
