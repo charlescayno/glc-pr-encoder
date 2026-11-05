@@ -143,6 +143,20 @@ h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.025em; line-heigh
     padding: 0.15rem 0.6rem; border-radius: 999px;
 }
 
+/* Encoder card stands out from the output card */
+#encoderCard {
+    background: #eaf5fc;
+    border: 1px solid #b7dcf2;
+    border-top: 4px solid var(--color-primary);
+    box-shadow: var(--shadow-md);
+}
+[data-theme="dark"] #encoderCard {
+    background: #172a3d;
+    border-color: #1f4a6b;
+    border-top-color: var(--color-primary);
+}
+#encoderCard .split-panel { background: var(--color-bg-surface); }
+
 /* --- Form --- */
 .form-grid {
     display: grid;
