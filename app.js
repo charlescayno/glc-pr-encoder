@@ -695,23 +695,69 @@ $("collapseBtn").addEventListener("click", () => {
     refresh();
 });
 
-function bookletHeaderHtml(start, rowsInBooklet) {
-    const st = bookletStats(entries, start, marks);
+// Review status badge of one booklet (verified / checked x of y), shared by the booklet header and the summary at the bottom.
+function reviewBadgeHtml(start, st = bookletStats(entries, start, marks)) {
     const prog = reviewProgress(reviewSequence(entries, marks, start));
     const verified = prog.done && prog.entries > 0;
-    const reviewBadge = prog.entries
+    return prog.entries
         ? `<span class="bk-badge ${verified ? "verified" : "partial"}" title="${prog.lastAt ? "Last checked " + esc(new Date(prog.lastAt).toLocaleString()) : "Nothing checked yet"}">${verified ? `<i class="ri-checkbox-circle-fill"></i> ${st.complete ? "Verified" : "All checked"}` : `Checked ${prog.checked}/${prog.entries}`}</span>`
         : "";
-    // Cash count status: tallied (counted money matches the PRs), off (counted but different) or not counted yet.
+}
+
+// Cash count status: tallied (counted money matches the PRs), off (counted but different) or not counted yet.
+function cashBadgeHtml(start) {
     const cashSaved = loadCashCount(start);
     const cashCounted = DENOMS.reduce((t, d) => round2(t + (Number(cashSaved[d.key]) || 0) * d.value), 0);
     const cashExpected = bookletSummary(entries.filter(e => bookletStart(e.pr) === start)).cash.total;
     const cashDiff = round2(cashCounted - cashExpected);
-    const cashBadge = !Object.keys(cashSaved).length
+    return !Object.keys(cashSaved).length
         ? `<span class="bk-badge cc-none" title="Cash count not done yet. Open Review, go to the summary and count the cash."><i class="ri-calculator-line"></i> Cash not counted</span>`
         : cashDiff === 0
             ? `<span class="bk-badge cc-ok" title="Counted cash matches the PRs (${peso(cashExpected)})."><i class="ri-checkbox-circle-fill"></i> Cash tallied</span>`
             : `<span class="bk-badge cc-off" title="Counted ${peso(cashCounted)}, expected ${peso(cashExpected)}."><i class="ri-error-warning-fill"></i> Cash ${cashDiff > 0 ? "over" : "short"} ${peso(Math.abs(cashDiff))}</span>`;
+}
+
+// Summary at the bottom of the output: one row per booklet and the grand totals (follows the current filter).
+function renderBookletSummary(rows) {
+    const box = $("bkSummary");
+    const byBook = new Map();
+    rows.forEach(r => { const b = bookletStart(r.pr); if (!byBook.has(b)) byBook.set(b, []); byBook.get(b).push(r); });
+    if (!byBook.size) { box.innerHTML = ""; return; }
+    let cash = 0, online = 0, receipts = 0;
+    const body = [...byBook.entries()].sort((a, b) => a[0] - b[0]).map(([start, rs]) => {
+        const split = paymentSplit(rs);
+        const count = new Set(rs.map(r => r.pr)).size;
+        cash = round2(cash + split.cash); online = round2(online + split.online); receipts += count;
+        return `<tr data-summary-booklet="${start}" title="Click to show this booklet in the table">
+            <td><b>${esc(bookletLabel(start))}</b></td>
+            <td class="num">${count} / ${BOOKLET_SIZE}</td>
+            <td>${reviewBadgeHtml(start) || "-"}</td>
+            <td>${cashBadgeHtml(start)}</td>
+            <td class="num">${money(split.cash)}</td>
+            <td class="num">${money(split.online)}</td>
+            <td class="num"><b>${money(round2(split.cash + split.online))}</b></td></tr>`;
+    }).join("");
+    box.innerHTML = `
+        <h3>Summary</h3>
+        <div class="table-container"><table class="bk-summary-table">
+            <thead><tr><th>Booklet</th><th class="num">Receipts</th><th>Verified</th><th>Cash count</th><th class="num">Cash</th><th class="num">Online</th><th class="num">Total</th></tr></thead>
+            <tbody>${body}</tbody>
+            <tfoot><tr><td><b>All booklets</b></td><td class="num">${receipts}</td><td></td><td></td><td class="num">${money(cash)}</td><td class="num">${money(online)}</td><td class="num"><b>${money(round2(cash + online))}</b></td></tr></tfoot>
+        </table></div>`;
+}
+$("bkSummary").addEventListener("click", ev => {
+    const tr = ev.target.closest("[data-summary-booklet]");
+    if (!tr) return;
+    const sel = $("bookletFilter");
+    sel.value = tr.dataset.summaryBooklet;
+    sel.dispatchEvent(new Event("input"));
+    $("outputCard").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+function bookletHeaderHtml(start, rowsInBooklet) {
+    const st = bookletStats(entries, start, marks);
+    const reviewBadge = reviewBadgeHtml(start, st);
+    const cashBadge = cashBadgeHtml(start);
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
     const split = paymentSplit(rowsInBooklet);
@@ -779,6 +825,7 @@ function refresh() {
     const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
     $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
+    renderBookletSummary(flatten(filterEntries(entries, { ...f, booklet: "" }))); // all booklets, even while one is selected below
     afterRowsRendered(rows, shown, f);
 }
 
@@ -1349,8 +1396,48 @@ const DENOMS = [
     { key: "5", value: 5, label: "5 coin" }, { key: "1", value: 1, label: "1 coin" },
     { key: "0.25", value: 0.25, label: "0.25 coin" },
 ];
+// Cash counts are saved in Firestore (pr_encoder_cashcounts, one document per booklet, same pattern as locks)
+// and cached in localStorage, so every device sees the same count.
 const cashKey = start => `pre_cashcount_${start}`;
-function loadCashCount(start) { try { return JSON.parse(localStorage.getItem(cashKey(start))) || {}; } catch { return {}; } }
+const cashCountsCol = collection(db, "pr_encoder_cashcounts");
+const cashDocId = start => `bk_${start}`;
+let cashCounts = {};  // booklet start -> { denomKey: count }
+let cashFromCloud = false;
+function localCashCount(start) { try { return JSON.parse(localStorage.getItem(cashKey(start))) || {}; } catch { return {}; } }
+function loadCashCount(start) { return cashCounts[start] || localCashCount(start); }
+const cashTimers = {};
+function saveCashCount(start, counts) {
+    cashCounts[start] = counts;
+    localStorage.setItem(cashKey(start), JSON.stringify(counts));
+    clearTimeout(cashTimers[start]);
+    cashTimers[start] = setTimeout(() => {
+        setDoc(doc(cashCountsCol, cashDocId(start)), { start, counts, at: Date.now() }).catch(err => {
+            console.error(err); toast("Could not save the cash count to the cloud. Saved on this device only.");
+        });
+    }, 400);
+}
+onSnapshot(cashCountsCol, snap => {
+    const cloud = {};
+    snap.docs.forEach(d => { const x = d.data(); if (Number.isFinite(Number(x.start))) cloud[Number(x.start)] = x.counts || {}; });
+    // First load: counts that exist only on this device are uploaded once, so nothing entered earlier is lost.
+    if (!cashFromCloud) {
+        cashFromCloud = true;
+        for (let i = 0; i < localStorage.length; i++) {
+            const m = /^pre_cashcount_(\d+)$/.exec(localStorage.key(i) || "");
+            if (!m) continue;
+            const start = Number(m[1]), local = localCashCount(start);
+            if (!(start in cloud) && Object.keys(local).length) {
+                cloud[start] = local;
+                setDoc(doc(cashCountsCol, cashDocId(start)), { start, counts: local, at: Date.now() }).catch(err => console.error(err));
+            }
+        }
+    }
+    cashCounts = cloud;
+    Object.entries(cloud).forEach(([start, counts]) => localStorage.setItem(cashKey(start), JSON.stringify(counts)));
+    refresh();
+    // Re-draw the open summary screen, but never while someone is typing in the count boxes.
+    if (rv && !reviewEditing && !(document.activeElement && document.activeElement.classList.contains("cc-in"))) renderReview();
+}, err => console.error("Cash count listener error", err));
 
 function cashCountHtml(start, expected) {
     const saved = loadCashCount(start);
@@ -1394,7 +1481,7 @@ function updateCashCount() {
         total = round2(total + n * d.value);
         inp.closest("tr").querySelector(".cc-amt").textContent = money(n * d.value);
     });
-    localStorage.setItem(cashKey(rv.start), JSON.stringify(counts));
+    saveCashCount(rv.start, counts);
     $("ccTotal").textContent = money(total);
     const diff = round2(total - expected);
     const any = Object.keys(counts).length > 0;
@@ -1453,7 +1540,7 @@ async function exportBooklet(kind) {
     const win = kind === "viewpdf" ? window.open("", "_blank") : null;
     if (win) win.document.write("<title>PR Booklet</title><p style='font-family:sans-serif'>Preparing PDF...</p>");
     try {
-        if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts);
+        if (kind === "xlsx") await downloadSummaryXlsx(s, bookEntries, counts, PREPARED_BY);
         else if (kind === "viewpdf") await viewBookletPdf(s, bookEntries, counts, PREPARED_BY, win);
         else if (kind === "printpdf") await printBookletPdf(s, bookEntries, counts, PREPARED_BY);
         else await downloadBookletPdf(s, bookEntries, counts, PREPARED_BY);

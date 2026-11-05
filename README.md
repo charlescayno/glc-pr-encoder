@@ -28,6 +28,10 @@ match /pr_encoder_entries/{id} {
 }
 ```
 
+The same applies to the other collections this app uses: `pr_encoder_marks` (void / not used sheets),
+`pr_encoder_locks` (locked booklets) and `pr_encoder_cashcounts` (cash count per booklet, one document `bk_<first PR>`
+with the counted bills and coins). Add the same kind of rule for each one that is denied.
+
 ## Access and privacy
 The site is open to anyone with the link, the same as glc-inventory. Anyone with the link can view and edit receipts,
 and the Firebase web config is visible in the page source (this is normal for Firebase web apps; rules are what protect data).

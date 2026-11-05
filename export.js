@@ -1,10 +1,10 @@
-// Booklet exports: TOP Sheet PDF, PR Booklet Summary PDF and XLSX. Libraries load on demand from a CDN.
+// Booklet exports: TOP Sheet PDF, PR Booklet Summary PDF and XLSX. Libraries are bundled in ./vendor and load on demand (cached for offline use).
 import { flatten, money, round2 } from "./logic.js";
 
 const LIBS = {
-    jspdf: "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
-    autotable: "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js",
-    xlsx: "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+    jspdf: "./vendor/jspdf.umd.min.js",
+    autotable: "./vendor/jspdf.plugin.autotable.min.js",
+    exceljs: "./vendor/exceljs.min.js",
 };
 const loaded = {};
 function loadScript(url) {
@@ -157,35 +157,120 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     doc.text("Received By:", 30, y + 100);
 }
 
-// XLSX with the tally sheet (cash, online, void, not used, cash count) and the full receipts table.
-export async function downloadSummaryXlsx(s, bookEntries, counts) {
-    await loadScript(LIBS.xlsx);
-    const X = window.XLSX;
-    const tally = [[`PR No.: ${s.firstPr}-${s.lastPr}`, "", "", `Date: ${s.dateRange}`], []];
-    const block = (title, sec) => {
-        tally.push([title], ["Sold Item", "QTY", "Selling Price", "Total"]);
-        sec.rows.forEach(r => tally.push([r.desc, r.qty, r.price, r.total]));
-        tally.push(["TOTAL", "", "", sec.total], []);
-    };
-    block("CASH", s.cash);
-    block("ONLINE PAYMENT", s.online);
-    tally.push(["Total Sales", "", "", round2(s.cash.total + s.online.total)], []);
-    if (s.voidText) tally.push(["VOID", s.voidText]);
-    if (s.unusedText) tally.push(["NOT USED", s.unusedText]);
-    const cc = counts.filter(c => c.count > 0);
-    if (cc.length) {
-        tally.push([], ["CASH COUNT"], ["Denomination", "Count", "Amount"]);
-        cc.forEach(c => tally.push([c.value, c.count, c.amount]));
-        tally.push(["TOTAL COUNTED", "", round2(cc.reduce((t, c) => t + c.amount, 0))]);
+// ---- XLSX: same two pages as the PDF (sheet 1 = TOP Sheet, sheet 2 = PR Booklet), with the same look ----
+const THIN = { style: "thin", color: { argb: "FF000000" } };
+const BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+const GREY = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEBEBEB" } };
+const BLUE = { type: "pattern", pattern: "solid", fgColor: { argb: "FFBDD7FF" } };
+const CENTER = { horizontal: "center", vertical: "middle", wrapText: true };
+const NUM = "#,##0.00";
+const QTY = "#,##0.##";
+
+// Styles one table cell: bordered and centered; `head` adds the grey bold header look.
+function styleCell(cell, { head = false, fill = null, fmt = null } = {}) {
+    cell.border = BORDER;
+    cell.alignment = CENTER;
+    if (head) { cell.font = { bold: true }; cell.fill = GREY; }
+    if (fill) cell.fill = fill;
+    if (fmt) cell.numFmt = fmt;
+}
+
+// Writes one bordered table at (row, col): header, body rows, optional footer. Returns the next free row.
+function writeTable(ws, row, col, head, body, foot, fmts = [], fills = []) {
+    const put = (r, values, opts) => values.forEach((v, i) => {
+        const c = ws.getCell(r, col + i);
+        c.value = v;
+        styleCell(c, { ...opts, fmt: opts.head || opts.foot ? (opts.foot && typeof v === "number" ? NUM : null) : fmts[i] });
+        if (opts.foot) { c.font = { bold: true }; c.fill = GREY; }
+    });
+    put(row, head, { head: true });
+    body.forEach((vals, i) => put(row + 1 + i, vals, { fill: fills[i] || null }));
+    let end = row + body.length;
+    if (foot) {
+        end += 1;
+        put(end, foot.values, { foot: true });
+        if (foot.span > 1) ws.mergeCells(end, col, end, col + foot.span - 1);
     }
-    const ws1 = X.utils.aoa_to_sheet(tally);
-    ws1["!cols"] = [{ wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 16 }];
-    const rec = [["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", "MOP"],
-        ...flatten(bookEntries).map(r => [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.buyer : "", r.desc, r.qty, r.price, r.total, r.grand, r.first ? r.mop : ""])];
-    const ws2 = X.utils.aoa_to_sheet(rec);
-    ws2["!cols"] = [{ wch: 11 }, { wch: 11 }, { wch: 16 }, { wch: 22 }, { wch: 8 }, { wch: 11 }, { wch: 12 }, { wch: 13 }, { wch: 30 }];
-    const wb = X.utils.book_new();
-    X.utils.book_append_sheet(wb, ws1, "Booklet Summary");
-    X.utils.book_append_sheet(wb, ws2, "Receipts");
-    X.writeFile(wb, `${fileBase(s)} PR Booklet Summary.xlsx`);
+    return end + 1;
+}
+
+function cashCountRows(counts) {
+    const counted = counts.filter(c => c.count > 0);
+    return {
+        counted,
+        body: (counted.length ? counted : counts).map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? c.amount : ""]),
+        total: counted.length ? round2(counted.reduce((t, c) => t + c.amount, 0)) : "",
+    };
+}
+
+// Builds the workbook with an ExcelJS constructor (kept separate from the download so it can be tested).
+export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy) {
+    const wb = new ExcelJS.Workbook();
+    const letter = { paperSize: 1, orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+    // ---- Sheet 1: TOP Sheet ----
+    const top = wb.addWorksheet("TOP Sheet", { pageSetup: letter });
+    top.columns = [{ width: 32 }, { width: 10 }, { width: 16 }, { width: 16 }];
+    top.getCell("A1").value = `PR No.: ${s.firstPr}-${s.lastPr}`;
+    top.getCell("D1").value = `Date: ${s.dateRange}`;
+    top.getCell("A1").font = top.getCell("D1").font = { bold: true, size: 12 };
+    top.getCell("D1").alignment = { horizontal: "right" };
+    let r = 3;
+    for (const [label, sec] of [["CASH", s.cash], ["ONLINE PAYMENT", s.online]]) {
+        top.getCell(r, 1).value = label;
+        top.getCell(r, 1).font = { bold: true, size: 11 };
+        r = writeTable(top, r + 1, 1, ["Sold Item", "QTY", "Selling Price", "Total"],
+            sec.rows.length ? sec.rows.map(x => [x.desc, x.qty, x.price, x.total]) : [["None", "", "", ""]],
+            { values: ["TOTAL", "", "", sec.total], span: 3 }, [null, QTY, NUM, NUM]) + 1;
+    }
+
+    // ---- Sheet 2: PR Booklet ----
+    const bk = wb.addWorksheet("PR Booklet", { pageSetup: letter });
+    bk.columns = [{ width: 12 }, { width: 12 }, { width: 16 }, { width: 24 }, { width: 8 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 34 }];
+    const rows = flatten(bookEntries);
+    const body = rows.map(x => [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
+        x.first && x.mop && x.mop !== "Cash" ? x.mop : ""]);
+    // Invoice / online payment receipts are highlighted blue, on every item row of the receipt.
+    const fills = rows.map(x => (!!x.mop && x.mop.trim().toLowerCase() !== "cash") ? BLUE : null);
+    r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
+        [null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
+    bk.getCell(r, 1).value = "*** NOTHING FOLLOWS ***";
+    bk.mergeCells(r, 1, r, 9);
+    bk.getCell(r, 1).font = { bold: true };
+    bk.getCell(r, 1).alignment = { horizontal: "center" };
+    r += 2;
+
+    // Totals on the left, cash count on the right (same side-by-side layout as the PDF).
+    const sales = round2(s.cash.total + s.online.total);
+    [["Cash Sales", s.cash.total], ["Online Payment", s.online.total], ["Total Sales", sales]].forEach(([label, amount], i) => {
+        const lc = bk.getCell(r + i, 1), ac = bk.getCell(r + i, 4);
+        lc.value = label; ac.value = amount;
+        bk.mergeCells(r + i, 1, r + i, 3);
+        lc.font = ac.font = { bold: true };
+        lc.alignment = { horizontal: "left" };
+        ac.alignment = { horizontal: "right" };
+        ac.numFmt = NUM;
+    });
+    const cc = cashCountRows(counts);
+    const ccEnd = writeTable(bk, r, 6, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
+    r = Math.max(r + 3, ccEnd) + 1;
+
+    [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean)
+        .forEach(n => { bk.getCell(r, 1).value = n; r += 1; });
+    r += 1;
+    bk.getCell(r, 1).value = `Prepared By: ${preparedBy || ""}`;
+    bk.getCell(r + 3, 1).value = "Checked By:";
+    bk.getCell(r + 6, 1).value = "Received By:";
+    return wb;
+}
+
+export async function downloadSummaryXlsx(s, bookEntries, counts, preparedBy) {
+    await loadScript(LIBS.exceljs);
+    const wb = buildSummaryWorkbook(window.ExcelJS, s, bookEntries, counts, preparedBy);
+    const buf = await wb.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `${fileBase(s)} PR Booklet.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
 }

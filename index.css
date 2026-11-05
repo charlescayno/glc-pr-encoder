@@ -633,8 +633,19 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .rs-nums.none { color: var(--color-text-light); }
 
 .bk-badge.cc-none, .bk-badge.cc-ok, .bk-badge.cc-off { display: inline-flex; align-items: center; gap: 0.25rem; }
-.bk-badge.cc-none { color: var(--color-text-muted); }
+.bk-badge.cc-none { background: rgba(245, 158, 11, 0.16); border-color: var(--color-warning); color: #b45309; } /* same amber as the incomplete "Checked x/y" badge */
 .bk-badge.cc-ok { background: rgba(34, 197, 94, 0.16); border-color: var(--color-success); color: #15803d; }
 .bk-badge.cc-off { background: rgba(239, 68, 68, 0.14); border-color: #ef4444; color: #b91c1c; }
+[data-theme="dark"] .bk-badge.cc-none { color: #fbbf24; }
 [data-theme="dark"] .bk-badge.cc-ok { color: #4ade80; }
 [data-theme="dark"] .bk-badge.cc-off { color: #f87171; }
+
+/* Summary at the bottom of the output */
+.bk-summary { margin-top: 1.25rem; }
+.bk-summary h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.bk-summary-table { width: 100%; border-collapse: collapse; }
+.bk-summary-table th, .bk-summary-table td { padding: 0.5rem 0.65rem; border-bottom: 1px solid var(--color-border); text-align: left; white-space: nowrap; }
+.bk-summary-table th.num, .bk-summary-table td.num { text-align: right; }
+.bk-summary-table tbody tr { cursor: pointer; }
+.bk-summary-table tbody tr:hover { background: var(--color-bg-surface); }
+.bk-summary-table tfoot td { font-weight: 700; border-top: 2px solid var(--color-border); border-bottom: 0; }
