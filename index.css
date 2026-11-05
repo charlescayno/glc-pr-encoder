@@ -626,3 +626,8 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .row-lock { color: var(--color-text-light); }
 .rv-lockmark { color: #d97706; font-size: 0.9em; }
 #rvRestart:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.rs-marks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0 0 0.8rem; font-size: 0.88rem; }
+.rs-mark { display: flex; align-items: baseline; gap: 0.5rem; }
+.rs-nums { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.rs-nums.none { color: var(--color-text-light); }

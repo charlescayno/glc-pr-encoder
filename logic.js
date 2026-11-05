@@ -402,5 +402,27 @@ export function summaryTSV(s) {
         ['TOTAL', '', '', money(sec.total)], [],
     ];
     return [[`PR No.: ${s.firstPr}-${s.lastPr}`, '', '', `Date: ${s.dateRange}`], [],
-        ...block('CASH', s.cash), ...block('ONLINE PAYMENT', s.online)].map(r => r.join('\t')).join('\n');
+        ...block('CASH', s.cash), ...block('ONLINE PAYMENT', s.online),
+        ...(s.voidText ? [['VOID', s.voidText]] : []), ...(s.unusedText ? [['NOT USED', s.unusedText]] : [])].map(r => r.join('\t')).join('\n');
+}
+
+// "42746, 42747, 42748, 42750" -> "42746-42748, 42750"
+export function compressRanges(nums) {
+    const a = [...new Set(nums.map(Number))].sort((x, y) => x - y);
+    const out = [];
+    for (let i = 0; i < a.length;) {
+        let j = i;
+        while (j + 1 < a.length && a[j + 1] === a[j] + 1) j++;
+        out.push(j > i ? `${a[i]}-${a[j]}` : String(a[i]));
+        i = j + 1;
+    }
+    return out.join(', ');
+}
+
+// Void / not-used numbers of one booklet, as ready-to-show text ('' when none).
+export function markSummary(marks, start) {
+    const inBook = marks.filter(m => bookletStart(m.pr) === start);
+    const pick = s => inBook.filter(m => m.status === s).map(m => m.pr);
+    const v = pick('void'), u = pick('unused');
+    return { void: v, unused: u, voidText: compressRanges(v), unusedText: compressRanges(u) };
 }

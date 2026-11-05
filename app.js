@@ -1,4 +1,4 @@
-import { bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
+import { markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
@@ -1404,7 +1404,7 @@ $("rvCard").addEventListener("keydown", ev => {
 // Booklet summary laid out like the paper tally sheet: CASH and ONLINE PAYMENT, items with QTY, price, total.
 function summaryHtml(bookEntries) {
     // The PR range is the whole booklet (e.g. 39851-39900), as on the tally sheet.
-    const s = { ...bookletSummary(bookEntries), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
+    const s = { ...bookletSummary(bookEntries), ...markSummary(marks, rv.start), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 };
     const qty = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
     const section = (title, sec, cls) => `
         <table class="rs-table ${cls}">
@@ -1418,7 +1418,11 @@ function summaryHtml(bookEntries) {
         </table>`;
     return `
         <div class="rs-head"><span class="rs-pr">PR No.: ${s.firstPr}-${s.lastPr}</span><span class="rs-date">Date: ${esc(s.dateRange)}</span></div>
-        <div class="rs-grid">${section("CASH", s.cash, "cash")}${section("ONLINE PAYMENT", s.online, "online")}${cashCountHtml(rv.start, s.cash.total)}</div>`;
+        <div class="rs-marks">
+            <div class="rs-mark void"><span class="mark-tag void">VOID</span> ${s.void.length ? `<b>${s.void.length}</b> <span class="rs-nums">${esc(s.voidText)}</span>` : `<span class="rs-nums none">none</span>`}</div>
+            <div class="rs-mark unused"><span class="mark-tag unused">NOT USED</span> ${s.unused.length ? `<b>${s.unused.length}</b> <span class="rs-nums">${esc(s.unusedText)}</span>` : `<span class="rs-nums none">none</span>`}</div>
+        </div>
+        <div class="rs-grid"><div class="rs-left">${section("CASH", s.cash, "cash")}${section("ONLINE PAYMENT", s.online, "online")}</div>${cashCountHtml(rv.start, s.cash.total)}</div>`;
 }
 
 function renderReviewSummary(seq, prog) {
@@ -1471,7 +1475,7 @@ $("rvActions").addEventListener("click", ev => {
         case "unused": rvMark("unused"); break;
         case "later": rvEncodeLater(); break;
         case "copysummary": {
-            const text = summaryTSV({ ...bookletSummary(entries.filter(e => bookletStart(e.pr) === rv.start)), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 });
+            const text = summaryTSV({ ...bookletSummary(entries.filter(e => bookletStart(e.pr) === rv.start)), ...markSummary(marks, rv.start), firstPr: rv.start, lastPr: rv.start + BOOKLET_SIZE - 1 });
             navigator.clipboard.writeText(text).then(() => toast("Summary copied. Paste into Excel or Google Sheets."), () => toast("Could not copy."));
             break;
         }
