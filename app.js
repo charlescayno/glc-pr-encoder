@@ -114,10 +114,13 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     const row = document.createElement("div");
     row.className = "item-row";
     row.innerHTML = `
-        <input class="item-name" type="text" list="catalogList" placeholder="Search or type item" value="${esc(item.desc)}">
-        <input class="item-qty" type="number" min="1" step="1" placeholder="Qty" value="${item.qty}">
-        <input class="item-price" type="number" min="0" step="0.01" placeholder="Unit price" value="${item.price}">
-        <div class="line-total">${peso(item.qty * (item.price || 0))}</div>
+        <label class="cell item-name-cell"><span>Item</span>
+            <input class="item-name" type="text" list="catalogList" placeholder="Search or type item" value="${esc(item.desc)}"></label>
+        <label class="cell"><span>Qty</span>
+            <input class="item-qty" type="number" min="1" step="1" placeholder="Qty" value="${item.qty}"></label>
+        <label class="cell"><span>Unit Price</span>
+            <input class="item-price" type="number" min="0" step="0.01" placeholder="0.00" value="${item.price}"></label>
+        <div class="cell"><span>Total</span><div class="line-total">${peso(item.qty * (item.price || 0))}</div></div>
         <button type="button" class="btn btn-danger btn-icon-only" title="Remove item"><i class="ri-close-line"></i></button>`;
     const name = row.querySelector(".item-name");
     const qty = row.querySelector(".item-qty");
