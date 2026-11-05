@@ -168,6 +168,7 @@
                 <div class="card-head">
                     <h2>Output</h2>
                     <div class="out-actions no-print">
+                        <button class="btn btn-secondary" id="importBtn"><i class="ri-upload-2-line"></i><span class="desktop-only">Import</span></button>
                         <button class="btn btn-secondary" id="copyBtn"><i class="ri-file-copy-line"></i><span class="desktop-only">Copy table</span></button>
                         <button class="btn btn-secondary" id="csvBtn"><i class="ri-file-excel-2-line"></i><span class="desktop-only">CSV</span></button>
                         <button class="btn btn-secondary" id="printBtn"><i class="ri-printer-line"></i><span class="desktop-only">Print summary</span></button>
@@ -221,6 +222,23 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Import modal -->
+    <div class="modal-overlay hidden no-print" id="importModal">
+        <div class="modal">
+            <div class="modal-head">
+                <h2>Import from spreadsheet</h2>
+                <button class="btn btn-secondary" id="importClose"><i class="ri-close-line"></i></button>
+            </div>
+            <p class="modal-note">Paste rows copied from the sheet (DATE, PR NUMBER, BUYER, SOLD ITEMS, QTY, UNIT PRICE, TOTAL, GRAND TOTAL, MOP). Rows without a PR number continue the receipt above. Grand totals are recalculated by the site. A PR that already exists is replaced.</p>
+            <div class="modal-body"><textarea id="importText" class="import-text" rows="12" placeholder="Paste here..."></textarea></div>
+            <div class="modal-foot">
+                <span id="importInfo" class="import-info"></span>
+                <button class="btn btn-secondary" id="importSample">Load sample (09-20-2026, 42701-42750)</button>
+                <button class="btn btn-primary" id="importGo" disabled>Import</button>
+            </div>
+        </div>
     </div>
 
     <!-- Catalog modal -->

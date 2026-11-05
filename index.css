@@ -551,3 +551,6 @@ body.modal-open { overflow: hidden; }
 
 @media (max-height: 760px) { .review .rv-keys { display: none; } .review .rv-title { font-size: 1.05rem; } }
 .review .rv-sys { margin: 0; font-size: 0.8rem; flex: 1; text-align: center; }
+
+.import-text { width: 100%; box-sizing: border-box; font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; white-space: pre; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-surface); color: var(--color-text-main); padding: 0.5rem; }
+.import-info { margin-right: auto; font-size: 0.82rem; color: var(--color-text-muted); }

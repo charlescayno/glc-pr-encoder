@@ -287,3 +287,41 @@ export function checkPr(entries, pr, editingId = null) {
     const gap = !duplicate && Number.isFinite(n) && n > expected && entries.length > 0;
     return { duplicate, gap, expected };
 }
+
+// Parse rows pasted from the spreadsheet (tab separated, same columns as the output table).
+// Rows without a PR number continue the previous receipt. Totals and header rows are ignored.
+export function parseSheet(text) {
+    const out = [];
+    let cur = null;
+    const skipped = [];
+    const num = s => Number(String(s).replace(/[,\s\u20B1]/g, ''));
+    for (const raw of String(text || '').split(/\r?\n/)) {
+        if (!raw.trim()) continue;
+        const c = raw.split('\t').map(s => s.trim());
+        if (/^date$/i.test(c[0]) || /pr\s*number/i.test(c[1] || '')) continue;
+        const [d, pr, buyer, desc, qty, price, , , mop] = c;
+        const m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(d || '');
+        if (/^\d+$/.test(pr || '') && m) {
+            cur = {
+                id: `pr_${Number(pr)}`, pr: Number(pr),
+                date: `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`,
+                buyer: !buyer || /^an+onymous$/i.test(buyer) ? 'Anonymous' : buyer,
+                mop: 'Cash', mopRef: '', items: [],
+            };
+            out.push(cur);
+        } else if (!cur || !desc) {
+            if (!desc) { skipped.push(raw); continue; }
+        }
+        if (!cur || !desc) continue;
+        const q = num(qty), p = num(price);
+        if (!(q > 0) || !Number.isFinite(p)) { skipped.push(raw); continue; }
+        cur.items.push({ desc, qty: q, price: p });
+        if (mop && cur.mop === 'Cash') {
+            const r = /^(invoice|gcash|bank[^\s]*)?\s*(?:ref(?:erence)?\.?)?\s*(?:no\.?|#)?\s*(.*)$/i.exec(mop);
+            const kind = /^gcash/i.test(mop) ? 'GCash' : /^bank/i.test(mop) ? 'Bank Transfer' : 'Invoice';
+            cur.mop = kind;
+            cur.mopRef = (/^(invoice|gcash|bank)/i.test(mop) ? mop.replace(/^\S+\s*(ref(erence)?\.?)?\s*(no\.?|#)?\s*/i, '') : mop).trim();
+        }
+    }
+    return { entries: out, skipped };
+}

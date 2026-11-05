@@ -3,7 +3,8 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, parseSheet } from "./logic.js";
+import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
     { id: "pr_42751", pr: 42751, date: "2026-09-13", buyer: "Anonymous", mop: "", mopRef: "", items: [{ desc: "Book 1: One by One 4th Edition", qty: 2, price: 50 }] },
@@ -112,4 +113,17 @@ assert.equal(one("ac"), "Accountability Card");
 assert.equal(one("mot"), "Motivate English");
 assert.equal(one("zzz"), "none");
 assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shorthand");
+{
+    const { entries: es, skipped } = parseSheet(SHEET_0920);
+    assert.equal(es.length, 50, "50 PRs");
+    assert.equal(skipped.length, 0, "no skipped");
+    assert.equal(es[4].mop + "|" + es[4].mopRef, "Invoice|302351");
+    assert.equal(es[45].mopRef, "2B6D EF8A0F45");
+    assert.equal(es[3].items.length, 2);
+    assert.equal(es[0].buyer, "Anonymous");
+    const rows = flatten(es);
+    assert.equal(rows[rows.length - 1].grand, 8841, "sheet total");
+    const hdr = "DATE\tPR NUMBER\tBUYER\tSOLD ITEMS\tQTY\tUNIT PRICE\tTOTAL\tGRAND TOTAL\tMOP\n";
+    assert.equal(parseSheet(hdr + SHEET_0920 + "\n\t\t\t\t\t\t8,841.00\t8,841.00").entries.length, 50, "header and total line ignored");
+}
 console.log("all tests passed");

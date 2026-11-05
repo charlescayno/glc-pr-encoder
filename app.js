@@ -1,3 +1,5 @@
+import { parseSheet } from "./logic.js";
+import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
     getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, getDocs
@@ -483,7 +485,7 @@ function formFields() {
     return [...fixed, ...rows];
 }
 document.addEventListener("keydown", ev => {
-    if (!$("catalogModal").classList.contains("hidden")) return;
+    if (!$("catalogModal").classList.contains("hidden") || !$("importModal").classList.contains("hidden")) return;
     if (rv && !reviewEditing) return; // review screen has its own keys
     const mod = ev.ctrlKey || ev.metaKey;
     if (mod && ev.key === "Enter") {
@@ -779,6 +781,32 @@ $("csvBtn").addEventListener("click", () => {
 $("printBtn").addEventListener("click", () => {
     if (!visibleRows().length) return toast("Nothing to print.");
     window.print();
+});
+
+// ---------- Import from spreadsheet ----------
+function importPreview() {
+    const { entries: es, skipped } = parseSheet($("importText").value);
+    const exist = es.filter(e => entries.some(x => x.id === e.id)).length;
+    $("importInfo").textContent = es.length
+        ? `${es.length} PRs found${exist ? `, ${exist} will replace existing` : ""}${skipped.length ? `, ${skipped.length} rows skipped` : ""}`
+        : ($("importText").value.trim() ? "Nothing readable found" : "");
+    $("importGo").disabled = !es.length;
+    return es;
+}
+$("importBtn").addEventListener("click", () => { $("importText").value = ""; importPreview(); $("importModal").classList.remove("hidden"); $("importText").focus(); });
+$("importClose").addEventListener("click", () => $("importModal").classList.add("hidden"));
+$("importText").addEventListener("input", importPreview);
+$("importSample").addEventListener("click", () => { $("importText").value = SHEET_0920; importPreview(); });
+$("importGo").addEventListener("click", () => {
+    const es = importPreview();
+    if (!es.length) return;
+    const ids = new Set(es.map(e => e.id));
+    entries = entries.filter(e => !ids.has(e.id)).concat(es);
+    saveLocal();
+    refresh();
+    for (const { id, ...data } of es) setDoc(doc(col, id), data).catch(remoteFail);
+    $("importModal").classList.add("hidden");
+    toast(`Imported ${es.length} PRs`);
 });
 
 $("clearBtn").addEventListener("click", async () => {
@@ -1181,7 +1209,7 @@ $("rvFirst").addEventListener("click", () => { if (rv) { const seq = rvSeq(); rv
 
 document.addEventListener("keydown", ev => {
     if (!rv || reviewEditing) return;
-    if (!$("catalogModal").classList.contains("hidden")) return;
+    if (!$("catalogModal").classList.contains("hidden") || !$("importModal").classList.contains("hidden")) return;
     const tag = ev.target.tagName;
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
