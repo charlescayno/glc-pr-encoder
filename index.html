@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Encoder</title>
+    <link rel="icon" type="image/png" href="./icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#009ee2">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PR Encoder">
+    <link rel="stylesheet" href="index.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <div class="title-section">
+                    <div class="logo-placeholder">
+                        <img src="./glc-logo.png" alt="GLC Logo" class="header-logo">
+                    </div>
+                    <div>
+                        <h1>PR Encoder</h1>
+                        <p class="subtitle">Encode Provisional Receipts</p>
+                    </div>
+                </div>
+
+                <div class="header-actions">
+                    <div class="utility-bar">
+                        <div id="syncStatus" class="sync-indicator status-offline" title="Database connection status">
+                            <span class="sync-dot"></span>
+                            <span class="sync-label" id="syncLabel">Connecting</span>
+                        </div>
+                        <button id="themeBtn" class="btn btn-secondary" title="Toggle theme"><i class="ri-moon-line" id="themeIcon"></i></button>
+                        <button id="catalogBtn" class="btn btn-secondary" title="Edit item catalog"><i class="ri-settings-3-line"></i><span class="desktop-only">Catalog</span></button>
+                        <button id="installBtn" class="btn btn-secondary hidden" title="Install as App"><i class="ri-download-2-line"></i><span class="desktop-only">Install</span></button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <!-- Encoder -->
+            <section class="card no-print" id="encoderCard">
+                <div class="card-head">
+                    <h2 id="formTitle">New Provisional Receipt</h2>
+                    <span id="editBadge" class="badge hidden">Editing</span>
+                </div>
+
+                <form id="prForm" autocomplete="off">
+                    <div class="form-grid">
+                        <label class="field">
+                            <span>Date</span>
+                            <input type="date" id="fDate" required>
+                        </label>
+                        <label class="field">
+                            <span>PR Number</span>
+                            <input type="number" id="fPr" min="1" step="1" required>
+                        </label>
+                        <label class="field">
+                            <span>Buyer</span>
+                            <input type="text" id="fBuyer" value="Anonymous">
+                        </label>
+                        <label class="field">
+                            <span>MOP</span>
+                            <select id="fMop">
+                                <option value="">- None -</option>
+                                <option>Cash</option>
+                                <option>GCash</option>
+                                <option>Maya</option>
+                                <option>Bank Transfer</option>
+                                <option>Check</option>
+                                <option>Invoice</option>
+                                <option>Other</option>
+                            </select>
+                        </label>
+                        <label class="field hidden" id="refField">
+                            <span>Reference No.</span>
+                            <input type="text" id="fRef" placeholder="e.g. 689746">
+                        </label>
+                    </div>
+
+                    <div id="prWarn" class="warn hidden"></div>
+
+                    <div class="items-head">
+                        <h3>Sold Items</h3>
+                        <button type="button" class="btn btn-secondary" id="addRowBtn"><i class="ri-add-line"></i> Add item</button>
+                    </div>
+                    <div class="items-list" id="itemsList"></div>
+                    <datalist id="catalogList"></datalist>
+
+                    <div class="form-foot">
+                        <div class="form-total">Receipt total: <strong id="formTotal">&#8369; 0.00</strong></div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary hidden" id="cancelEditBtn">Cancel edit</button>
+                            <button type="submit" class="btn btn-primary" id="submitBtn"><i class="ri-add-circle-line"></i> <span id="submitText">Add PR to output</span></button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Output -->
+            <section class="card" id="outputCard">
+                <div class="card-head">
+                    <h2>Output</h2>
+                    <div class="out-actions no-print">
+                        <button class="btn btn-secondary" id="copyBtn"><i class="ri-file-copy-line"></i><span class="desktop-only">Copy table</span></button>
+                        <button class="btn btn-secondary" id="csvBtn"><i class="ri-file-excel-2-line"></i><span class="desktop-only">CSV</span></button>
+                        <button class="btn btn-secondary" id="printBtn"><i class="ri-printer-line"></i><span class="desktop-only">Print summary</span></button>
+                        <button class="btn btn-danger" id="clearBtn"><i class="ri-delete-bin-line"></i><span class="desktop-only">Clear all</span></button>
+                    </div>
+                </div>
+
+                <div class="filters no-print">
+                    <div class="search-bar">
+                        <i class="ri-search-line search-icon"></i>
+                        <input type="text" id="searchInput" placeholder="Search PR no., buyer, item, MOP...">
+                    </div>
+                    <label class="inline-field"><span>From</span><input type="date" id="fromDate"></label>
+                    <label class="inline-field"><span>To</span><input type="date" id="toDate"></label>
+                    <button class="btn btn-secondary" id="clearFilterBtn">Reset</button>
+                </div>
+
+                <div class="print-title" id="printTitle"></div>
+
+                <div class="table-container">
+                    <table id="outTable">
+                        <thead>
+                            <tr>
+                                <th>DATE</th>
+                                <th>PR NUMBER</th>
+                                <th>BUYER</th>
+                                <th>SOLD ITEMS</th>
+                                <th class="num">QTY</th>
+                                <th class="num">UNIT PRICE</th>
+                                <th class="num">TOTAL</th>
+                                <th class="num">GRAND TOTAL</th>
+                                <th>MOP</th>
+                                <th class="no-print"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="outBody"></tbody>
+                    </table>
+                    <div id="emptyMsg" class="empty-msg">No receipts encoded yet.</div>
+                </div>
+
+                <div class="valuation">
+                    <div>
+                        <span class="val-label">Total Sales</span>
+                        <span class="val-sub" id="valSub"></span>
+                    </div>
+                    <span class="val-amount" id="valAmount">&#8369; 0.00</span>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Catalog modal -->
+    <div class="modal-overlay hidden no-print" id="catalogModal">
+        <div class="modal">
+            <div class="modal-head">
+                <h2>Item Catalog</h2>
+                <button class="btn btn-secondary" id="catalogClose"><i class="ri-close-line"></i></button>
+            </div>
+            <p class="modal-note">Saved on this device only. Items default to the glc-inventory price list.</p>
+            <div class="modal-body" id="catalogBody"></div>
+            <div class="modal-foot">
+                <button class="btn btn-secondary" id="catalogReset">Reset to default</button>
+                <button class="btn btn-secondary" id="catalogAdd"><i class="ri-add-line"></i> Add item</button>
+                <button class="btn btn-primary" id="catalogSave">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="catalog.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
