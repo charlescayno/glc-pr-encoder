@@ -121,20 +121,20 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     doc.setFont("helvetica", "bold").setFontSize(10);
     doc.text("*** NOTHING FOLLOWS ***", 306, y, { align: "center" });
     y += 22;
-    if (y + 80 > 780) { doc.addPage(); y = 40; }
+    // Cash count breakdown: always printed; counts and amounts stay blank when nothing was counted.
+    const counted = counts.filter(c => c.count > 0);
+    // Totals on the left and the cash count on the right, side by side; both move to a new page only if the cash count does not fit.
+    if (y + Math.max(80, ((counted.length || counts.length) + 2) * 17) > 780) { doc.addPage(); y = 40; }
     const sales = round2(s.cash.total + s.online.total);
+    const topY = y;
     doc.autoTable({
-        startY: y, margin: { left: 30, right: 330 }, theme: "plain", styles: { fontSize: 10, fontStyle: "bold", textColor: 0 },
+        startY: topY, margin: { left: 30, right: 330 }, theme: "plain", styles: { fontSize: 10, fontStyle: "bold", textColor: 0 },
         body: [["Cash Sales", money(s.cash.total)], ["Online Payment", money(s.online.total)], ["Total Sales", money(sales)]],
         columnStyles: { 1: { halign: "right" } },
     });
-    y = doc.lastAutoTable.finalY + 8;
-    // Cash count breakdown: always printed; counts and amounts stay blank when nothing was counted.
-    const counted = counts.filter(c => c.count > 0);
-    // It follows the totals directly; it only moves to the next page when the whole table does not fit.
-    if (y + ((counted.length || counts.length) + 2) * 17 > 780) { doc.addPage(); y = 40; }
+    const totalsEnd = doc.lastAutoTable.finalY;
     doc.autoTable({
-        startY: y, margin: { left: 30, right: 330 }, theme: "grid", styles: { ...BODY_STYLE, fontSize: 9, cellPadding: 2 },
+        startY: topY, margin: { left: 330, right: 30 }, theme: "grid", styles: { ...BODY_STYLE, fontSize: 9, cellPadding: 2 },
         head: [["Cash Count", "Count", "Amount"]],
         // Only the denominations that were actually counted; if nothing was counted, the blank list is kept.
         body: (counted.length ? counted : counts).map(c => [`${money(c.value)} ${c.kind || ""}`.trim(), c.count > 0 ? c.count : "", c.count > 0 ? money(c.amount) : ""]),
@@ -142,7 +142,7 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         headStyles: HEAD_STYLE, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
         didParseCell: d => { if (d.section === "foot" && d.column.index === 2) d.cell.styles.halign = "right"; },
     });
-    y = doc.lastAutoTable.finalY + 8;
+    y = Math.max(totalsEnd, doc.lastAutoTable.finalY) + 8;
     const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
     doc.setFont("helvetica", "normal").setFontSize(9);
     if (y + notes.length * 12 + 22 + 120 > 780) { doc.addPage(); y = 40; } // signatures stay together
