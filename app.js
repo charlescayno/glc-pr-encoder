@@ -684,6 +684,7 @@ $("unusedBtn").addEventListener("click", () => markFromForm("unused"));
 
 // Booklets (50 sheets each) can be collapsed in the output table.
 const collapsedBooklets = new Set();
+let bookletsDefaulted = false;
 function allBookletStarts() {
     return [...new Set([...entries, ...marks].map(x => bookletStart(x.pr)))];
 }
@@ -748,6 +749,11 @@ function refresh() {
         if (!byBooklet.has(b)) byBooklet.set(b, []);
         byBooklet.get(b).push(r);
     });
+    // Booklets start collapsed: applied once, when the first data shows up (later expand/collapse choices are kept).
+    if (!bookletsDefaulted) {
+        const all = allBookletStarts();
+        if (all.length) { all.forEach(s => collapsedBooklets.add(s)); bookletsDefaulted = true; }
+    }
     let html = "";
     let currentBooklet = null;
     const noFilter = !(f.q.trim() || f.from || f.to || f.unchecked);
