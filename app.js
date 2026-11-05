@@ -320,6 +320,8 @@ $("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item
 // ---- Keyboard shortcuts ----
 //  Enter       next field (after the last price, starts a new item row)
 //  Alt+N       add item row
+//  Alt+C       MOP: Cash
+//  Alt+I       MOP: Invoice (jumps to the invoice number)
 //  Ctrl+Enter  add PR to output (Cmd+Enter on Mac)
 //  Esc         cancel edit
 function formFields() {
@@ -336,6 +338,16 @@ document.addEventListener("keydown", ev => {
     } else if (ev.altKey && !mod && ev.key.toLowerCase() === "n") {
         ev.preventDefault();
         addItemRow().querySelector(".item-name").focus();
+    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "c") {
+        ev.preventDefault();
+        $("fMop").value = "Cash";
+        updateRefField();
+        toast("MOP: Cash");
+    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "i") {
+        ev.preventDefault();
+        $("fMop").value = "Invoice";
+        updateRefField();
+        $("fRef").focus(); // type the invoice number right away
     } else if (ev.key === "Escape" && editingId) {
         resetForm();
     }
