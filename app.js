@@ -1,4 +1,4 @@
-import { parseSheet } from "./logic.js";
+import { parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
@@ -303,8 +303,13 @@ function updatePrWarning() {
     const el = $("prWarn");
     const pr = $("fPr").value;
     if (!pr) { el.classList.add("hidden"); return true; }
-    const { duplicate, gap, expected } = checkPr(entries, pr, editingId);
+    const { duplicate, gap, expected, marked } = checkPr(entries, pr, editingId, marks);
     el.classList.remove("error");
+    if (marked && !duplicate) {
+        el.textContent = `PR #${pr} is marked ${markLabel(marked)}. Adding a receipt with this number clears that mark.`;
+        el.classList.remove("hidden");
+        return true;
+    }
     if (duplicate) {
         el.textContent = `PR #${pr} already exists. Use a different number, or edit the existing receipt.`;
         el.classList.add("error");
@@ -326,7 +331,7 @@ function resetForm() {
     setDate(localStorage.getItem(LS_LAST_DATE) || todayISO());
     // Batch encoding: continue from the last encoded PR (42701 -> 42702).
     const lastPr = Number(localStorage.getItem(LS_LAST_PR));
-    $("fPr").value = lastPr > 0 ? lastPr + 1 : nextPr(entries);
+    $("fPr").value = skipMarked(lastPr > 0 ? lastPr + 1 : nextPr(entries, marks), marks);
     $("fBuyer").value = "Anonymous";
     $("fMop").value = "Cash";
     $("fRef").value = "";
@@ -510,6 +515,12 @@ document.addEventListener("keydown", ev => {
         $("fMop").value = "Invoice";
         updateRefField();
         $("fRef").focus(); // type the invoice number right away
+    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "v") {
+        ev.preventDefault();
+        markFromForm("void");
+    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "u") {
+        ev.preventDefault();
+        markFromForm("unused");
     } else if (ev.key === "Escape" && editingId) {
         resetForm();
         finishReviewEdit();
@@ -589,6 +600,7 @@ $("prForm").addEventListener("submit", ev => {
     const oldId = editingId;
     const wasEdit = !!editingId;
     persist(entry, oldId);
+    if (marks.some(m => Number(m.pr) === pr)) clearMark(pr); // a real receipt replaces a void / not-used mark
     if (wasEdit) toast(`PR #${pr} updated.`);
     else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is complete - next sheet starts a new booklet.`);
     else toast(`PR #${pr} added.`);
@@ -603,7 +615,28 @@ $("prForm").addEventListener("submit", ev => {
 function currentFilter() {
     return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value, booklet: $("bookletFilter").value, unchecked: $("uncheckedOnly").checked };
 }
-function visibleRows() { return flatten(filterEntries(entries, currentFilter())); }
+function visibleRows() {
+    const f = currentFilter();
+    const rows = flatten(filterEntries(entries, f));
+    // Void / not-used numbers belong in the sheet too, unless a search or date filter is narrowing it down.
+    return f.q.trim() || f.from || f.to || f.unchecked ? rows : withMarks(rows, marks, f);
+}
+
+// Mark the PR number in the form as void (cancelled) or not used (blank / skipped), then move on.
+function markFromForm(status) {
+    const pr = Number($("fPr").value);
+    if (!(pr > 0)) return toast("Enter the PR number first.");
+    if (editingId) return toast("Finish or cancel the edit first.");
+    if (entries.some(e => Number(e.pr) === pr)) return toast(`PR #${pr} already has a receipt. Delete it first if the sheet was cancelled.`);
+    setMark(pr, status);
+    localStorage.setItem(LS_LAST_PR, String(pr));
+    toast(`PR #${pr} marked ${markLabel(status)}.`);
+    $("fPr").value = skipMarked(pr + 1, marks);
+    updatePrWarning();
+    updateBookletHint();
+}
+$("voidBtn").addEventListener("click", () => markFromForm("void"));
+$("unusedBtn").addEventListener("click", () => markFromForm("unused"));
 
 // Booklets (50 sheets each) can be collapsed in the output table.
 const collapsedBooklets = new Set();
@@ -663,10 +696,12 @@ function refresh() {
     });
     let html = "";
     let currentBooklet = null;
-    rows.forEach(r => {
+    const noFilter = !(f.q.trim() || f.from || f.to || f.unchecked);
+    const items = noFilter ? withMarks(rows, marks, f) : rows;
+    items.forEach(r => {
         const b = bookletStart(r.pr);
-        if (b !== currentBooklet) { currentBooklet = b; html += bookletHeaderHtml(b, byBooklet.get(b)); }
-        if (!collapsedBooklets.has(b)) html += rowHtml(r);
+        if (b !== currentBooklet) { currentBooklet = b; html += bookletHeaderHtml(b, byBooklet.get(b) || []); }
+        if (!collapsedBooklets.has(b)) html += r.mark ? markRowHtml(r) : rowHtml(r);
     });
     body.innerHTML = html;
     afterRowsRendered(rows, shown, f);
@@ -676,6 +711,19 @@ function mopCellHtml(r) {
     const p = r.entry.payments;
     if (Array.isArray(p) && p.length) return `<span class="split-tag">SPLIT</span><br>` + p.map(x => esc(paymentText(x))).join("<br>");
     return esc(r.mop);
+}
+
+function markRowHtml(r) {
+    const note = r.status === "void" ? "Cancelled sheet, no sale" : "Blank or skipped sheet";
+    return `
+        <tr class="mark-row ${esc(r.status)} pr-first">
+            <td></td>
+            <td class="pr-no">${esc(r.pr)}</td>
+            <td colspan="7"><span class="mark-tag ${esc(r.status)}">${markLabel(r.status)}</span> <span class="mark-note">${note}</span></td>
+            <td class="no-print"><div class="row-actions">
+                <button class="btn btn-secondary btn-icon-only" data-unmark="${esc(r.pr)}" title="Clear this mark"><i class="ri-close-line"></i></button>
+            </div></td>
+        </tr>`;
 }
 
 function rowHtml(r) {
@@ -738,6 +786,7 @@ $("outBody").addEventListener("click", ev => {
         }
         return;
     }
+    if (b.dataset.unmark) clearMark(Number(b.dataset.unmark));
     if (b.dataset.review) openReview(Number(b.dataset.review));
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {

@@ -251,7 +251,7 @@ export function flatten(entries) {
 const HEAD = ['DATE', 'PR NUMBER', 'BUYER', 'SOLD ITEMS', 'QTY', 'UNIT PRICE', 'TOTAL', 'GRAND TOTAL', 'MOP'];
 
 function tableCells(rows) {
-    return rows.map(r => [
+    return rows.map(r => r.mark ? ['', r.pr, '', markLabel(r.status), '', '', '', '', ''] : [
         r.first ? r.date : '',
         r.first ? r.pr : '',
         r.first ? r.buyer : '',
@@ -274,20 +274,39 @@ export function toCSV(rows) {
     return [HEAD, ...tableCells(rows)].map(r => r.map(q).join(',')).join('\r\n');
 }
 
-export function nextPr(entries) {
-    const nums = entries.map(e => Number(e.pr)).filter(n => Number.isFinite(n));
+// Next PR number to encode: one past the highest number that was encoded OR marked void / not used.
+export function nextPr(entries, marks = []) {
+    const nums = [...entries, ...marks].map(e => Number(e.pr)).filter(n => Number.isFinite(n));
     return nums.length ? Math.max(...nums) + 1 : 1;
 }
 
-// Returns { duplicate: bool, gap: bool, expected: number }
-export function checkPr(entries, pr, editingId = null) {
-    const n = Number(pr);
-    const duplicate = entries.some(e => Number(e.pr) === n && e.id !== editingId);
-    const expected = nextPr(entries.filter(e => e.id !== editingId));
-    const gap = !duplicate && Number.isFinite(n) && n > expected && entries.length > 0;
-    return { duplicate, gap, expected };
+// First number at or after n that is not already marked void / not used.
+export function skipMarked(n, marks = []) {
+    const taken = new Set(marks.map(m => Number(m.pr)));
+    while (taken.has(n)) n++;
+    return n;
 }
 
+export function markLabel(status) { return status === 'void' ? 'VOID' : 'NOT USED'; }
+
+// Returns { duplicate, gap, expected, marked }. marked is 'void' / 'unused' when that number was marked.
+export function checkPr(entries, pr, editingId = null, marks = []) {
+    const n = Number(pr);
+    const duplicate = entries.some(e => Number(e.pr) === n && e.id !== editingId);
+    const expected = nextPr(entries.filter(e => e.id !== editingId), marks);
+    const gap = !duplicate && Number.isFinite(n) && n > expected && entries.length > 0;
+    const m = marks.find(x => Number(x.pr) === n);
+    return { duplicate, gap, expected, marked: m ? m.status : null };
+}
+
+// Insert void / not-used numbers between the receipt rows, in PR order (they carry no amounts).
+export function withMarks(rows, marks, { booklet = '' } = {}) {
+    const have = new Set(rows.map(r => Number(r.pr)));
+    const extra = marks
+        .filter(m => !have.has(Number(m.pr)) && (!booklet || bookletStart(m.pr) === Number(booklet)))
+        .map(m => ({ mark: true, pr: Number(m.pr), status: m.status, at: m.at }));
+    return [...rows, ...extra].sort((a, b) => Number(a.pr) - Number(b.pr));
+}
 // Parse rows pasted from the spreadsheet (tab separated, same columns as the output table).
 // Rows without a PR number continue the previous receipt. Totals and header rows are ignored.
 export function parseSheet(text) {

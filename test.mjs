@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, parseSheet } from "./logic.js";
+import { flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, parseSheet, skipMarked, withMarks } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -125,5 +125,21 @@ assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shor
     assert.equal(rows[rows.length - 1].grand, 8841, "sheet total");
     const hdr = "DATE\tPR NUMBER\tBUYER\tSOLD ITEMS\tQTY\tUNIT PRICE\tTOTAL\tGRAND TOTAL\tMOP\n";
     assert.equal(parseSheet(hdr + SHEET_0920 + "\n\t\t\t\t\t\t8,841.00\t8,841.00").entries.length, 50, "header and total line ignored");
+}
+{
+    const es = [{ id: "pr_1", pr: 1, date: "2026-09-20", buyer: "A", mop: "Cash", items: [{ desc: "x", qty: 1, price: 3 }] },
+                { id: "pr_4", pr: 4, date: "2026-09-20", buyer: "A", mop: "Cash", items: [{ desc: "x", qty: 2, price: 3 }] }];
+    const mk = [{ pr: 2, status: "void" }, { pr: 3, status: "unused" }];
+    assert.equal(nextPr(es, mk), 5);
+    assert.equal(nextPr([es[0]], mk), 4, "marks count toward the next number");
+    assert.equal(skipMarked(2, mk), 4);
+    assert.equal(checkPr([es[0]], 4, null, mk).gap, false, "marked numbers are not a gap");
+    assert.equal(checkPr([es[0]], 5, null, mk).gap, true);
+    assert.equal(checkPr(es, 2, null, mk).marked, "void");
+    const rows = withMarks(flatten(es), mk);
+    assert.deepEqual(rows.map(r => r.pr), [1, 2, 3, 4]);
+    assert.equal(rows[3].grand, 9, "marks do not change totals");
+    assert.equal(toTSV(rows).split("\n")[2], "\t2\t\tVOID\t\t\t\t\t");
+    assert.equal(withMarks(flatten(es), mk, { booklet: 51 }).length, 2, "other booklets hide marks");
 }
 console.log("all tests passed");
