@@ -63,7 +63,6 @@
                     <div class="sc-group">
                         <h4>Payment (MOP)</h4>
                         <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>C</kbd></span><span>Cash</span></div>
-                        <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>I</kbd></span><span>Invoice</span></div>
                         <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>S</kbd></span><span>Split (cash + online)</span></div>
                         <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>V</kbd></span><span>Void this PR number</span></div>
                         <div class="sc-row"><span class="sc-keys"><kbd>Alt</kbd> <kbd>U</kbd></span><span>Not used (skip)</span></div>
@@ -90,18 +89,16 @@
                             <div class="pay-grid">
                                 <label class="field">
                                     <span>MOP</span>
-                                    <select id="fMop" title="Alt+C Cash, Alt+I Invoice">
+                                    <select id="fMop" title="Alt+C Cash">
                                         <option value="Cash" selected>Cash</option>
-                                        <option value="Invoice">Invoice</option>
                                         <option>GCash</option>
-                                        <option>Maya</option>
                                         <option>Bank Transfer</option>
-                                        <option>Check</option>
-                                        <option>Other</option>
+                                        <option>Cheque</option>
+                                        <option>Others</option>
                                     </select>
                                 </label>
                                 <label class="field hidden" id="refField">
-                                    <span id="refLabel">Invoice No.</span>
+                                    <span id="refLabel">Reference No.</span>
                                     <input type="text" id="fRef" placeholder="e.g. 689746">
                                 </label>
                                 <div class="field split-toggle">
@@ -158,14 +155,12 @@
                                 <input type="number" id="sCash" min="0" step="0.01" placeholder="0.00"></label>
                             <label class="field"><span>Online method</span>
                                 <select id="sMethod">
-                                    <option>Invoice</option>
                                     <option>GCash</option>
-                                    <option>Maya</option>
                                     <option>Bank Transfer</option>
-                                    <option>Check</option>
-                                    <option>Other</option>
+                                    <option>Cheque</option>
+                                    <option>Others</option>
                                 </select></label>
-                            <label class="field"><span id="sRefLabel">Invoice No.</span>
+                            <label class="field"><span id="sRefLabel">Reference No.</span>
                                 <input type="text" id="sRef" placeholder="e.g. 689746"></label>
                             <label class="field"><span>Online amount</span>
                                 <input type="number" id="sOnline" min="0" step="0.01" placeholder="0.00"></label>

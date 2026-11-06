@@ -763,10 +763,6 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 [data-theme="dark"] .total-box, [data-theme="dark"] .pay-box { border-color: #2a8d8a; }
 [data-theme="dark"] #voidBtn, [data-theme="dark"] #unusedBtn { background: transparent; }
 
-/* Blue gradient app background (light theme) */
-html:not([data-theme="dark"]) body { background: linear-gradient(180deg, #0030ff 0%, #0078ff 100%) fixed; }
-html:not([data-theme="dark"]) .app-header h1, html:not([data-theme="dark"]) .app-header .subtitle { color: #fff; }
-
 /* Dark mode: lighter receipt form for easier reading */
 [data-theme="dark"] #encoderCard { background: #24415c; border-color: #3b6a91; }
 [data-theme="dark"] #prForm { --rc-teal: #2a9d99; }

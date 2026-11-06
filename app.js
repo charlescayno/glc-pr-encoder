@@ -338,7 +338,9 @@ function toggleSplit(on) {
     }
 }
 function updateSplitRefLabel() {
-    $("sRefLabel").textContent = $("sMethod").value === "Invoice" ? "Invoice No." : "Reference No.";
+    const o = $("sMethod").value === "Others";
+    $("sRefLabel").textContent = o ? "Please specify" : "Reference No.";
+    $("sRef").placeholder = o ? "Please specify" : "e.g. 689746";
 }
 $("splitBtn").addEventListener("click", () => { toggleSplit(!splitOn); if (splitOn) $("sCash").focus(); });
 $("sCash").addEventListener("input", () => { splitAnchor = "cash"; recalcSplit(); });
@@ -388,7 +390,7 @@ function resetForm() {
     $("fMop").value = "Cash";
     $("fRef").value = "";
     toggleSplit(false);
-    $("sMethod").value = "Invoice";
+    $("sMethod").value = "GCash";
     $("itemsList").innerHTML = "";
     addItemRow();
     $("formTitle").textContent = "New Provisional Receipt";
@@ -410,7 +412,7 @@ function startEdit(id) {
     const isSplit = Array.isArray(e.payments) && e.payments.length > 0;
     toggleSplit(false);
     if (!isSplit) {
-        $("fMop").value = e.mop && e.mop !== "Split" ? e.mop : "Cash";
+        { const m = e.mop && e.mop !== "Split" ? e.mop : "Cash"; ensureOption($("fMop"), m); $("fMop").value = m; }
         $("fRef").value = e.mopRef || "";
         updateRefField();
     }
@@ -421,7 +423,7 @@ function startEdit(id) {
         const onlinePay = e.payments.find(p => p.method !== "Cash");
         toggleSplit(true);
         $("sCash").value = cashPay ? String(cashPay.amount) : "";
-        if (onlinePay) { $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; }
+        if (onlinePay) { ensureOption($("sMethod"), onlinePay.method); $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; }
         updateSplitRefLabel();
         splitAnchor = "cash";
         recalcSplit();
@@ -435,11 +437,16 @@ function startEdit(id) {
     $("encoderCard").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+// Old entries may use a retired method name (Invoice, Maya, Check, Other); keep it selectable so editing doesn't change it.
+function ensureOption(sel, value) {
+    if (value && ![...sel.options].some(o => o.value === value)) sel.add(new Option(value, value));
+}
 function updateRefField() {
     const v = $("fMop").value;
     const show = !!v && v !== "Cash";
     $("refField").classList.toggle("hidden", !show);
-    $("refLabel").textContent = v === "Invoice" ? "Invoice No." : "Reference No.";
+    $("refLabel").textContent = v === "Others" ? "Please specify" : v === "Cheque" ? "Cheque No." : "Reference No.";
+    $("fRef").placeholder = v === "Others" ? "Please specify" : "e.g. 689746";
     if (!show) $("fRef").value = "";
 }
 $("fMop").addEventListener("change", () => {
@@ -610,7 +617,6 @@ $("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item
 //  Alt+N       add item row
 //  Alt+S       split payment on/off (part cash, part online)
 //  Alt+C       MOP: Cash
-//  Alt+I       MOP: Invoice (jumps to the invoice number)
 //  Ctrl+Enter  add PR to output (Cmd+Enter on Mac)
 //  Esc         cancel edit
 function formFields() {
@@ -639,12 +645,6 @@ document.addEventListener("keydown", ev => {
         $("fMop").value = "Cash";
         updateRefField();
         toast("MOP: Cash");
-    } else if (ev.altKey && !mod && ev.key.toLowerCase() === "i") {
-        ev.preventDefault();
-        if (splitOn) toggleSplit(false);
-        $("fMop").value = "Invoice";
-        updateRefField();
-        $("fRef").focus(); // type the invoice number right away
     } else if (ev.altKey && !mod && ev.key.toLowerCase() === "v") {
         ev.preventDefault();
         markFromForm("void");
@@ -1327,9 +1327,9 @@ function receiptPaperHtml(e) {
         ? e.payments : [{ method: e.mop && e.mop !== "Split" ? e.mop : "Cash", amount: total, ref: e.mopRef || "" }];
     const multi = pays.length > 1;
     const hasCash = pays.some(p => !p.method || p.method === "Cash");
-    const check = pays.find(p => p.method === "Check");
+    const check = pays.find(p => /^che(que|ck)$/i.test(p.method));
     const bank = pays.find(p => p.method === "Bank Transfer");
-    const online = pays.filter(p => p.method && !["Cash", "Check", "Bank Transfer"].includes(p.method));
+    const online = pays.filter(p => p.method && !["Cash", "Check", "Cheque", "Bank Transfer"].includes(p.method));
     const invoiceRef = online.map(p => `${p.method}${p.ref ? " " + p.ref : ""}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
     const bankText = bank ? `Bank Transfer${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
 
