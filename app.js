@@ -1321,6 +1321,12 @@ function finishReviewEdit(savedPr) {
 }
 
 // A replica of the paper Provisional Receipt, filled in with what was encoded.
+// Review: a payment line with just the reference number (falls back to the method name when there is none).
+function reviewPayText(p) {
+    const label = !p.method || p.method === "Cash" ? "Cash" : ((p.ref || "").trim() || p.method);
+    return `${label} ${money(p.amount)}`;
+}
+
 function receiptPaperHtml(e) {
     const total = entryTotal(e);
     const pays = Array.isArray(e.payments) && e.payments.length
@@ -1330,7 +1336,7 @@ function receiptPaperHtml(e) {
     const check = pays.find(p => /^che(que|ck)$/i.test(p.method));
     const bank = pays.find(p => p.method === "Bank Transfer");
     const online = pays.filter(p => p.method && !["Cash", "Check", "Cheque", "Bank Transfer"].includes(p.method));
-    const invoiceRef = online.map(p => `${p.method}${p.ref ? " " + p.ref : ""}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
+    const invoiceRef = online.map(p => `${(p.ref || "").trim() || p.method}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
     const bankText = bank ? `Bank Transfer${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
 
     const rows = e.items.map(i => ({ text: `${i.desc} - ${i.qty}`, amt: money(round2(i.qty * i.price)) }));
@@ -1422,7 +1428,8 @@ function renderReview() {
     if (cur.type === "entry") {
         const e = cur.entry;
         const pay = Array.isArray(e.payments) && e.payments.length
-            ? e.payments.map(p => esc(paymentText(p))).join("<br>") : esc(mopText(e) || "Cash");
+            ? e.payments.map(p => esc(reviewPayText(p))).join("<br>")
+            : esc(e.mop && e.mop !== "Cash" && e.mop !== "Split" ? ((e.mopRef || "").trim() || e.mop) : (mopText(e) || "Cash"));
         $("rvHead").innerHTML = `
                 <div class="rv-sheet-label">Compare with paper PR #${esc(e.pr)}</div>
                 <div class="rv-sys"><b>Encoded MOP:</b> ${pay.replace(/<br>/g, " + ")}</div>
