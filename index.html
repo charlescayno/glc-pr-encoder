@@ -263,7 +263,7 @@
         <div class="modal">
             <div class="modal-head">
                 <h2>Import from spreadsheet</h2>
-                <button class="btn btn-secondary" id="importClose"><i class="ri-close-line"></i></button>
+                <button class="btn btn-close" id="importClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
             </div>
             <p class="modal-note">Paste rows copied from the sheet (DATE, PR NUMBER, BUYER, SOLD ITEMS, QTY, UNIT PRICE, TOTAL, GRAND TOTAL, MOP). Rows without a PR number continue the receipt above. Grand totals are recalculated by the site. A PR that already exists is replaced.</p>
             <div class="modal-body"><textarea id="importText" class="import-text" rows="12" placeholder="Paste here..."></textarea></div>
@@ -280,7 +280,7 @@
         <div class="modal">
             <div class="modal-head">
                 <h2>Item Catalog</h2>
-                <button class="btn btn-secondary" id="catalogClose"><i class="ri-close-line"></i></button>
+                <button class="btn btn-close" id="catalogClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
             </div>
             <p class="modal-note">Saved on this device only. Items default to the glc-inventory price list. Every item also gets automatic shorthand (initials, e.g. "gte" for Gospel Tracts English; "b7" for Book 7); the shorthand column lets you set your own.</p>
             <div class="modal-body" id="catalogBody"></div>
@@ -305,7 +305,7 @@
                     <button type="button" class="btn btn-secondary" id="rvLock"></button>
                     <button type="button" class="btn btn-secondary" id="rvRestart" title="Uncheck every PR in this booklet and start the review over"><i class="ri-restart-line"></i> Uncheck all</button>
                     <button type="button" class="btn btn-secondary" id="rvFirst" title="Go to the first PR of this booklet">Start from first</button>
-                    <button type="button" class="btn btn-secondary" id="rvClose" title="Close review (Esc)"><i class="ri-close-line"></i> Close</button>
+                    <button type="button" class="btn btn-close" id="rvClose" title="Close review (Esc)"><i class="ri-close-line"></i> Close</button>
                 </div>
             </div>
             <div class="rv-bar"><span id="rvBar"></span></div>
@@ -340,7 +340,7 @@
                 </div>
                 <div class="rv-top-actions ss-actions">
                     <button type="button" class="btn btn-secondary" id="salesPrint"><i class="ri-printer-line"></i> Print</button>
-                    <button type="button" class="btn btn-secondary" id="salesClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
+                    <button type="button" class="btn btn-close" id="salesClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
                 </div>
             </div>
             <div class="ss-body" id="salesBody"></div>
