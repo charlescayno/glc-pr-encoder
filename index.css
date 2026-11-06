@@ -814,33 +814,48 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 
 /* --- Sales summary page (full page, like the PR review) --- */
 .ss-overlay { z-index: 70; }
-.ss-page { max-width: 1400px; height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding: 0.7rem 1.25rem; box-sizing: border-box; }
-.ss-body { flex: 1; overflow: auto; padding-bottom: 1rem; }
+.ss-page { max-width: 1500px; height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding: 0.7rem 1.25rem; box-sizing: border-box; min-height: 0; }
+.review.ss-page > .ss-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 0.2rem 1.5rem 0; }
 .ss-note { font-size: 0.8rem; color: var(--color-text-muted); margin: 0.6rem 0 0; }
-.ss-body h2 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+.ss-body h2 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--color-text-main); }
 .ss-bar { display: flex; align-items: center; gap: 1rem; }
 .ss-bar h2 { margin-right: auto; }
 .ss-bar .btn { text-decoration: none; }
 .ss-empty { color: var(--color-text-muted); }
-.ss-wrap { overflow: auto; max-height: 75vh; border-radius: 0.3rem; }
-.ss-table { border-collapse: collapse; font-size: 0.82rem; background: #d6e1db; color: #000; }
-.ss-table th, .ss-table td { border: 1px solid #000; padding: 0.15rem 0.45rem; white-space: nowrap; }
-.ss-table th { font-weight: 700; text-align: left; position: sticky; top: 0; z-index: 2; background: #d6e1db; }
+.ss-wrap { display: inline-block; max-width: none; border: 1px solid var(--color-border); border-radius: 0.4rem; }
+.ss-table {
+    --ss-sage: #d6e1db; --ss-tint: #eef3f0; --ss-line: #1f2937; --ss-ink: #111827;
+    width: auto; border-collapse: separate; border-spacing: 0; font-size: 0.82rem; background: var(--ss-sage); color: var(--ss-ink);
+    border-top: 1px solid var(--ss-line); border-left: 1px solid var(--ss-line);
+}
+[data-theme="dark"] .ss-table { --ss-sage: #c3d3ca; --ss-tint: #e3ece7; }
+.ss-table th, .ss-table td {
+    padding: 0.2rem 0.5rem; white-space: nowrap; vertical-align: middle; color: var(--ss-ink);
+    border: 0; border-right: 1px solid var(--ss-line); border-bottom: 1px solid var(--ss-line); letter-spacing: 0;
+}
+.ss-table th { font-size: 0.8rem; font-weight: 700; text-align: left; position: sticky; top: 0; z-index: 3; background: var(--ss-sage); text-transform: none; }
 .ss-table th.col { text-align: center; }
-.ss-table td.cat { font-weight: 700; vertical-align: top; text-transform: uppercase; white-space: normal; min-width: 7.5rem; background: #d6e1db; }
-.ss-table td.desc { font-weight: 600; background: #d6e1db; }
+.ss-table td.cat, .ss-table th.cat { position: sticky; left: 0; z-index: 2; width: 9rem; min-width: 9rem; max-width: 9rem; background: var(--ss-sage); }
+.ss-table th.cat { z-index: 4; }
+.ss-table td.cat { font-weight: 700; vertical-align: top; text-transform: uppercase; white-space: normal; }
+.ss-table td.desc, .ss-table th.desc { position: sticky; left: 9rem; z-index: 2; background: var(--ss-sage); }
+.ss-table th.desc { z-index: 4; }
+.ss-table td.desc { font-weight: 600; }
 .ss-table td.n { text-align: right; background: #fff; min-width: 5.5rem; font-variant-numeric: tabular-nums; }
-.ss-table td.tot { font-weight: 700; background: #eef3f0; }
-.ss-table tr.foot td { font-weight: 700; background: #d6e1db; }
-.ss-table tr.foot td.n { background: #eef3f0; }
-.ss-table tr.foot.sub td { font-weight: 400; }
+.ss-table td.tot, .ss-table th.tot { position: sticky; right: 0; z-index: 2; font-weight: 700; background: var(--ss-tint); border-left: 1px solid var(--ss-line); }
+.ss-table th.tot { z-index: 4; background: var(--ss-sage); text-align: center; }
+.ss-table tbody tr:hover td.n, .ss-table tbody tr:hover td.desc { background: #fff6bf; }
+.ss-table tbody tr:hover td.tot { background: #ffe98a; }
+.ss-table tfoot td { font-weight: 700; background: var(--ss-sage); }
+.ss-table tfoot td.n { background: var(--ss-tint); }
+.ss-table tfoot tr:first-child td { border-top: 2px solid var(--ss-line); }
+.ss-table tfoot tr.sub td { font-weight: 400; }
+.ss-table tfoot td.desc, .ss-table tfoot td.lbl { position: sticky; left: 0; z-index: 2; }
 @media print {
     body.print-sales .app-container, body.print-sales .toast, body.print-sales .ss-actions, body.print-sales .ss-bar .btn { display: none !important; }
     body.print-sales .review-overlay { position: static; overflow: visible; }
     body.print-sales .ss-page { height: auto; display: block; }
-    body.print-sales .ss-body { overflow: visible; }
-    body.print-sales .ss-wrap { max-height: none; overflow: visible; }
-    body.print-sales .ss-table th { position: static; }
-    body.print-sales .ss-table td, body.print-sales .ss-table th { font-size: 9px; padding: 1px 3px; }
+    body.print-sales .review.ss-page > .ss-body { overflow: visible; }
+    body.print-sales .ss-table th, body.print-sales .ss-table td { position: static !important; font-size: 9px; padding: 1px 3px; }
     @page { size: landscape; margin: 8mm; }
 }

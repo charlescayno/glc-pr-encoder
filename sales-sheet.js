@@ -18,13 +18,13 @@ function tableHtml(title, kind, m) {
     const body = m.rows.map((r, i) => `<tr>${spans.has(i) ? `<td class="cat" rowspan="${spans.get(i).n}">${esc(r.category)}</td>` : ""}
         <td class="desc">${esc(r.desc)}</td>${r.qtys.map(n => `<td class="n">${qty(n)}</td>`).join("")}<td class="n tot">${qty(r.total)}</td></tr>`).join("");
     const sum = f => Math.round(m.periods.reduce((s, p) => s + f(p), 0) * 100) / 100;
-    const foot = `<tr class="foot"><td colspan="2">TOTAL UNITS SOLD</td>${m.periods.map(p => `<td class="n">${qty(p.units)}</td>`).join("")}<td class="n">${qty(sum(p => p.units))}</td></tr>
-        <tr class="foot"><td colspan="2">TOTAL SALES (&#8369;)</td>${m.periods.map(p => `<td class="n">${money(p.total)}</td>`).join("")}<td class="n">${money(sum(p => p.total))}</td></tr>
-        <tr class="foot sub"><td colspan="2">Cash</td>${m.periods.map(p => `<td class="n">${money(p.cash)}</td>`).join("")}<td class="n">${money(sum(p => p.cash))}</td></tr>
-        <tr class="foot sub"><td colspan="2">Online payment</td>${m.periods.map(p => `<td class="n">${money(p.online)}</td>`).join("")}<td class="n">${money(sum(p => p.online))}</td></tr>`;
+    const foot = `<tr class="foot"><td colspan="2" class="lbl">TOTAL UNITS SOLD</td>${m.periods.map(p => `<td class="n">${qty(p.units)}</td>`).join("")}<td class="n tot">${qty(sum(p => p.units))}</td></tr>
+        <tr class="foot"><td colspan="2" class="lbl">TOTAL SALES (&#8369;)</td>${m.periods.map(p => `<td class="n">${money(p.total)}</td>`).join("")}<td class="n tot">${money(sum(p => p.total))}</td></tr>
+        <tr class="foot sub"><td colspan="2" class="lbl">Cash</td>${m.periods.map(p => `<td class="n">${money(p.cash)}</td>`).join("")}<td class="n tot">${money(sum(p => p.cash))}</td></tr>
+        <tr class="foot sub"><td colspan="2" class="lbl">Online payment</td>${m.periods.map(p => `<td class="n">${money(p.online)}</td>`).join("")}<td class="n tot">${money(sum(p => p.online))}</td></tr>`;
     const csv = "data:text/csv;charset=utf-8," + encodeURIComponent("\uFEFF" + salesMatrixCSV(m, kind));
     return `<div class="ss-bar"><h2>${esc(title)}</h2><a class="btn btn-secondary" download="sales-per-${kind}.csv" href="${csv}">Download CSV</a></div>
-        <div class="ss-wrap"><table class="ss-table"><thead><tr><th class="cat">CATEGORY:</th><th class="desc">DESCRIPTION:</th>${head}<th class="col">TOTAL</th></tr></thead>
+        <div class="ss-wrap"><table class="ss-table"><thead><tr><th class="cat">CATEGORY:</th><th class="desc">DESCRIPTION:</th>${head}<th class="col tot">TOTAL</th></tr></thead>
         <tbody>${body}</tbody><tfoot>${foot}</tfoot></table></div>`;
 }
 
