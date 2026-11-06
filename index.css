@@ -766,3 +766,13 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 /* Blue gradient app background (light theme) */
 html:not([data-theme="dark"]) body { background: linear-gradient(180deg, #0030ff 0%, #0078ff 100%) fixed; }
 html:not([data-theme="dark"]) .app-header h1, html:not([data-theme="dark"]) .app-header .subtitle { color: #fff; }
+
+/* Dark mode: lighter receipt form for easier reading */
+[data-theme="dark"] #encoderCard { background: #24415c; border-color: #3b6a91; }
+[data-theme="dark"] #prForm { --rc-teal: #2a9d99; }
+[data-theme="dark"] #prForm .field > span, [data-theme="dark"] #prForm .cell > span, [data-theme="dark"] #prForm .hint { color: #e2e8f0; }
+[data-theme="dark"] #prForm input, [data-theme="dark"] #prForm select { background: #31526f; border-color: #5b86a9; color: #fff; }
+[data-theme="dark"] #prForm input::placeholder { color: #b6c8d9; }
+[data-theme="dark"] #prForm .rcpt-right .field-pr input { color: #fca5a5; }
+[data-theme="dark"] #prForm .btn-secondary { background: #31526f; border-color: #5b86a9; color: #fff; }
+[data-theme="dark"] #prForm #voidBtn, [data-theme="dark"] #prForm #unusedBtn { background: transparent; border-color: #f87171; color: #fecaca; }
