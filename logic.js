@@ -18,7 +18,8 @@ export function fmtDate(iso) {
 // One payment line, e.g. "Cash 150.00" or "INVOICE REF # 689746 250.00"
 export function paymentText(p) {
     const ref = (p.ref || '').trim();
-    const label = p.method === 'Cash' ? 'Cash' : (ref ? `${p.method.toUpperCase()} REF # ${ref}` : p.method);
+    const bank = p.method === 'Bank Transfer' && p.bank ? ` - ${String(p.bank).trim()}` : '';
+    const label = p.method === 'Cash' ? 'Cash' : (ref ? `${p.method.toUpperCase()}${bank} REF # ${ref}` : p.method + bank);
     return `${label} ${money(p.amount)}`;
 }
 
@@ -28,7 +29,8 @@ export function mopText(e) {
     const mop = (e.mop || '').trim();
     const ref = (e.mopRef || '').trim();
     if (!mop) return ref ? `REF # ${ref}` : '';
-    return ref ? `${mop.toUpperCase()} REF # ${ref}` : mop;
+    const bank = mop === 'Bank Transfer' && e.mopBank ? ` - ${String(e.mopBank).trim()}` : '';
+    return ref ? `${mop.toUpperCase()}${bank} REF # ${ref}` : mop + bank;
 }
 
 export function entryTotal(e) {

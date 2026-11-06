@@ -410,8 +410,8 @@ function toggleSplit(on) {
     $("splitBtn").classList.toggle("btn-secondary", !on);
     if (on) {
         $("refField").classList.add("hidden");
-        $("fRef").value = "";
-        $("sCash").value = ""; $("sOnline").value = ""; $("sRef").value = "";
+        $("fRef").value = ""; $("bankField").classList.add("hidden"); $("fBank").value = "";
+        $("sCash").value = ""; $("sOnline").value = ""; $("sRef").value = ""; $("sBank").value = "";
         splitAnchor = "cash";
         updateSplitRefLabel();
         recalcSplit();
@@ -424,11 +424,14 @@ function updateSplitRefLabel() {
     const o = $("sMethod").value === "Others";
     $("sRefLabel").textContent = o ? "Please specify" : "Reference No.";
     $("sRef").placeholder = o ? "Please specify" : "e.g. 689746";
+    const bank = $("sMethod").value === "Bank Transfer";
+    $("sBankField").classList.toggle("hidden", !bank);
+    if (!bank) $("sBank").value = "";
 }
 $("splitBtn").addEventListener("click", () => { toggleSplit(!splitOn); if (splitOn) $("sCash").focus(); });
 $("sCash").addEventListener("input", () => { splitAnchor = "cash"; recalcSplit(); });
 $("sOnline").addEventListener("input", () => { splitAnchor = "online"; recalcSplit(); });
-$("sMethod").addEventListener("change", () => { updateSplitRefLabel(); $("sRef").focus(); });
+$("sMethod").addEventListener("change", () => { updateSplitRefLabel(); (($("sMethod").value === "Bank Transfer") ? $("sBank") : $("sRef")).focus(); });
 
 function updatePrWarning() {
     const el = $("prWarn");
@@ -496,7 +499,7 @@ function startEdit(id) {
     toggleSplit(false);
     if (!isSplit) {
         { const m = e.mop && e.mop !== "Split" ? e.mop : "Cash"; ensureOption($("fMop"), m); $("fMop").value = m; }
-        $("fRef").value = e.mopRef || "";
+        $("fRef").value = e.mopRef || ""; $("fBank").value = e.mopBank || "";
         updateRefField();
     }
     $("itemsList").innerHTML = "";
@@ -506,7 +509,7 @@ function startEdit(id) {
         const onlinePay = e.payments.find(p => p.method !== "Cash");
         toggleSplit(true);
         $("sCash").value = cashPay ? String(cashPay.amount) : "";
-        if (onlinePay) { ensureOption($("sMethod"), onlinePay.method); $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; }
+        if (onlinePay) { ensureOption($("sMethod"), onlinePay.method); $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; $("sBank").value = onlinePay.bank || ""; }
         updateSplitRefLabel();
         splitAnchor = "cash";
         recalcSplit();
@@ -531,10 +534,14 @@ function updateRefField() {
     $("refLabel").textContent = v === "Others" ? "Please specify" : v === "Cheque" ? "Cheque No." : "Reference No.";
     $("fRef").placeholder = v === "Others" ? "Please specify" : "e.g. 689746";
     if (!show) $("fRef").value = "";
+    const bank = v === "Bank Transfer" && !splitOn;
+    $("bankField").classList.toggle("hidden", !bank);
+    if (!bank) $("fBank").value = "";
 }
 $("fMop").addEventListener("change", () => {
     updateRefField();
-    if (!$("refField").classList.contains("hidden")) $("fRef").focus();
+    if (!$("bankField").classList.contains("hidden")) $("fBank").focus();
+    else if (!$("refField").classList.contains("hidden")) $("fRef").focus();
 });
 // ---- Date entry: type digits only (0913 2026 -> 09-13-2026), or use Today / arrows ----
 function setDate(iso) { $("fDate").value = iso ? fmtDate(iso) : ""; }
@@ -794,6 +801,7 @@ $("prForm").addEventListener("submit", ev => {
         buyer: $("fBuyer").value.trim() || "Anonymous",
         mop: $("fMop").value,
         mopRef: $("fRef").value.trim(),
+        mopBank: $("fBank").value.trim(),
         items: items.map(({ desc, qty, price }) => ({ desc, qty, price })),
         updatedAt: Date.now()
     };
@@ -805,9 +813,10 @@ $("prForm").addEventListener("submit", ev => {
         if (round2(cash + online) !== total) { toast(`Cash + online must equal the receipt total (${peso(total)}).`); $("sCash").focus(); return; }
         entry.mop = "Split";
         entry.mopRef = "";
+        entry.mopBank = "";
         entry.payments = [
             { method: "Cash", amount: cash },
-            { method: $("sMethod").value, amount: online, ref: $("sRef").value.trim() }
+            { method: $("sMethod").value, amount: online, ref: $("sRef").value.trim(), bank: $("sBank").value.trim() }
         ];
     }
     const oldId = editingId;
@@ -1421,21 +1430,21 @@ function finishReviewEdit(savedPr) {
 // A replica of the paper Provisional Receipt, filled in with what was encoded.
 // Review: a payment line with just the reference number (falls back to the method name when there is none).
 function reviewPayText(p) {
-    const label = !p.method || p.method === "Cash" ? "Cash" : ((p.ref || "").trim() || p.method);
+    const label = !p.method || p.method === "Cash" ? "Cash" : [p.method === "Bank Transfer" ? (p.bank || "").trim() : "", (p.ref || "").trim()].filter(Boolean).join(" ") || p.method;
     return `${label} ${money(p.amount)}`;
 }
 
 function receiptPaperHtml(e) {
     const total = entryTotal(e);
     const pays = Array.isArray(e.payments) && e.payments.length
-        ? e.payments : [{ method: e.mop && e.mop !== "Split" ? e.mop : "Cash", amount: total, ref: e.mopRef || "" }];
+        ? e.payments : [{ method: e.mop && e.mop !== "Split" ? e.mop : "Cash", amount: total, ref: e.mopRef || "", bank: e.mopBank || "" }];
     const multi = pays.length > 1;
     const hasCash = pays.some(p => !p.method || p.method === "Cash");
     const check = pays.find(p => /^che(que|ck)$/i.test(p.method));
     const bank = pays.find(p => p.method === "Bank Transfer");
     const online = pays.filter(p => p.method && !["Cash", "Check", "Cheque", "Bank Transfer"].includes(p.method));
     const invoiceRef = online.map(p => `${(p.ref || "").trim() || p.method}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
-    const bankText = bank ? `Bank Transfer${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
+    const bankText = bank ? `${(bank.bank || "").trim() || "Bank Transfer"}${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
 
     const rows = e.items.map(i => ({ text: `${i.desc} - ${i.qty}`, amt: money(round2(i.qty * i.price)) }));
     while (rows.length < 6) rows.push({ text: "", amt: "" });
@@ -1527,7 +1536,7 @@ function renderReview() {
         const e = cur.entry;
         const pay = Array.isArray(e.payments) && e.payments.length
             ? e.payments.map(p => esc(reviewPayText(p))).join("<br>")
-            : esc(e.mop && e.mop !== "Cash" && e.mop !== "Split" ? ((e.mopRef || "").trim() || e.mop) : (mopText(e) || "Cash"));
+            : esc(e.mop && e.mop !== "Cash" && e.mop !== "Split" ? ([e.mop === "Bank Transfer" ? (e.mopBank || "").trim() : "", (e.mopRef || "").trim()].filter(Boolean).join(" ") || e.mop) : (mopText(e) || "Cash"));
         $("rvHead").innerHTML = `
                 <div class="rv-sheet-label">Compare with paper PR #${esc(e.pr)}</div>
                 <div class="rv-sys"><b>Encoded MOP:</b> ${pay.replace(/<br>/g, " + ")}</div>
