@@ -39,7 +39,7 @@ let editingId = null;
 let catalog = loadCatalog();
 const LS_MARKS = "pre_marks_v1";
 let marks = (() => { try { return JSON.parse(localStorage.getItem(LS_MARKS)) || []; } catch { return []; } })();
-let rv = null;                // review session: { start, pr, summary }
+let rv = null;                // review session: { start, pr, summary, viewOnly }
 let reviewEditing = false;    // the encoder card is open as a dialog inside the review
 let splitOn = false;          // split payment (part cash, part online) for the current form
 let splitAnchor = "cash";     // which split amount the user typed last; the other is calculated
@@ -911,6 +911,43 @@ function cashBadgeHtml(start) {
             : `<span class="bk-badge cc-off" title="Counted ${peso(cashCounted)}, expected ${peso(cashExpected)}."><i class="ri-error-warning-fill"></i> Cash ${cashDiff > 0 ? "over" : "short"} ${peso(Math.abs(cashDiff))}</span>`;
 }
 
+// "Verified booklets" section: every booklet whose PRs are all checked. "View summary" opens its summary directly (no review needed).
+function renderVerifiedSection() {
+    const list = $("verifiedList");
+    const starts = allBookletStarts().sort((x, y) => prSortDesc ? y - x : x - y);
+    const cards = [];
+    starts.forEach(s => {
+        const prog = reviewProgress(reviewSequence(entries, marks, s));
+        if (!(prog.done && prog.entries > 0)) return;
+        const st = bookletStats(entries, s, marks);
+        const rows = flatten(entries.filter(e => bookletStart(e.pr) === s));
+        const sales = rows.length ? rows[rows.length - 1].grand : 0;
+        const split = paymentSplit(rows);
+        cards.push(`
+        <div class="vb-card" data-vb="${s}">
+            <div class="vb-main">
+                <strong>Booklet ${esc(bookletLabel(s))}</strong>
+                <span class="bk-badge verified"><i class="ri-checkbox-circle-fill"></i> ${st.complete ? "Verified" : "All checked"}</span>
+                ${cashBadgeHtml(s)}
+                <span class="bk-count">${prog.entries} receipts${prog.marks ? `, ${prog.marks} void/not used` : ""}${prog.lastAt ? `, checked ${esc(fmtStamp(prog.lastAt))}` : ""}</span>
+            </div>
+            <div class="vb-side">
+                <span class="vb-money">Cash <b>${peso(split.cash)}</b> \u00B7 Online <b>${peso(split.online)}</b></span>
+                <span class="bk-total">${peso(sales)}</span>
+                <button type="button" class="btn btn-primary btn-sm" data-vb-open="${s}"><i class="ri-file-list-3-line"></i> View summary</button>
+            </div>
+        </div>`);
+    });
+    $("verifiedCount").textContent = String(cards.length);
+    $("verifiedCard").classList.toggle("hidden", !cards.length);
+    list.innerHTML = cards.join("");
+}
+$("verifiedList").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-vb-open], [data-vb]");
+    if (!b) return;
+    openSummaryView(Number(b.dataset.vbOpen || b.dataset.vb));
+});
+
 // Summary at the bottom of the output: one row per booklet and the grand totals (follows the current filter).
 function renderBookletSummary(rows) {
     const box = $("bkSummary");
@@ -974,10 +1011,6 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                         <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
                         <strong>Booklet ${esc(bookletLabel(start))}</strong>
                         <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
-                        <span class="bk-actions">
-                            <button type="button" class="btn btn-secondary btn-sm" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
-                            <button type="button" class="btn btn-sm btn-icon-only ${bkLocked ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${bkLocked ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}" aria-label="${bkLocked ? "Unlock booklet" : "Lock booklet"}"><i class="${bkLocked ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i></button>
-                        </span>
                     </div>
                     <div class="bk-r2">
                         ${progBadge}
@@ -989,6 +1022,10 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                         </span>
                         <span class="bk-total" title="Booklet total">${peso(sales)}</span>
                     </div>
+                    <span class="bk-actions">
+                        <button type="button" class="btn btn-secondary" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
+                        <button type="button" class="btn btn-icon-only ${bkLocked ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${bkLocked ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}" aria-label="${bkLocked ? "Unlock booklet" : "Lock booklet"}"><i class="${bkLocked ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i></button>
+                    </span>
                 </div>
             </td>
         </tr>`;
@@ -1027,6 +1064,7 @@ function refresh() {
     const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
     $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
+    renderVerifiedSection();
     renderBookletSummary(flatten(filterEntries(entries, { ...f, booklet: "" }))); // all booklets, even while one is selected below
     afterRowsRendered(rows, shown, f);
 }
@@ -1296,6 +1334,18 @@ function openReview(start, fromFirst = false) {
     if (!seq.length) { rv = null; toast("Nothing to review in this booklet yet."); return; }
     const first = fromFirst ? seq[0] : seq.find(s => !s.resolved);
     if (first) rv.pr = first.pr; else { rv.pr = seq[seq.length - 1].pr; rv.summary = true; }
+    $("reviewOverlay").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    renderReview();
+}
+
+// Open a booklet's summary directly (view only: Back becomes "Review PRs", Done closes).
+function openSummaryView(start) {
+    rv = { start, pr: null, summary: true, viewOnly: true };
+    rvStreak = 0;
+    const seq = rvSeq();
+    if (!seq.length) { rv = null; toast("Nothing to show in this booklet yet."); return; }
+    rv.pr = seq[seq.length - 1].pr;
     $("reviewOverlay").classList.remove("hidden");
     document.body.classList.add("modal-open");
     renderReview();
@@ -1790,7 +1840,9 @@ function renderReviewSummary(seq, prog) {
         </div>
         ${summaryHtml(bookEntries)}
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
-    $("rvActions").innerHTML = `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button><div class="grp">
+    $("rvActions").innerHTML = (rv.viewOnly
+        ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="reviewfirst"><i class="ri-checkbox-circle-line"></i> Review PRs</button>`
+        : `<button type="button" class="btn btn-secondary btn-lg" data-rv="back"><i class="ri-arrow-left-line"></i> Back</button>`) + `<div class="grp">
         <div class="export-wrap">
             <button type="button" class="btn btn-secondary btn-lg" data-rv="exportmenu" aria-haspopup="true" aria-expanded="false"><i class="ri-download-2-line"></i> Export <i class="ri-arrow-up-s-line"></i></button>
             <div class="export-menu hidden" id="exportMenu" role="menu">
@@ -1832,6 +1884,7 @@ $("rvActions").addEventListener("click", ev => {
     switch (b.dataset.rv) {
         case "exportmenu": { const m = $("exportMenu"); m.classList.toggle("hidden"); b.setAttribute("aria-expanded", String(!m.classList.contains("hidden"))); break; }
         case "back": rvGo(-1); break;
+        case "reviewfirst": { const s0 = rvSeq(); rv.viewOnly = false; rv.pr = s0[0].pr; rv.summary = false; renderReview(); break; }
         case "skip": rvGo(1); break;
         case "summary": rv.summary = true; renderReview(); break;
         case "confirm": rvConfirm(); break;
