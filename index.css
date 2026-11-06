@@ -772,3 +772,7 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 [data-theme="dark"] #prForm .rcpt-right .field-pr input { color: #fca5a5; }
 [data-theme="dark"] #prForm .btn-secondary { background: #31526f; border-color: #5b86a9; color: #fff; }
 [data-theme="dark"] #prForm #voidBtn, [data-theme="dark"] #prForm #unusedBtn { background: transparent; border-color: #f87171; color: #fecaca; }
+
+/* Item suggestions list: same book colors (browser support for datalist option colors varies) */
+#catalogList option.item-c { color: var(--item-color); font-weight: 600; }
+[data-theme="dark"] #catalogList option.item-c { color: color-mix(in srgb, var(--item-color) 55%, #ffffff); }

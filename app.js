@@ -201,7 +201,7 @@ function removeEntry(id) {
 
 // ---------- Form ----------
 function catalogOptions() {
-    $("catalogList").innerHTML = catalog.map(c => `<option value="${esc(c.desc)}" label="${esc(peso(c.price))}"></option>`).join("");
+    $("catalogList").innerHTML = catalog.map(c => { const col = itemColor(c.desc); return `<option value="${esc(c.desc)}" label="${esc(peso(c.price))}"${col ? ` class="item-c" style="--item-color:${col}"` : ""}></option>`; }).join("");
 }
 
 // Item name field in the color of its book cover (same colors as the output table); no color for other items.
