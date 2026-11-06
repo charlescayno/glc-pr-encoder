@@ -811,3 +811,36 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .bk.bk2 > .bk-actions { grid-column: 2; grid-row: 1 / span 2; margin-left: 0; gap: 0.5rem; }
 .bk.bk2 > .bk-actions .btn { padding: 0.55rem 0.9rem; font-weight: 600; }
 @media (max-width: 600px) { .bk.bk2 { grid-template-columns: 1fr; } .bk.bk2 > .bk-actions { grid-column: 1; grid-row: auto; justify-content: flex-end; } }
+
+/* --- Sales summary page (full page, like the PR review) --- */
+.ss-overlay { z-index: 70; }
+.ss-page { max-width: 1400px; height: 100vh; height: 100dvh; display: flex; flex-direction: column; padding: 0.7rem 1.25rem; box-sizing: border-box; }
+.ss-body { flex: 1; overflow: auto; padding-bottom: 1rem; }
+.ss-note { font-size: 0.8rem; color: var(--color-text-muted); margin: 0.6rem 0 0; }
+.ss-body h2 { font-size: 1rem; margin: 1rem 0 0.4rem; }
+.ss-bar { display: flex; align-items: center; gap: 1rem; }
+.ss-bar h2 { margin-right: auto; }
+.ss-bar .btn { text-decoration: none; }
+.ss-empty { color: var(--color-text-muted); }
+.ss-wrap { overflow: auto; max-height: 75vh; border-radius: 0.3rem; }
+.ss-table { border-collapse: collapse; font-size: 0.82rem; background: #d6e1db; color: #000; }
+.ss-table th, .ss-table td { border: 1px solid #000; padding: 0.15rem 0.45rem; white-space: nowrap; }
+.ss-table th { font-weight: 700; text-align: left; position: sticky; top: 0; z-index: 2; background: #d6e1db; }
+.ss-table th.col { text-align: center; }
+.ss-table td.cat { font-weight: 700; vertical-align: top; text-transform: uppercase; white-space: normal; min-width: 7.5rem; background: #d6e1db; }
+.ss-table td.desc { font-weight: 600; background: #d6e1db; }
+.ss-table td.n { text-align: right; background: #fff; min-width: 5.5rem; font-variant-numeric: tabular-nums; }
+.ss-table td.tot { font-weight: 700; background: #eef3f0; }
+.ss-table tr.foot td { font-weight: 700; background: #d6e1db; }
+.ss-table tr.foot td.n { background: #eef3f0; }
+.ss-table tr.foot.sub td { font-weight: 400; }
+@media print {
+    body.print-sales .app-container, body.print-sales .toast, body.print-sales .ss-actions, body.print-sales .ss-bar .btn { display: none !important; }
+    body.print-sales .review-overlay { position: static; overflow: visible; }
+    body.print-sales .ss-page { height: auto; display: block; }
+    body.print-sales .ss-body { overflow: visible; }
+    body.print-sales .ss-wrap { max-height: none; overflow: visible; }
+    body.print-sales .ss-table th { position: static; }
+    body.print-sales .ss-table td, body.print-sales .ss-table th { font-size: 9px; padding: 1px 3px; }
+    @page { size: landscape; margin: 8mm; }
+}

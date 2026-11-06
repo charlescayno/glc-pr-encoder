@@ -1,5 +1,5 @@
 import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
-import { openSalesSheet } from "./sales-sheet.js";
+import { renderSalesSheet } from "./sales-sheet.js";
 import { itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -1259,9 +1259,25 @@ $("clearBtn").addEventListener("click", async () => {
     toast(`Cleared ${ids.length} receipts.`);
 });
 
-// ---------- Sales summary: opens in its own window ----------
+// ---------- Sales summary: full page, like the PR review ----------
+function closeSales() {
+    $("salesOverlay").classList.add("hidden");
+    document.body.classList.remove("modal-open", "print-sales");
+}
 $("salesBtn").addEventListener("click", () => {
-    if (!openSalesSheet(entries)) toast("Allow pop-ups for this site to open the sales summary window.");
+    renderSalesSheet($("salesBody"), entries);
+    $("salesOverlay").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    $("salesBody").scrollTop = 0;
+});
+$("salesClose").addEventListener("click", closeSales);
+$("salesPrint").addEventListener("click", () => {
+    document.body.classList.add("print-sales");
+    window.print();
+    setTimeout(() => document.body.classList.remove("print-sales"), 500);
+});
+document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && !$("salesOverlay").classList.contains("hidden")) { ev.preventDefault(); closeSales(); }
 });
 
 // ---------- Catalog modal ----------
