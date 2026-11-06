@@ -862,3 +862,38 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 /* One Close button style everywhere (modals, PR review, sales summary): solid red, visible in both themes */
 .btn-close { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 700; padding: 0.55rem 1.1rem; white-space: nowrap; }
 .btn-close:hover { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+/* --- Clear field errors --- */
+.invalid { border-color: var(--color-danger) !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.22) !important; }
+.field-err { display: block; margin-top: 0.15rem; color: var(--color-danger); font-size: 0.78rem; font-weight: 600; line-height: 1.25; }
+[data-theme="dark"] .field-err { color: #fca5a5; }
+.field-err::before { content: "\26A0\FE0E  "; }
+.warn-fix { padding: 0.15rem 0.6rem; font-size: 0.8rem; margin-left: 0.3rem; }
+
+/* --- Shorthand code next to each item in the picker --- */
+.item-opt-code { flex: none; margin-left: auto; font-family: ui-monospace, Consolas, monospace; font-size: 0.75rem; font-weight: 700; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--color-bg-hover); border: 1px solid var(--color-border); color: var(--color-primary); }
+.item-opt-name { margin-right: 0.5rem; }
+
+/* --- Sticky section tabs --- */
+.section-tabs {
+    position: sticky; top: 0; z-index: 40; display: flex; gap: 0.35rem; overflow-x: auto;
+    margin: -1rem 0 1rem; padding: 0.4rem 0.5rem;
+    background: color-mix(in srgb, var(--color-bg-surface) 94%, transparent); backdrop-filter: blur(8px);
+    border: 1px solid var(--color-border); border-radius: 0.8rem; box-shadow: var(--shadow-md);
+}
+.section-tabs a { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.85rem; border-radius: 0.55rem; font-size: 0.85rem; font-weight: 600; color: var(--color-text-muted); text-decoration: none; white-space: nowrap; }
+.section-tabs a:hover { background: var(--color-bg-hover); color: var(--color-text-main); }
+.section-tabs a.active { background: var(--color-primary); color: #fff; }
+.section-tabs a.hidden { display: none; }
+#encoderCard, #verifiedCard, #outputCard, #bkSummary { scroll-margin-top: 4.5rem; }
+
+/* --- Sync status --- */
+.status-saving .sync-dot { background: var(--color-primary); animation: sync-pulse 0.9s ease-in-out infinite; }
+@keyframes sync-pulse { 50% { opacity: 0.25; } }
+.sync-banner { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin: 0 0 1rem; padding: 0.7rem 1rem; border-radius: 0.7rem; border: 1px solid var(--color-warning); background: rgba(245, 158, 11, 0.14); color: var(--color-text-main); font-size: 0.9rem; font-weight: 600; }
+.sync-banner.error { border-color: var(--color-danger); background: rgba(239, 68, 68, 0.14); }
+.sync-banner > span { flex: 1 1 18rem; }
+.sync-banner.hidden { display: none; }
+
+/* --- Tutorial video --- */
+.modal-video { max-width: 1000px; }
+.modal-video video { width: 100%; max-height: 70vh; border-radius: 0.5rem; background: #000; }

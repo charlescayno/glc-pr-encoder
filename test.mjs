@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -212,3 +212,16 @@ const mx = salesMatrix(sales, "week");
 assert.equal(mx.rows.find(r => r.desc === "GLC Book 1: One by One (NEW)").qtys[0], 2);
 assert.equal(mx.rows.find(r => r.desc === "Gospel Tract English").total, 10);
 assert.equal(mx.rows.find(r => r.desc === "GLC Jacket (Black)").category, "OTHER (NOT ON SHEET)");
+
+// Shorthand shown next to each item
+const cat = window_cat();
+function window_cat() {
+    return [{ desc: "Gospel Tracts English (New)", price: 3 }, { desc: "GLC Book 7: The Family Life (New)", price: 80 }, { desc: "GLC Book 7: The Family Life", price: 80 },
+        { desc: "GLC Book 1: Filipino One by One", price: 50 }, { desc: "Real Talk Booklet", price: 25 }, { desc: "Dgroup kit", price: 200, code: "dk" }];
+}
+assert.equal(itemShortcut(cat, cat[0]), "gte");
+assert.equal(itemShortcut(cat, cat[2]), "b7");
+assert.equal(itemShortcut(cat, cat[1]), "b7n");
+assert.equal(itemShortcut(cat, cat[3]), "fb1");
+assert.equal(itemShortcut(cat, cat[4]), "rtb");
+assert.equal(itemShortcut(cat, cat[5]), "dk");

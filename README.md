@@ -44,3 +44,7 @@ python -m http.server 8123
 ```
 
 Then open http://localhost:8123. Logic tests: `node test.mjs`, or open `test.html` through the server.
+
+## Tutorial video
+`tutorial/pr-encoding-tutorial.mp4` is a short how-to video (about 2.5 minutes) on encoding a PR. It opens from the **Tutorial** button
+in the page header. `python tutorial/build.py` rebuilds it (needs `pillow` and `imageio-ffmpeg`; uses the Windows voice).

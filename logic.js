@@ -186,6 +186,20 @@ export function resolveShortcut(catalog, text) {
     return { status: hits.length === 0 ? 'none' : hits.length === 1 ? 'one' : 'many', items: hits };
 }
 
+// The shorthand to show next to an item: the custom code if it has one, else the shortest automatic code that picks only this item.
+export function itemShortcut(catalog, item) {
+    const { codes, hasParen } = itemAutoCodes(item.desc);
+    const book = /book\s+(\d+)/i.exec(item.desc.replace(/\([^)]*\)/g, ' '));
+    const pref = [];
+    if (item.code) pref.push(item.code);
+    if (book) {
+        const base = (/filipino/i.test(item.desc) ? 'fb' : 'b') + book[1];
+        pref.push(...(hasParen ? codes.filter(c => c.startsWith(base) && c !== base) : [base]), base);
+    }
+    pref.push(...codes);
+    const hit = pref.find(c => { const r = resolveShortcut(catalog, c); return r.items.length === 1 && r.items[0] === item; });
+    return hit || pref.find(Boolean) || '';
+}
 // Cash vs online split of flattened rows. Online = every non-cash MOP (Invoice, GCash, Maya, Bank Transfer, ...).
 // An empty MOP (older receipts) counts as cash.
 // Split PRs add each payment's own amount to cash or online.

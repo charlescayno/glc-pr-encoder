@@ -37,6 +37,7 @@
                             <span class="sync-dot"></span>
                             <span class="sync-label" id="syncLabel">Connecting</span>
                         </div>
+                        <button id="tutorialBtn" class="btn btn-secondary" title="Watch the how-to video"><i class="ri-play-circle-line"></i><span class="desktop-only">Tutorial</span></button>
                         <button id="salesBtn" class="btn btn-secondary" title="Sales summary per week and per month"><i class="ri-bar-chart-box-line"></i><span class="desktop-only">Sales summary</span></button>
                         <button id="themeBtn" class="btn btn-secondary" title="Toggle theme"><i class="ri-moon-line" id="themeIcon"></i></button>
                         <button id="catalogBtn" class="btn btn-secondary" title="Edit item catalog"><i class="ri-settings-3-line"></i><span class="desktop-only">Catalog</span></button>
@@ -45,6 +46,19 @@
                 </div>
             </div>
         </header>
+
+        <div id="syncBanner" class="sync-banner hidden no-print" role="status">
+            <i class="ri-cloud-off-line"></i>
+            <span id="syncBannerText"></span>
+            <button type="button" class="btn btn-secondary" id="syncReload">Reload</button>
+        </div>
+
+        <nav class="section-tabs no-print" id="sectionTabs" aria-label="Sections">
+            <a href="#encoderCard" data-target="encoderCard"><i class="ri-edit-box-line"></i> Encode</a>
+            <a href="#verifiedCard" data-target="verifiedCard" class="hidden"><i class="ri-shield-check-line"></i> Verified</a>
+            <a href="#outputCard" data-target="outputCard"><i class="ri-table-line"></i> Output</a>
+            <a href="#bkSummary" data-target="bkSummary"><i class="ri-book-2-line"></i> Booklet summary</a>
+        </nav>
 
         <main class="app-main">
             <details class="shortcuts helpbox no-print" id="shortcutsBox">
@@ -82,7 +96,7 @@
                     <span id="editBadge" class="badge hidden">Editing</span>
                 </div>
 
-                <form id="prForm" autocomplete="off">
+                <form id="prForm" autocomplete="off" novalidate>
                     <div class="rcpt">
                         <div class="rcpt-top">
 <div class="pay-box">
@@ -271,6 +285,19 @@
                 <span id="importInfo" class="import-info"></span>
                 <button class="btn btn-secondary" id="importSample">Load sample (09-20-2026, 42701-42750)</button>
                 <button class="btn btn-primary" id="importGo" disabled>Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tutorial video -->
+    <div class="modal-overlay hidden no-print" id="tutorialModal">
+        <div class="modal modal-video">
+            <div class="modal-head">
+                <h2>How to encode a PR</h2>
+                <button class="btn btn-close" id="tutorialClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
+            </div>
+            <div class="modal-body">
+                <video id="tutVideo" controls preload="none" playsinline></video>
             </div>
         </div>
     </div>

@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -64,10 +64,41 @@ function loadCatalog() {
 }
 
 // ---------- Status / toast ----------
+const SYNC_BANNERS = {
+    error: "Not saved to the cloud. Your receipts are kept on this device only. Check your internet connection and reload. Do not clear this browser's data until it syncs.",
+    offline: "You are offline. Receipts you add are kept on this device and will sync when you are back online.",
+};
 function setStatus(kind, label) {
     $("syncStatus").className = `sync-indicator status-${kind}`;
     $("syncLabel").textContent = label;
+    const msg = SYNC_BANNERS[kind];
+    $("syncBanner").classList.toggle("hidden", !msg);
+    $("syncBanner").classList.toggle("error", kind === "error");
+    $("syncBannerText").textContent = msg || "";
 }
+window.addEventListener("offline", () => setStatus("offline", "Offline"));
+window.addEventListener("online", () => setStatus(remoteOk ? "saving" : "error", remoteOk ? "Syncing..." : "Local only"));
+$("syncReload").addEventListener("click", () => location.reload());
+// ---------- Field errors: a red outline and a message right under the field ----------
+function clearFieldErrors() {
+    document.querySelectorAll("#prForm .field-err").forEach(e => e.remove());
+    document.querySelectorAll("#prForm .invalid").forEach(e => e.classList.remove("invalid"));
+}
+function fieldError(el, msg) {
+    el.classList.add("invalid");
+    const host = el.closest(".cell, .field") || el.parentElement;
+    const m = document.createElement("small");
+    m.className = "field-err";
+    m.setAttribute("role", "alert");
+    m.textContent = msg;
+    host.appendChild(m);
+    const clear = () => { el.classList.remove("invalid"); m.remove(); el.removeEventListener("input", clear); };
+    el.addEventListener("input", clear);
+    el.focus();
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    return false;
+}
+
 let toastTimer;
 function toast(msg) {
     const t = $("toast");
@@ -78,13 +109,20 @@ function toast(msg) {
 }
 
 // ---------- Firestore sync ----------
-onSnapshot(col, snap => {
+let firstEntriesSnap = true;
+onSnapshot(col, { includeMetadataChanges: true }, snap => {
     remoteOk = true;
-    entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    saveLocal();
-    setStatus("online", "Online");
-    refresh();
-    if (rv && !reviewEditing) renderReview();
+    // Metadata-only events (a write reaching the server) only change the status badge.
+    if (firstEntriesSnap || snap.docChanges().length) {
+        entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        saveLocal();
+        refresh();
+        if (rv && !reviewEditing) renderReview();
+    }
+    firstEntriesSnap = false;
+    if (snap.metadata.fromCache && !navigator.onLine) setStatus("offline", "Offline");
+    else if (snap.metadata.hasPendingWrites) setStatus("saving", "Saving...");
+    else setStatus("online", "Online");
 }, err => {
     console.error("Firestore listener error", err);
     remoteOk = false;
@@ -245,6 +283,7 @@ function paintItemPop() {
         const col = itemColor(c.desc);
         return `<div class="item-opt${i === itemPopActive ? " active" : ""}" role="option" data-i="${i}">
             <span class="item-opt-name${col ? " item-c" : ""}"${col ? ` style="--item-color:${col}"` : ""}>${esc(c.desc)}</span>
+            <span class="item-opt-code" title="Type this shorthand, then press Enter">${esc(itemShortcut(catalog, c))}</span>
             <span class="item-opt-price">${peso(c.price)}</span></div>`;
     }).join("");
     const act = itemPop.querySelector(".active");
@@ -434,6 +473,26 @@ $("sCash").addEventListener("input", () => { splitAnchor = "cash"; recalcSplit()
 $("sOnline").addEventListener("input", () => { splitAnchor = "online"; recalcSplit(); });
 $("sMethod").addEventListener("change", () => { updateSplitRefLabel(); (($("sMethod").value === "Bank Transfer") ? $("sBank") : $("sRef")).focus(); });
 
+// One-click fix inside the PR number warning: use the next expected number.
+function fixPrButton(n) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn btn-secondary warn-fix";
+    b.dataset.usePr = n;
+    b.textContent = `Use #${n}`;
+    return b;
+}
+$("prWarn").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-use-pr]");
+    if (!b) return;
+    $("fPr").value = b.dataset.usePr;
+    $("fPr").classList.remove("invalid");
+    clearFieldErrors();
+    updatePrWarning();
+    updateBookletHint();
+    $("fPr").focus();
+});
+
 function updatePrWarning() {
     const el = $("prWarn");
     const pr = $("fPr").value;
@@ -452,13 +511,15 @@ function updatePrWarning() {
         return true;
     }
     if (duplicate) {
-        el.textContent = `PR #${pr} already exists. Use a different number, or edit the existing receipt.`;
+        el.textContent = `PR #${pr} already exists. Use a different number, or edit the existing receipt. `;
+        el.appendChild(fixPrButton(expected));
         el.classList.add("error");
         el.classList.remove("hidden");
         return false;
     }
     if (gap) {
-        el.textContent = `PR #${pr} skips ahead. The next expected number is #${expected}.`;
+        el.textContent = `PR #${pr} skips ahead. The next expected number is #${expected}. `;
+        el.appendChild(fixPrButton(expected));
         el.classList.remove("hidden");
     } else {
         el.classList.add("hidden");
@@ -467,6 +528,7 @@ function updatePrWarning() {
 }
 
 function resetForm() {
+    clearFieldErrors();
     editingId = null;
     // Date stays on the last one used until the user changes it.
     setDate(localStorage.getItem(LS_LAST_DATE) || todayISO());
@@ -700,7 +762,7 @@ const cal = (() => {
     $("dateNext").addEventListener("click", () => { if (isOpen()) close(); });
     return { close };
 })();
-$("fPr").addEventListener("input", () => { updatePrWarning(); updateBookletHint(); });
+$("fPr").addEventListener("input", () => { $("fPr").classList.remove("invalid"); updatePrWarning(); updateBookletHint(); });
 $("addRowBtn").addEventListener("click", () => addItemRow().querySelector(".item-name").focus());
 
 // ---- Keyboard shortcuts ----
@@ -783,16 +845,20 @@ let suppressSubmit = false;
 $("prForm").addEventListener("submit", ev => {
     ev.preventDefault();
     if (suppressSubmit) return;
-    if (!updatePrWarning()) { toast(isLocked($("fPr").value) ? "This booklet is locked." : "Duplicate PR number."); return; }
+    clearFieldErrors();
+    if (!$("fPr").value) { fieldError($("fPr"), "Enter the PR number printed on the paper receipt."); return; }
+    if (!updatePrWarning()) {
+        toast(isLocked($("fPr").value) ? "This booklet is locked." : "Duplicate PR number.");
+        $("fPr").classList.add("invalid"); $("fPr").focus(); return; // the red box under the number says why, with a one-click fix
+    }
     completeYear();
     $("itemsList").querySelectorAll(".item-name").forEach(applyShortcut); // e.g. submitted with Ctrl+Enter while still on "gte"
-    if (!getDate()) { toast("Enter a valid date (MM-DD-YYYY)."); $("fDate").focus(); return; }
+    if (!getDate()) { fieldError($("fDate"), "Enter a valid date as MM-DD-YYYY, for example 11-06-2026."); return; }
     const items = readItems().filter(i => i.desc);
-    if (!items.length) { toast("Add at least one sold item."); return; }
+    if (!items.length) { fieldError($("itemsList").querySelector(".item-name"), "Add at least one sold item (search, or type a shorthand like gte)."); return; }
     for (const i of items) {
-        if (!(i.qty > 0) || !(i.price >= 0) || Number.isNaN(i.price)) {
-            toast("Check quantity and unit price."); i._raw.querySelector(".item-price").focus(); return;
-        }
+        if (!(i.qty > 0)) { fieldError(i._raw.querySelector(".item-qty"), "Quantity must be 1 or more."); return; }
+        if (!(i.price >= 0) || Number.isNaN(i.price)) { fieldError(i._raw.querySelector(".item-price"), "Enter the unit price."); return; }
     }
     const pr = Number($("fPr").value);
     const entry = {
@@ -810,8 +876,8 @@ $("prForm").addEventListener("submit", ev => {
         const total = entryTotal(entry);
         const cash = round2(Number($("sCash").value) || 0);
         const online = round2(Number($("sOnline").value) || 0);
-        if (!(cash > 0) || !(online > 0)) { toast("Split payment needs both a cash and an online amount."); $("sCash").focus(); return; }
-        if (round2(cash + online) !== total) { toast(`Cash + online must equal the receipt total (${peso(total)}).`); $("sCash").focus(); return; }
+        if (!(cash > 0) || !(online > 0)) { fieldError(!(cash > 0) ? $("sCash") : $("sOnline"), "Split payment needs both a cash and an online amount."); return; }
+        if (round2(cash + online) !== total) { fieldError($("sCash"), `Cash + online must equal the receipt total (${peso(total)}).`); return; }
         entry.mop = "Split";
         entry.mopRef = "";
         entry.mopBank = "";
@@ -1285,7 +1351,7 @@ function renderCatalogRows() {
     $("catalogBody").innerHTML = catalog.map((c, i) => `
         <div class="cat-row">
             <input type="text" value="${esc(c.desc)}" data-i="${i}" data-k="desc">
-            <input type="text" value="${esc(c.code || "")}" data-i="${i}" data-k="code" placeholder="shorthand" title="Optional custom shorthand, e.g. gte">
+            <input type="text" value="${esc(c.code || "")}" data-i="${i}" data-k="code" placeholder="${esc(itemShortcut(catalog, c))}" title="Optional custom shorthand, e.g. gte">
             <input type="number" min="0" step="0.01" value="${c.price}" data-i="${i}" data-k="price">
             <button class="btn btn-danger btn-icon-only" data-rm="${i}"><i class="ri-close-line"></i></button>
         </div>`).join("");
@@ -1996,3 +2062,45 @@ setStatus("offline", "Connecting");
 catalogOptions();
 resetForm();
 refresh();
+
+// ---------- Sticky section tabs ----------
+const sectionTabs = [...document.querySelectorAll("#sectionTabs [data-target]")];
+sectionTabs.forEach(a => a.addEventListener("click", ev => {
+    ev.preventDefault();
+    const t = $(a.dataset.target);
+    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+}));
+let tabsQueued = false;
+function updateTabs() {
+    tabsQueued = false;
+    let current = null;
+    for (const a of sectionTabs) {
+        const t = $(a.dataset.target);
+        const gone = !t || t.classList.contains("hidden") || (t.id === "bkSummary" && !t.children.length);
+        a.classList.toggle("hidden", gone); // e.g. Verified only shows once a booklet is verified
+        if (!gone && t.getBoundingClientRect().top <= 120) current = a;
+    }
+    sectionTabs.forEach(a => a.classList.toggle("active", a === (current || sectionTabs[0])));
+}
+const queueTabs = () => { if (!tabsQueued) { tabsQueued = true; requestAnimationFrame(updateTabs); } };
+window.addEventListener("scroll", queueTabs, { passive: true });
+window.addEventListener("resize", queueTabs);
+new MutationObserver(queueTabs).observe($("verifiedCard"), { attributes: true, attributeFilter: ["class"] });
+new MutationObserver(queueTabs).observe($("bkSummary"), { childList: true });
+updateTabs();
+
+// ---------- Tutorial video ----------
+function closeTutorial() {
+    $("tutVideo").pause();
+    $("tutorialModal").classList.add("hidden");
+}
+$("tutorialBtn").addEventListener("click", () => {
+    const v = $("tutVideo");
+    if (!v.getAttribute("src")) v.src = "./tutorial/pr-encoding-tutorial.mp4"; // loaded only when opened (it is a few MB)
+    $("tutorialModal").classList.remove("hidden");
+});
+$("tutorialClose").addEventListener("click", closeTutorial);
+$("tutorialModal").addEventListener("mousedown", ev => { if (ev.target === $("tutorialModal")) closeTutorial(); });
+document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && !$("tutorialModal").classList.contains("hidden")) closeTutorial();
+});
