@@ -516,3 +516,113 @@ export function salesSummaryCSV(periods, kind = 'week') {
         sum(p => p.cash).toFixed(2), sum(p => p.online).toFixed(2), sum(p => p.total).toFixed(2)];
     return [head, ...periods.map(line), total].map(r => r.map(q).join(',')).join('\r\n');
 }
+
+// ---- Monitoring sheet layout: CATEGORY | DESCRIPTION rows, one column per week / month ------------
+const SIZES = ['Small', 'Medium', 'Large', 'XL', '2XL', '3XL', '4XL'];
+const sized = (cat, name, sizes) => sizes.map(s => ({ category: cat, desc: `${name} - ${s}` }));
+export const SHEET_ROWS = [
+    ...[
+        'GLC Book 1: One by One (NEW)', 'GLC Book 1: One by One (OLD)', 'GLC Book 2: Spiritual Disciplines (NEW)', 'GLC Book 2: Spiritual Disciplines (OLD)',
+        'GLC Book 3: The Holy Spirit', 'GLC Book 4: CCF DNA (NEW)', 'GLC Book 4: CCF DNA (OLD)', 'GLC Book 5: Starting Point for small group (NEW)',
+        'GLC Book 5: Starting Point for small group (OLD)', 'GLC Book 6: Basic Doctrine', 'GLC Book 7: The Family Life (NEW)', 'GLC Book 7: The Family Life (OLD)',
+        'GLC Book 9: The Multiplier', 'GLC Book 10: Reliability of the Bible', 'GLC Book 11: Spiritual Warfare', 'GLC Book 12: Leadership Skills',
+        'GLC Book 1 (Filipino): One by One', 'GLC Book 2 (Filipino): Spiritual Disciple', 'GLC Book 4 (Filipino): CCF DNA',
+    ].map(desc => ({ category: 'GLC BOOKS', desc })),
+    ...['Gospel Tract Tagalog', 'Gospel Tract English', 'Gospel Tract (Elevate/LMMR)'].map(desc => ({ category: 'GOSPEL TRACTS', desc })),
+    ...[
+        'PCS Bookmark', 'PCS Card', 'Holy Spirit Booklet', 'Life Goals Magazine', 'Memory Verse Booklet (Volume 2)', 'Real Talk Booklet', 'Heart Of A Champion',
+        'Dgroup Kit', '70X7 Workbook', '70X7 USB', 'Accountability Card', 'Discipleship Covenant Card', 'DJ Passport', 'Motivate Book (Chinese)',
+        'Motivate Book (English)', 'Dare 2 Share', 'Superbook Workbook', '2Be1 Workbook', 'TLR Workbook (Facilitator)', 'TLR Workbook (Participant)',
+    ].map(desc => ({ category: 'DISCIPLESHIP MATERIALS', desc })),
+    ...sized('DISCIPLESHIP MATERIALS', 'TLR Shirt', ['Small', 'Medium', 'Large', 'XL', '2XL', '3XL']),
+    ...sized('MERCH', 'BLACK GLC Jacket', SIZES),
+    ...sized('MERCH', 'GRAY GLC Polo Shirt', SIZES.slice(0, 6)),
+    ...sized('MERCH', 'GREEN GLC Polo Shirt', SIZES.slice(0, 6)),
+    ...sized('MERCH', 'BLUE GLC T SHIRT', SIZES.slice(0, 4)),
+];
+
+const BOOK_TITLES = {
+    3: 'GLC Book 3: The Holy Spirit', 6: 'GLC Book 6: Basic Doctrine', 9: 'GLC Book 9: The Multiplier', 10: 'GLC Book 10: Reliability of the Bible',
+    11: 'GLC Book 11: Spiritual Warfare', 12: 'GLC Book 12: Leadership Skills',
+};
+const BOOK_NEWOLD = {
+    1: 'GLC Book 1: One by One', 2: 'GLC Book 2: Spiritual Disciplines', 4: 'GLC Book 4: CCF DNA',
+    5: 'GLC Book 5: Starting Point for small group', 7: 'GLC Book 7: The Family Life',
+};
+const FIL_TITLES = { 1: 'GLC Book 1 (Filipino): One by One', 2: 'GLC Book 2 (Filipino): Spiritual Disciple', 4: 'GLC Book 4 (Filipino): CCF DNA' };
+
+function sizeOf(s) {
+    const t = s.toLowerCase();
+    if (/\b4\s*xl\b/.test(t)) return '4XL';
+    if (/\b3\s*xl\b/.test(t)) return '3XL';
+    if (/\b2\s*xl\b/.test(t)) return '2XL';
+    if (/\bxl\b|extra\s*large/.test(t)) return 'XL';
+    if (/\bsmall\b|\(s\)|\bsm\b/.test(t)) return 'Small';
+    if (/\bmedium\b|\(m\)|\bmed\b/.test(t)) return 'Medium';
+    if (/\blarge\b|\(l\)/.test(t)) return 'Large';
+    return '';
+}
+
+// Maps a receipt item name to the description used on the monitoring sheet, or null when it is not on the sheet.
+// A book without "(old)" or "(new)" in its name is counted as NEW.
+export function sheetDescFor(desc) {
+    const s = String(desc || '');
+    const t = s.toLowerCase();
+    const book = /\bbook\s*(\d+)\b/.exec(t);
+    if (book && !/motivate/.test(t)) {
+        const n = Number(book[1]);
+        if (/filipino|\bfil\b/.test(t)) return FIL_TITLES[n] || null;
+        if (BOOK_TITLES[n]) return BOOK_TITLES[n];
+        if (BOOK_NEWOLD[n]) return `${BOOK_NEWOLD[n]} (${/\bold\b/.test(t) ? 'OLD' : 'NEW'})`;
+        return null;
+    }
+    if (/gospel\s*tract/.test(t)) return /elevate|lmmr/.test(t) ? 'Gospel Tract (Elevate/LMMR)' : /tagalog/.test(t) ? 'Gospel Tract Tagalog' : 'Gospel Tract English';
+    const size = sizeOf(s);
+    if ((/\btlr\b|true\s*life/.test(t)) && /shirt/.test(t)) return size && SIZES.indexOf(size) < 6 ? `TLR Shirt - ${size}` : null;
+    if (/jacket/.test(t)) return size ? `BLACK GLC Jacket - ${size}` : null;
+    if (/polo/.test(t)) { const c = /gr[ae]y/.test(t) ? 'GRAY' : /green/.test(t) ? 'GREEN' : ''; return c && size && SIZES.indexOf(size) < 6 ? `${c} GLC Polo Shirt - ${size}` : null; }
+    if (/t[\s-]*shirt/.test(t) && /blue/.test(t)) return size && SIZES.indexOf(size) < 4 ? `BLUE GLC T SHIRT - ${size}` : null;
+    const rules = [
+        [/bookmark/, 'PCS Bookmark'], [/pcs\s*card/, 'PCS Card'], [/holy\s*spirit\s*booklet/, 'Holy Spirit Booklet'], [/life\s*goals/, 'Life Goals Magazine'],
+        [/memory\s*verse/, 'Memory Verse Booklet (Volume 2)'], [/real\s*talk/, 'Real Talk Booklet'], [/heart\s*of\s*a\s*champion/, 'Heart Of A Champion'],
+        [/d-?group\s*kit/, 'Dgroup Kit'], [/70\s*x\s*7.*usb|usb.*70\s*x\s*7/, '70X7 USB'], [/70\s*x\s*7/, '70X7 Workbook'],
+        [/accountability/, 'Accountability Card'], [/discipleship\s*covenant/, 'Discipleship Covenant Card'], [/dj\s*passport/, 'DJ Passport'],
+        [/motivate.*chinese|chinese.*motivate/, 'Motivate Book (Chinese)'], [/motivate/, 'Motivate Book (English)'], [/dare\s*2\s*share/, 'Dare 2 Share'],
+        [/superbook/, 'Superbook Workbook'], [/2\s*be\s*1/, '2Be1 Workbook'],
+        [/facilitator/, 'TLR Workbook (Facilitator)'], [/participant/, 'TLR Workbook (Participant)'],
+    ];
+    for (const [re, name] of rules) if (re.test(t)) return name;
+    return null;
+}
+
+// The sheet as a matrix: SHEET_ROWS (plus an OTHER row per unlisted item) x periods, quantities sold per period.
+export function salesMatrix(entries, kind = 'week') {
+    const periods = salesSummary(entries, kind);
+    const known = new Set(SHEET_ROWS.map(r => r.desc));
+    const rows = SHEET_ROWS.map(r => ({ ...r, qtys: periods.map(() => 0), total: 0 }));
+    const byDesc = new Map(rows.map(r => [r.desc, r]));
+    periods.forEach((p, i) => {
+        for (const it of p.items) {
+            const d = sheetDescFor(it.desc);
+            let row = d && known.has(d) ? byDesc.get(d) : null;
+            if (!row) {
+                const key = 'OTHER:' + it.desc;
+                row = byDesc.get(key);
+                if (!row) { row = { category: 'OTHER (NOT ON SHEET)', desc: it.desc, qtys: periods.map(() => 0), total: 0 }; byDesc.set(key, row); rows.push(row); }
+            }
+            row.qtys[i] = round2(row.qtys[i] + it.qty);
+            row.total = round2(row.total + it.qty);
+        }
+    });
+    return { periods, rows };
+}
+
+export function salesMatrixCSV(m, kind = 'week') {
+    const q = s => `"${String(s).replace(/"/g, '""')}"`;
+    const head = ['CATEGORY', 'DESCRIPTION', ...m.periods.map(p => p.label), 'TOTAL'];
+    const body = m.rows.map(r => [r.category, r.desc, ...r.qtys.map(n => n || ''), r.total || '']);
+    const sum = f => round2(m.periods.reduce((s, p) => s + f(p), 0));
+    const foot = ['', 'TOTAL UNITS SOLD', ...m.periods.map(p => p.units), sum(p => p.units)];
+    const sales = ['', 'TOTAL SALES (PHP)', ...m.periods.map(p => p.total.toFixed(2)), sum(p => p.total).toFixed(2)];
+    return [head, ...body, foot, sales].map(r => r.map(q).join(',')).join('\r\n');
+}

@@ -1,9 +1,9 @@
-﻿// Run with: node test.mjs (or open test.html through a local web server)
+// Run with: node test.mjs (or open test.html through a local web server)
 const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -193,3 +193,22 @@ assert.equal(wk[0].cash, 100);
 const mo = salesSummary(sales, "month");
 assert.deepEqual(mo.map(m => [m.label, m.receipts, m.total]), [["September 2026", 3, 180], ["October 2026", 1, 1000]]);
 assert.equal(salesSummaryCSV(mo, "month").split("\r\n").length, 4);
+
+// Monitoring sheet matrix
+assert.equal(sheetDescFor("GLC Book 7: The Family Life (Old)"), "GLC Book 7: The Family Life (OLD)");
+assert.equal(sheetDescFor("Book 1: One by One 4th Edition"), "GLC Book 1: One by One (NEW)");
+assert.equal(sheetDescFor("GLC Book 1: Filipino One by One"), "GLC Book 1 (Filipino): One by One");
+assert.equal(sheetDescFor("Book 11 : Spiritual Warfare"), "GLC Book 11: Spiritual Warfare");
+assert.equal(sheetDescFor("Gospel Tracts Tagalog (New)"), "Gospel Tract Tagalog");
+assert.equal(sheetDescFor("70X7 USB"), "70X7 USB");
+assert.equal(sheetDescFor("70X7 Work Books"), "70X7 Workbook");
+assert.equal(sheetDescFor("Motivate Chinese"), "Motivate Book (Chinese)");
+assert.equal(sheetDescFor("GLC Jacket (Black)"), null);
+assert.equal(sheetDescFor("BLACK GLC Jacket - 2XL"), "BLACK GLC Jacket - 2XL");
+assert.equal(sheetDescFor("GREEN GLC Polo Shirt - Medium"), "GREEN GLC Polo Shirt - Medium");
+assert.equal(SHEET_ROWS.length, 71);
+assert.equal(SHEET_ROWS.every(r => sheetDescFor(r.desc) === r.desc || /Elevate/.test(r.desc)), true);
+const mx = salesMatrix(sales, "week");
+assert.equal(mx.rows.find(r => r.desc === "GLC Book 1: One by One (NEW)").qtys[0], 2);
+assert.equal(mx.rows.find(r => r.desc === "Gospel Tract English").total, 10);
+assert.equal(mx.rows.find(r => r.desc === "GLC Jacket (Black)").category, "OTHER (NOT ON SHEET)");
