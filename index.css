@@ -859,3 +859,6 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
     body.print-sales .ss-table th, body.print-sales .ss-table td { position: static !important; font-size: 9px; padding: 1px 3px; }
     @page { size: landscape; margin: 8mm; }
 }
+/* Sales summary: Close button stays clearly visible in both themes */
+#salesClose { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 700; padding: 0.55rem 1.1rem; }
+#salesClose:hover { background: #b91c1c; border-color: #b91c1c; }
