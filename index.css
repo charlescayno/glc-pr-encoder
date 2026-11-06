@@ -773,6 +773,12 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 [data-theme="dark"] #prForm .btn-secondary { background: #31526f; border-color: #5b86a9; color: #fff; }
 [data-theme="dark"] #prForm #voidBtn, [data-theme="dark"] #prForm #unusedBtn { background: transparent; border-color: #f87171; color: #fecaca; }
 
-/* Item suggestions list: same book colors (browser support for datalist option colors varies) */
-#catalogList option.item-c { color: var(--item-color); font-weight: 600; }
-[data-theme="dark"] #catalogList option.item-c { color: color-mix(in srgb, var(--item-color) 55%, #ffffff); }
+
+/* Item picker popup */
+.item-pop { position: fixed; z-index: 1000; overflow-y: auto; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 0.5rem; box-shadow: var(--shadow-md); padding: 0.25rem; }
+.item-pop.hidden { display: none; }
+.item-opt { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 0.4rem 0.6rem; border-radius: 0.35rem; cursor: pointer; font-size: 0.9rem; }
+.item-opt:hover, .item-opt.active { background: var(--color-bg-hover); }
+.item-opt.active { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.item-opt-name { min-width: 0; font-weight: 600; color: var(--color-text-main); }
+.item-opt-price { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; font-size: 0.85rem; }

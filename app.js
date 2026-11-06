@@ -200,9 +200,7 @@ function removeEntry(id) {
 }
 
 // ---------- Form ----------
-function catalogOptions() {
-    $("catalogList").innerHTML = catalog.map(c => { const col = itemColor(c.desc); return `<option value="${esc(c.desc)}" label="${esc(peso(c.price))}"${col ? ` class="item-c" style="--item-color:${col}"` : ""}></option>`; }).join("");
-}
+function catalogOptions() { /* suggestions are built on demand by the item picker */ }
 
 // Item name field in the color of its book cover (same colors as the output table); no color for other items.
 function tintItem(input) {
@@ -211,12 +209,96 @@ function tintItem(input) {
     if (c) input.style.setProperty("--item-color", c); else input.style.removeProperty("--item-color");
 }
 
+// ---- Item picker: custom suggestion list (each book in its cover color, price on the right) ----
+let itemPop = null, itemPopFor = null, itemPopItems = [], itemPopActive = -1;
+function ensureItemPop() {
+    if (itemPop) return itemPop;
+    itemPop = document.createElement("div");
+    itemPop.className = "item-pop hidden";
+    itemPop.setAttribute("role", "listbox");
+    // mousedown (not click) so the input keeps focus while choosing
+    itemPop.addEventListener("mousedown", ev => {
+        ev.preventDefault();
+        const li = ev.target.closest("[data-i]");
+        if (li && itemPopFor) pickItem(itemPopFor, itemPopItems[Number(li.dataset.i)], true);
+    });
+    document.body.appendChild(itemPop);
+    window.addEventListener("resize", closeItemPop);
+    window.addEventListener("scroll", ev => { if (!itemPop.contains(ev.target)) closeItemPop(); }, true);
+    return itemPop;
+}
+function closeItemPop() {
+    if (!itemPop) return;
+    itemPop.classList.add("hidden");
+    itemPopFor = null; itemPopItems = []; itemPopActive = -1;
+}
+function itemMatches(q) {
+    q = q.trim().toLowerCase();
+    if (!q) return catalog.slice();
+    const viaShortcut = resolveShortcut(catalog, q).items || [];
+    const seen = new Set(viaShortcut.map(i => i.desc));
+    return [...viaShortcut, ...catalog.filter(c => !seen.has(c.desc) && c.desc.toLowerCase().includes(q))];
+}
+function paintItemPop() {
+    itemPop.innerHTML = itemPopItems.map((c, i) => {
+        const col = itemColor(c.desc);
+        return `<div class="item-opt${i === itemPopActive ? " active" : ""}" role="option" data-i="${i}">
+            <span class="item-opt-name${col ? " item-c" : ""}"${col ? ` style="--item-color:${col}"` : ""}>${esc(c.desc)}</span>
+            <span class="item-opt-price">${peso(c.price)}</span></div>`;
+    }).join("");
+    const act = itemPop.querySelector(".active");
+    if (act) act.scrollIntoView({ block: "nearest" });
+}
+function openItemPop(input) {
+    const items = itemMatches(input.value);
+    if (!items.length || document.activeElement !== input) { closeItemPop(); return; }
+    const pop = ensureItemPop();
+    itemPopFor = input; itemPopItems = items; itemPopActive = -1;
+    const r = input.getBoundingClientRect();
+    pop.style.left = r.left + "px";
+    pop.style.top = (r.bottom + 4) + "px";
+    pop.style.minWidth = Math.max(r.width, 280) + "px";
+    pop.style.maxHeight = Math.max(120, Math.min(320, window.innerHeight - r.bottom - 16)) + "px";
+    pop.classList.remove("hidden");
+    paintItemPop();
+}
+function pickItem(input, item, moveOn) {
+    if (!item) return;
+    input.value = item.desc;
+    input.dispatchEvent(new Event("input", { bubbles: true })); // fills the price, tint and total
+    closeItemPop();
+    if (moveOn) input.closest(".item-row").querySelector(".item-qty").focus();
+}
+function attachItemPicker(input) {
+    input.addEventListener("focus", () => openItemPop(input));
+    input.addEventListener("input", () => openItemPop(input));
+    input.addEventListener("blur", () => { if (itemPopFor === input) closeItemPop(); });
+    input.addEventListener("keydown", ev => {
+        const open = itemPop && !itemPop.classList.contains("hidden") && itemPopFor === input;
+        if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+            if (!open) { openItemPop(input); if (!itemPop || itemPop.classList.contains("hidden")) return; }
+            ev.preventDefault();
+            const n = itemPopItems.length;
+            itemPopActive = ev.key === "ArrowDown" ? (itemPopActive + 1) % n : (itemPopActive - 1 + n) % n;
+            paintItemPop();
+        } else if (open && ev.key === "Enter" && itemPopActive >= 0) {
+            ev.preventDefault(); ev.stopPropagation(); // choose the highlighted item instead of moving on
+            pickItem(input, itemPopItems[itemPopActive], true);
+        } else if (open && ev.key === "Escape") {
+            ev.preventDefault(); ev.stopPropagation();
+            closeItemPop();
+        } else if (open && ev.key === "Tab") {
+            closeItemPop();
+        }
+    });
+}
+
 function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     const row = document.createElement("div");
     row.className = "item-row";
     row.innerHTML = `
         <label class="cell item-name-cell"><span>Item</span>
-            <input class="item-name" type="text" list="catalogList" placeholder="Search, or type a shorthand (e.g. gte, b1)" value="${esc(item.desc)}">
+            <input class="item-name" type="text" placeholder="Search, or type a shorthand (e.g. gte, b1)" value="${esc(item.desc)}">
             <small class="sc-hint hidden"></small></label>
         <label class="cell"><span>Qty</span>
             <input class="item-qty" type="number" min="1" step="1" placeholder="Qty" value="${item.qty}"></label>
@@ -225,6 +307,7 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
         <div class="cell"><span>Total</span><div class="line-total">${peso(item.qty * (item.price || 0))}</div></div>
         <button type="button" class="btn btn-danger btn-icon-only" title="Remove item" tabindex="-1"><i class="ri-close-line"></i></button>`;
     const name = row.querySelector(".item-name");
+    attachItemPicker(name);
     const qty = row.querySelector(".item-qty");
     const price = row.querySelector(".item-price");
     const hint = row.querySelector(".sc-hint");
