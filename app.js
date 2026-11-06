@@ -776,6 +776,20 @@ let bookletsDefaulted = false;
 function allBookletStarts() {
     return [...new Set([...entries, ...marks].map(x => bookletStart(x.pr)))];
 }
+// PR number order of the output table (booklets and the sheets inside them): lowest first, or newest/highest first.
+let prSortDesc = localStorage.getItem("pre_sort_desc") === "1";
+function updateSortBtn() {
+    $("sortText").textContent = prSortDesc ? "PR no. high-low" : "PR no. low-high";
+    $("sortBtn").querySelector("i").className = prSortDesc ? "ri-sort-desc" : "ri-sort-asc";
+}
+$("sortBtn").addEventListener("click", () => {
+    prSortDesc = !prSortDesc;
+    localStorage.setItem("pre_sort_desc", prSortDesc ? "1" : "0");
+    updateSortBtn();
+    refresh();
+});
+updateSortBtn();
+
 $("collapseBtn").addEventListener("click", () => {
     const starts = allBookletStarts();
     const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
@@ -902,7 +916,8 @@ function refresh() {
     let html = "";
     let currentBooklet = null;
     const noFilter = !(f.q.trim() || f.from || f.to || f.unchecked);
-    const items = noFilter ? withMarks(rows, marks, f) : rows;
+    const items = (noFilter ? withMarks(rows, marks, f) : rows).slice();
+    if (prSortDesc) items.sort((x, y) => Number(y.pr) - Number(x.pr)); // stable: item rows of one PR keep their order
     items.forEach(r => {
         const b = bookletStart(r.pr);
         if (b !== currentBooklet) { currentBooklet = b; html += bookletHeaderHtml(b, byBooklet.get(b) || []); }
