@@ -950,38 +950,45 @@ $("bkSummary").addEventListener("click", ev => {
 
 function bookletHeaderHtml(start, rowsInBooklet) {
     const st = bookletStats(entries, start, marks);
-    const reviewBadge = reviewBadgeHtml(start, st);
+    const prog = reviewProgress(reviewSequence(entries, marks, start));
     const cashBadge = cashBadgeHtml(start);
+    // One progress badge instead of a bar + "All encoded" + "Checked x/y".
+    const allChecked = prog.done && prog.entries > 0 && st.complete;
+    const progCls = allChecked ? "verified" : st.complete ? "done" : "";
+    const progBadge = `<span class="bk-badge ${progCls}" title="Encoded ${st.used} of ${BOOKLET_SIZE} sheets. Checked ${prog.checked} of ${prog.entries} receipts against the paper.">${allChecked ? `<i class="ri-checkbox-circle-fill"></i> ` : ""}Encoded ${st.used}/${BOOKLET_SIZE} \u00B7 Checked ${prog.checked}/${prog.entries}</span>`;
+    const bkLocked = locks.includes(start);
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
     const split = paymentSplit(rowsInBooklet);
     const onlineTip = Object.entries(split.byMethod).filter(([m]) => m !== "Cash")
         .map(([m, v]) => `${m}: ${peso(v)}`).join("\n") || "No online payments";
-    const pct = Math.round((st.used / BOOKLET_SIZE) * 100);
     const shownMissing = st.missing.slice(0, 8).join(", ") + (st.missing.length > 8 ? `, +${st.missing.length - 8} more` : "");
     const missing = st.missing.length
         ? `<span class="bk-missing" title="Missing sheets: ${esc(st.missing.join(", "))}"><i class="ri-error-warning-line"></i> Missing ${st.missing.length}: ${esc(shownMissing)}</span>`
         : "";
-    const status = st.complete ? `<span class="bk-badge done" title="All 50 sheets are encoded. This does not mean they are checked yet.">All encoded</span>` : `<span class="bk-badge" title="Sheets not yet encoded">${BOOKLET_SIZE - st.used} to encode</span>`;
     return `
         <tr class="booklet-head" data-booklet="${start}" title="Click to ${collapsed ? "expand" : "collapse"}">
             <td colspan="10">
-                <div class="bk">
-                    <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
-                    <strong>Booklet ${esc(bookletLabel(start))}</strong>
-                    <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
-                    <span class="bk-bar"><span style="width:${pct}%"></span></span>
-                    ${status}
-                    ${reviewBadge}
-                    ${cashBadge}
-                    <button type="button" class="btn btn-sm ${locks.includes(start) ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${locks.includes(start) ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}"><i class="${locks.includes(start) ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i> ${locks.includes(start) ? "Locked" : "Lock"}</button>
-                    <button type="button" class="btn btn-secondary btn-sm" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
-                    ${missing}
-                    <span class="bk-pay">
-                        <span class="pay cash" title="Cash payments"><i class="ri-money-dollar-circle-line"></i> Cash <b>${peso(split.cash)}</b></span>
-                        <span class="pay online" title="${esc(onlineTip)}"><i class="ri-smartphone-line"></i> Online <b>${peso(split.online)}</b></span>
-                    </span>
-                    <span class="bk-total" title="Booklet total">${peso(sales)}</span>
+                <div class="bk bk2">
+                    <div class="bk-r1">
+                        <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
+                        <strong>Booklet ${esc(bookletLabel(start))}</strong>
+                        <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
+                        <span class="bk-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
+                            <button type="button" class="btn btn-sm btn-icon-only ${bkLocked ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${bkLocked ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}" aria-label="${bkLocked ? "Unlock booklet" : "Lock booklet"}"><i class="${bkLocked ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i></button>
+                        </span>
+                    </div>
+                    <div class="bk-r2">
+                        ${progBadge}
+                        ${cashBadge}
+                        ${missing}
+                        <span class="bk-pay">
+                            <span class="pay cash" title="Cash payments"><i class="ri-money-dollar-circle-line"></i> Cash <b>${peso(split.cash)}</b></span>
+                            <span class="pay online" title="${esc(onlineTip)}"><i class="ri-smartphone-line"></i> Online <b>${peso(split.online)}</b></span>
+                        </span>
+                        <span class="bk-total" title="Booklet total">${peso(sales)}</span>
+                    </div>
                 </div>
             </td>
         </tr>`;

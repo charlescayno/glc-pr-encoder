@@ -782,3 +782,14 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .item-opt.active { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 .item-opt-name { min-width: 0; font-weight: 600; color: var(--color-text-main); }
 .item-opt-price { flex: none; color: var(--color-text-muted); font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+
+/* Booklet header: two rows (title + actions / status + money) */
+.bk.bk2 { display: flex; flex-direction: column; align-items: stretch; gap: 0.4rem; }
+.bk-r1, .bk-r2 { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.7rem; min-width: 0; }
+.bk-actions { margin-left: auto; display: flex; gap: 0.4rem; align-items: center; }
+.bk-r2 { padding-left: 1.9rem; }
+.bk-r2 .bk-pay { margin-left: auto; gap: 0.9rem; flex-wrap: nowrap; }
+.bk2 .pay { background: none; border: 0; padding: 0; }
+.bk2 .bk-total { min-width: 0; font-size: 1.05rem; }
+@media (max-width: 600px) { .bk-r2 { padding-left: 0; } .bk-r2 .bk-pay { margin-left: 0; } }
+@media (max-width: 600px) { .bk-r2 .bk-pay { flex-wrap: wrap; } }
