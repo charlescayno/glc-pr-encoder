@@ -442,3 +442,77 @@ export function itemColor(desc) {
     if (/life\s*goals/i.test(s)) return '#6B7280';
     return null;
 }
+
+// ---- Weekly / monthly sales summary ------------------------------------------------------
+// Groups the sheet categories of the "Weekly Inventory & Sales Monitoring Sheet".
+export function salesCategory(desc) {
+    const s = String(desc || '');
+    if (/jacket|polo|t[\s-]*shirt/i.test(s) && !/\btlr\b|true\s*life/i.test(s)) return 'MERCH';
+    if (/gospel\s*tract/i.test(s)) return 'GOSPEL TRACTS';
+    if (/\bbook\s*\d+|\bglc\s*book/i.test(s) && !/motivate/i.test(s)) return 'GLC BOOKS';
+    return 'DISCIPLESHIP MATERIALS';
+}
+export const SALES_CATEGORIES = ['GLC BOOKS', 'GOSPEL TRACTS', 'DISCIPLESHIP MATERIALS', 'MERCH'];
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const isoOf = d => d.toISOString().slice(0, 10);
+const utc = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const shortDate = iso => { const [y, m, d] = iso.split('-').map(Number); return `${MONTHS[m - 1].slice(0, 3)} ${d}`; };
+
+// A week runs Sunday to Saturday. Returns { key, from, to, label } for the period holding iso.
+export function periodOf(iso, kind) {
+    const d = utc(iso);
+    if (kind === 'month') {
+        const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+        const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+        return { key: isoOf(from), from: isoOf(from), to: isoOf(to), label: `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
+    }
+    const from = new Date(d); from.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    const to = new Date(from); to.setUTCDate(from.getUTCDate() + 6);
+    return { key: isoOf(from), from: isoOf(from), to: isoOf(to), label: `${shortDate(isoOf(from))} \u2013 ${shortDate(isoOf(to))}, ${to.getUTCFullYear()}` };
+}
+
+// Sales per week ('week') or per month ('month'), oldest first. Void / not-used numbers carry no entry, so they are never counted.
+// Each period: receipts (PR count), units (items sold), cash, online, total, per-category and per-item breakdown.
+export function salesSummary(entries, kind = 'week') {
+    const groups = new Map();
+    for (const e of entries) {
+        if (!e.date) continue;
+        const p = periodOf(e.date, kind);
+        if (!groups.has(p.key)) groups.set(p.key, { ...p, entries: [] });
+        groups.get(p.key).entries.push(e);
+    }
+    return [...groups.values()].sort((a, b) => a.key.localeCompare(b.key)).map(g => {
+        const rows = flatten(g.entries);
+        const split = paymentSplit(rows);
+        const cats = new Map(SALES_CATEGORIES.map(c => [c, { category: c, units: 0, total: 0 }]));
+        const items = new Map();
+        let units = 0;
+        for (const r of rows) {
+            units = round2(units + r.qty);
+            const c = cats.get(salesCategory(r.desc));
+            c.units = round2(c.units + r.qty); c.total = round2(c.total + r.total);
+            const it = items.get(r.desc) || { desc: r.desc, category: salesCategory(r.desc), qty: 0, total: 0 };
+            it.qty = round2(it.qty + r.qty); it.total = round2(it.total + r.total);
+            items.set(r.desc, it);
+        }
+        const prs = g.entries.map(e => Number(e.pr));
+        return {
+            key: g.key, from: g.from, to: g.to, label: g.label,
+            receipts: g.entries.length, firstPr: Math.min(...prs), lastPr: Math.max(...prs),
+            units, cash: split.cash, online: split.online, total: round2(split.cash + split.online),
+            categories: [...cats.values()],
+            items: [...items.values()].sort((a, b) => SALES_CATEGORIES.indexOf(a.category) - SALES_CATEGORIES.indexOf(b.category) || a.desc.localeCompare(b.desc)),
+        };
+    });
+}
+
+export function salesSummaryCSV(periods, kind = 'week') {
+    const q = s => `"${String(s).replace(/"/g, '""')}"`;
+    const head = [kind === 'month' ? 'MONTH' : 'WEEK', 'RECEIPTS', 'UNITS SOLD', ...SALES_CATEGORIES.map(c => c + ' (UNITS)'), 'CASH', 'ONLINE', 'TOTAL SALES'];
+    const line = p => [p.label, p.receipts, p.units, ...p.categories.map(c => c.units), p.cash.toFixed(2), p.online.toFixed(2), p.total.toFixed(2)];
+    const sum = f => round2(periods.reduce((s, p) => s + f(p), 0));
+    const total = ['TOTAL', sum(p => p.receipts), sum(p => p.units), ...SALES_CATEGORIES.map((_, i) => sum(p => p.categories[i].units)),
+        sum(p => p.cash).toFixed(2), sum(p => p.online).toFixed(2), sum(p => p.total).toFixed(2)];
+    return [head, ...periods.map(line), total].map(r => r.map(q).join(',')).join('\r\n');
+}

@@ -1,4 +1,5 @@
 import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
+import { salesSummary, salesSummaryCSV, SALES_CATEGORIES } from "./logic.js";
 import { itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -1256,6 +1257,47 @@ $("clearBtn").addEventListener("click", async () => {
         await mBatch.commit();
     } catch (e) { console.error(e); }
     toast(`Cleared ${ids.length} receipts.`);
+});
+
+// ---------- Sales summary (per week / per month) ----------
+let salesKind = "week";
+function renderSales() {
+    const periods = salesSummary(entries, salesKind);
+    const unit = salesKind === "month" ? "Month" : "Week";
+    $("salesWeek").className = `btn ${salesKind === "week" ? "btn-primary" : "btn-secondary"}`;
+    $("salesMonth").className = `btn ${salesKind === "month" ? "btn-primary" : "btn-secondary"}`;
+    $("salesNote").textContent = salesKind === "week"
+        ? "Weeks run Sunday to Saturday, by the PR date. Void / not-used numbers are not counted."
+        : "Calendar months, by the PR date. Void / not-used numbers are not counted.";
+    if (!periods.length) { $("salesBody").innerHTML = `<div class="empty-msg">No receipts encoded yet.</div>`; return; }
+    const sum = f => round2(periods.reduce((s, p) => s + f(p), 0));
+    const qty = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
+    const cats = SALES_CATEGORIES.map(c => `<th class="num">${esc(c)}</th>`).join("");
+    const row = p => `<tr><td>${esc(p.label)}</td><td class="num">${p.receipts}</td><td class="num">${qty(p.units)}</td>
+        ${p.categories.map(c => `<td class="num">${qty(c.units)}</td>`).join("")}
+        <td class="num">${money(p.cash)}</td><td class="num">${money(p.online)}</td><td class="num"><strong>${money(p.total)}</strong></td></tr>`;
+    const foot = `<tr><td>TOTAL</td><td class="num">${sum(p => p.receipts)}</td><td class="num">${qty(sum(p => p.units))}</td>
+        ${SALES_CATEGORIES.map((_, i) => `<td class="num">${qty(sum(p => p.categories[i].units))}</td>`).join("")}
+        <td class="num">${money(sum(p => p.cash))}</td><td class="num">${money(sum(p => p.online))}</td><td class="num">${money(sum(p => p.total))}</td></tr>`;
+    const detail = [...periods].reverse().map(p => `<details class="sales-detail"><summary>${esc(p.label)}: items sold (${peso(p.total)})</summary>
+        <div class="sales-scroll"><table class="sales-table"><thead><tr><th>Category</th><th>Item</th><th class="num">Qty</th><th class="num">Total</th></tr></thead><tbody>
+        ${p.items.map(i => `<tr><td>${esc(i.category)}</td><td>${esc(i.desc)}</td><td class="num">${qty(i.qty)}</td><td class="num">${money(i.total)}</td></tr>`).join("")}
+        </tbody></table></div></details>`).join("");
+    $("salesBody").innerHTML = `<div class="sales-scroll"><table class="sales-table"><thead><tr><th>${unit}</th><th class="num">Receipts</th><th class="num">Units sold</th>${cats}<th class="num">Cash</th><th class="num">Online</th><th class="num">Total sales</th></tr></thead>
+        <tbody>${periods.map(row).join("")}</tbody><tfoot>${foot}</tfoot></table></div>${detail}`;
+}
+$("salesBtn").addEventListener("click", () => { renderSales(); $("salesModal").classList.remove("hidden"); });
+$("salesClose").addEventListener("click", () => $("salesModal").classList.add("hidden"));
+$("salesWeek").addEventListener("click", () => { salesKind = "week"; renderSales(); });
+$("salesMonth").addEventListener("click", () => { salesKind = "month"; renderSales(); });
+$("salesCsv").addEventListener("click", () => {
+    const periods = salesSummary(entries, salesKind);
+    if (!periods.length) return toast("Nothing to download.");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["\uFEFF" + salesSummaryCSV(periods, salesKind)], { type: "text/csv;charset=utf-8" }));
+    a.download = `sales-per-${salesKind}-${todayISO()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
 });
 
 // ---------- Catalog modal ----------

@@ -1,9 +1,9 @@
-// Run with: node test.mjs (or open test.html through a local web server)
+﻿// Run with: node test.mjs (or open test.html through a local web server)
 const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -170,3 +170,26 @@ assert.equal(itemColor("Gospel Tracts English (New)"), "#1B8EA0", "tracts are te
 assert.equal(itemColor("PCS Card"), null, "no color for other items");
 console.log("all tests passed");
 
+
+// Sales summary per week (Sunday-Saturday) and per month
+assert.equal(salesCategory("GLC Book 7: The Family Life (New)"), "GLC BOOKS");
+assert.equal(salesCategory("Gospel Tracts English (New)"), "GOSPEL TRACTS");
+assert.equal(salesCategory("GLC Jacket (Black)"), "MERCH");
+assert.equal(salesCategory("Real Talk Booklet"), "DISCIPLESHIP MATERIALS");
+assert.equal(periodOf("2026-09-13", "week").from, "2026-09-13"); // a Sunday
+assert.equal(periodOf("2026-09-19", "week").to, "2026-09-19");
+assert.equal(periodOf("2026-09-20", "week").from, "2026-09-20");
+assert.equal(periodOf("2026-02-10", "month").to, "2026-02-28");
+const sales = [
+    { id: "a", pr: 1, date: "2026-09-13", items: [{ desc: "GLC Book 1: One by One", qty: 2, price: 50 }], mop: "Cash" },
+    { id: "b", pr: 2, date: "2026-09-19", items: [{ desc: "Real Talk Booklet", qty: 2, price: 25 }], mop: "GCash" },
+    { id: "c", pr: 3, date: "2026-09-20", items: [{ desc: "Gospel Tracts English (New)", qty: 10, price: 3 }], mop: "Cash" },
+    { id: "d", pr: 4, date: "2026-10-01", items: [{ desc: "GLC Jacket (Black)", qty: 1, price: 1000 }], mop: "Cash" },
+];
+const wk = salesSummary(sales, "week");
+assert.deepEqual(wk.map(w => [w.receipts, w.units, w.total]), [[2, 4, 150], [1, 10, 30], [1, 1, 1000]]);
+assert.equal(wk[0].online, 50);
+assert.equal(wk[0].cash, 100);
+const mo = salesSummary(sales, "month");
+assert.deepEqual(mo.map(m => [m.label, m.receipts, m.total]), [["September 2026", 3, 180], ["October 2026", 1, 1000]]);
+assert.equal(salesSummaryCSV(mo, "month").split("\r\n").length, 4);

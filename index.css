@@ -145,14 +145,14 @@ h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.025em; line-heigh
 
 /* Encoder card stands out from the output card */
 #encoderCard {
-    background: #eaf5fc;
-    border: 1px solid #b7dcf2;
+    background: #b9d9f2;
+    border: 1px solid #8cbfe3;
     border-top: 4px solid var(--color-primary);
     box-shadow: var(--shadow-md);
 }
 [data-theme="dark"] #encoderCard {
-    background: #172a3d;
-    border-color: #1f4a6b;
+    background: #1d3a57;
+    border-color: #2b5f8c;
     border-top-color: var(--color-primary);
 }
 #encoderCard .split-panel { background: var(--color-bg-surface); }
@@ -811,3 +811,15 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .bk.bk2 > .bk-actions { grid-column: 2; grid-row: 1 / span 2; margin-left: 0; gap: 0.5rem; }
 .bk.bk2 > .bk-actions .btn { padding: 0.55rem 0.9rem; font-weight: 600; }
 @media (max-width: 600px) { .bk.bk2 { grid-template-columns: 1fr; } .bk.bk2 > .bk-actions { grid-column: 1; grid-row: auto; justify-content: flex-end; } }
+/* --- Sales summary --- */
+.modal-wide { max-width: 980px; }
+.modal-head .btn-group { display: flex; gap: 0.4rem; }
+.sales-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.sales-table th, .sales-table td { padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--color-border); text-align: left; white-space: nowrap; }
+.sales-table th { font-weight: 700; background: var(--color-bg-hover); }
+.sales-table .num { text-align: right; }
+.sales-table tfoot td { font-weight: 700; background: var(--color-bg-hover); }
+.sales-scroll { overflow-x: auto; }
+.sales-detail { margin-top: 0.3rem; }
+.sales-detail summary { cursor: pointer; font-size: 0.8rem; color: var(--color-primary); }
+.sales-detail table { margin: 0.4rem 0 0.8rem; }
