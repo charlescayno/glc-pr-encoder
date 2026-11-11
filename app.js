@@ -167,6 +167,24 @@ async function persist(entry, oldId) {
     } catch (e) { remoteFail(e); }
 }
 
+// ---------- Shared item catalog: one document in the cloud, so every device uses the same items, prices and shorthand ----------
+const catalogDoc = doc(collection(db, "pr_encoder_catalog"), "main");
+const defaultCatalog = () => (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price }));
+function saveCatalogToCloud(items) {
+    return setDoc(catalogDoc, { items, updatedAt: Date.now() }).catch(err => {
+        console.error(err);
+        toast("Could not save the catalog to the cloud. It is saved on this device only.");
+    });
+}
+onSnapshot(catalogDoc, snap => {
+    if (snap.exists() && Array.isArray(snap.data().items) && snap.data().items.length) {
+        localStorage.setItem(LS_CATALOG, JSON.stringify(snap.data().items));
+        if ($("catalogModal").classList.contains("hidden")) { catalog = loadCatalog(); catalogOptions(); } // never overwrite what is being edited
+    } else if (!snap.metadata.fromCache && localStorage.getItem(LS_CATALOG)) {
+        saveCatalogToCloud(loadCatalog()); // first time: this device's catalog becomes the shared one
+    }
+}, err => console.error("Catalog listener error", err));
+
 // ---------- Booklet locks: a locked booklet cannot be changed until it is unlocked ----------
 const LS_LOCKS = "pre_locks_v1";
 const locksCol = collection(db, "pr_encoder_locks");
@@ -1371,9 +1389,10 @@ $("catalogAdd").addEventListener("click", () => {
     const rows = $("catalogBody").querySelectorAll(".cat-row"); rows[rows.length - 1].querySelector("input").focus();
 });
 $("catalogReset").addEventListener("click", () => {
-    if (!confirm("Reset the catalog to the default price list?")) return;
+    if (!confirm("Reset the catalog to the default price list? This changes it on every device.")) return;
     localStorage.removeItem(LS_CATALOG);
-    catalog = loadCatalog(); renderCatalogRows();
+    catalog = defaultCatalog(); renderCatalogRows();
+    saveCatalogToCloud(catalog);
 });
 $("catalogSave").addEventListener("click", () => {
     catalog = catalog.filter(c => c.desc.trim()).map(c => {
@@ -1382,9 +1401,10 @@ $("catalogSave").addEventListener("click", () => {
         return item;
     });
     localStorage.setItem(LS_CATALOG, JSON.stringify(catalog));
+    saveCatalogToCloud(catalog);
     catalogOptions();
     $("catalogModal").classList.add("hidden");
-    toast("Catalog saved.");
+    toast("Catalog saved for all devices.");
 });
 
 // ---------- Theme & PWA ----------

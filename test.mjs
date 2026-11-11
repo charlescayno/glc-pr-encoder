@@ -214,14 +214,11 @@ assert.equal(mx.rows.find(r => r.desc === "Gospel Tract English").total, 10);
 assert.equal(mx.rows.find(r => r.desc === "GLC Jacket (Black)").category, "OTHER (NOT ON SHEET)");
 
 // Shorthand shown next to each item
-const cat = window_cat();
-function window_cat() {
-    return [{ desc: "Gospel Tracts English (New)", price: 3 }, { desc: "GLC Book 7: The Family Life (New)", price: 80 }, { desc: "GLC Book 7: The Family Life", price: 80 },
-        { desc: "GLC Book 1: Filipino One by One", price: 50 }, { desc: "Real Talk Booklet", price: 25 }, { desc: "Dgroup kit", price: 200, code: "dk" }];
-}
-assert.equal(itemShortcut(cat, cat[0]), "gte");
-assert.equal(itemShortcut(cat, cat[2]), "b7");
-assert.equal(itemShortcut(cat, cat[1]), "b7n");
-assert.equal(itemShortcut(cat, cat[3]), "fb1");
-assert.equal(itemShortcut(cat, cat[4]), "rtb");
-assert.equal(itemShortcut(cat, cat[5]), "dk");
+const scat = [{ desc: "Gospel Tracts English (New)", price: 3 }, { desc: "GLC Book 7: The Family Life (New)", price: 80 }, { desc: "GLC Book 7: The Family Life", price: 80 },
+    { desc: "GLC Book 1: Filipino One by One", price: 50 }, { desc: "Real Talk Booklet", price: 25 }, { desc: "Dgroup kit", price: 200, code: "dk" }];
+assert.equal(itemShortcut(scat, scat[0]), "gte");
+assert.equal(itemShortcut(scat, scat[2]), "b7");
+assert.equal(itemShortcut(scat, scat[1]), "b7n");
+assert.equal(itemShortcut(scat, scat[3]), "fb1");
+assert.equal(itemShortcut(scat, scat[4]), "rtb");
+assert.equal(itemShortcut(scat, scat[5]), "dk");
