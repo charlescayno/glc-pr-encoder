@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -242,3 +242,21 @@ const ph = priceChanges(
     [{ desc: "a", price: 12 }, { desc: "B", price: 5 }, { desc: "D", price: 7 }]);
 assert.deepEqual(ph.map(c => [c.desc, c.kind, c.oldPrice, c.newPrice]), [["a", "changed", 10, 12], ["D", "added", null, 7], ["C", "removed", 1, null]]);
 assert.equal(priceChanges([{ desc: "A", price: 1 }], [{ desc: "A", price: 1 }]).length, 0);
+
+// Items by category sheet
+{
+    const sec = { rows: [
+        { desc: "TLR Participant's workbook", qty: 2, price: 25, total: 50 },
+        { desc: "Book 2: Spiritual Disciplines", qty: 9, price: 60, total: 540 },
+        { desc: "Book 1: One by One (NEW)", qty: 14, price: 50, total: 700 },
+        { desc: "True Life Retreat Payment", qty: 2, price: 1300, total: 2600 },
+        { desc: "GLC Jacket - Large", qty: 1, price: 1000, total: 1000 },
+        { desc: "Gospel Tract English", qty: 5, price: 3, total: 15 },
+        { desc: "Mystery Thing", qty: 1, price: 1, total: 1 },
+    ], total: 4906 };
+    const g = categoryGroups(sec);
+    assert.deepEqual(g.map(x => x.name), ["GLC BOOKS", "GOSPEL TRACTS", "DISCIPLESHIP MATERIALS", "GLC MERCH", "OTHER"]);
+    assert.equal(g[0].rows[0].desc, "Book 1: One by One (NEW)"); // sheet order, not alphabetical
+    assert.deepEqual(g[3].rows.map(r => r.desc).sort(), ["GLC Jacket - Large", "True Life Retreat Payment"]);
+    assert.equal(categoryGroups({ rows: [], total: 0 }).length, 0);
+}

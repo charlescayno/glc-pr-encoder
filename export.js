@@ -1,5 +1,5 @@
 // Booklet exports: TOP Sheet PDF, PR Booklet Summary PDF and XLSX. Libraries are bundled in ./vendor and load on demand (cached for offline use).
-import { flatten, money, round2, itemColor } from "./logic.js";
+import { flatten, money, round2, itemColor, categoryGroups } from "./logic.js";
 
 const LIBS = {
     jspdf: "./vendor/jspdf.umd.min.js",
@@ -67,10 +67,46 @@ function drawTopSheet(doc, s) {
     sectionTable(doc, y, "ONLINE PAYMENT", s.online);
 }
 
-// One PDF (letter size): page 1 is the TOP sheet, the following pages are the booklet summary.
+// Items by category: a CASH page and an ONLINE PAYMENT page, shown right after the TOP sheet.
+function drawCategorySheet(doc, label, sec) {
+    const body = [];
+    categoryGroups(sec).forEach((g, i) => {
+        if (i) body.push([{ content: "", colSpan: 4, styles: { minCellHeight: 8 } }]);
+        body.push([{ content: g.name, colSpan: 4, styles: { fontStyle: "bold" } }]);
+        g.rows.forEach(r => body.push([r.desc, qtyText(r.qty), money(r.price), money(r.total)]));
+    });
+    if (!body.length) body.push([{ content: "None", colSpan: 4 }]);
+    doc.autoTable({
+        startY: 40, margin: { left: 40, right: 40 }, theme: "plain", body,
+        head: [
+            [{ content: label, colSpan: 4, styles: { fillColor: [189, 215, 255], fontStyle: "bold", halign: "left" } }],
+            ["ITEM NAME", "QTY", "Selling Price", "Total"],
+        ],
+        foot: [[{ content: "TOTAL", colSpan: 3 }, money(sec.total)]],
+        showFoot: "lastPage",
+        styles: { ...BODY_STYLE, lineWidth: 0, fontSize: 10, cellPadding: 3 },
+        headStyles: { textColor: 0, fontStyle: "bold" },
+        footStyles: { textColor: 0, fontStyle: "bold", fillColor: false },
+        columnStyles: { 1: { halign: "right", cellWidth: 60 }, 2: { halign: "right", cellWidth: 90 }, 3: { halign: "right", cellWidth: 90 } },
+        didParseCell: d => {
+            if (d.section === "head" && d.row.index === 1) d.cell.styles.halign = d.column.index === 0 ? "left" : "right";
+            if (d.section === "foot") d.cell.styles.halign = d.column.index === 0 ? "left" : "right";
+        },
+        didDrawCell: d => { // underline the column titles, line above the final total
+            if (d.section === "head" && d.row.index === 1) doc.setLineWidth(0.6).line(d.cell.x, d.cell.y + d.cell.height, d.cell.x + d.cell.width, d.cell.y + d.cell.height);
+            if (d.section === "foot") doc.setLineWidth(0.6).line(d.cell.x, d.cell.y, d.cell.x + d.cell.width, d.cell.y);
+        },
+    });
+}
+
+// One PDF (letter size): TOP sheet, then CASH and ONLINE items by category, then the booklet summary (log).
 async function buildBookletPdf(s, bookEntries, counts, preparedBy) {
     const doc = await pdfDoc();
     drawTopSheet(doc, s);
+    doc.addPage();
+    drawCategorySheet(doc, "CASH", s.cash);
+    doc.addPage();
+    drawCategorySheet(doc, "ONLINE PAYMENT", s.online);
     doc.addPage();
     drawBookletSummary(doc, s, bookEntries, counts, preparedBy);
     return doc;
@@ -110,17 +146,17 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     const online = rows.map(r => !!r.mop && r.mop.trim().toLowerCase() !== "cash");
     const body = rows.map(r => {
         const mop = r.first && r.mop && r.mop !== "Cash" ? r.mop : "";
-        return [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.category : "", r.first ? r.buyer : "", r.desc, qtyText(r.qty), money(r.price), money(r.total), money(r.grand), mop];
+        return [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.buyer : "", r.desc, qtyText(r.qty), money(r.price), money(r.total), money(r.grand), mop];
     });
     doc.autoTable({
         startY: 30, margin: { left: 30, right: 30 }, theme: "grid", body,
-        head: [["DATE", "PR NUMBER", "CATEGORY", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""]],
+        head: [["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""]],
         headStyles: { ...HEAD_STYLE, halign: "center" }, styles: { ...BODY_STYLE, fontSize: 8, cellPadding: 2 },
-        columnStyles: { 2: { fontStyle: "bold", cellWidth: 66 }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" }, 8: { halign: "right" } },
+        columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
         rowPageBreak: "avoid",
         // Invoice / online payment receipts (every item row of the receipt) are highlighted blue.
         didParseCell: d => {
-            centerHead(d); colorItem(d, 4);
+            centerHead(d); colorItem(d, 3);
             if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
         },
     });
@@ -164,7 +200,7 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     doc.text("Received By:", 30, y + 100);
 }
 
-// ---- XLSX: same two pages as the PDF (sheet 1 = TOP Sheet, sheet 2 = PR Booklet), with the same look ----
+// ---- XLSX: same pages as the PDF (TOP Sheet, CASH and ONLINE by category, PR Booklet), with the same look ----
 const THIN = { style: "thin", color: { argb: "FF000000" } };
 const BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 const GREY = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEBEBEB" } };
@@ -239,22 +275,50 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
         sec.rows.forEach((x, i) => colorItemCell(top.getCell(firstBody + i, 1), x.desc));
     }
 
-    // ---- Sheet 2: PR Booklet ----
+    // ---- Sheets 2 and 3: CASH and ONLINE PAYMENT items grouped by category ----
+    for (const [label, sec] of [["CASH", s.cash], ["ONLINE PAYMENT", s.online]]) {
+        const ws = wb.addWorksheet(label === "CASH" ? "CASH by Category" : "ONLINE by Category", { pageSetup: letter });
+        ws.columns = [{ width: 44 }, { width: 10 }, { width: 16 }, { width: 16 }];
+        ws.mergeCells(1, 1, 1, 4);
+        ws.getCell(1, 1).value = label;
+        ws.getCell(1, 1).font = { bold: true };
+        ws.getCell(1, 1).fill = BLUE;
+        ["ITEM NAME", "QTY", "Selling Price", "Total"].forEach((t, i) => {
+            const c = ws.getCell(2, 1 + i);
+            c.value = t; c.font = { bold: true, underline: true };
+            c.alignment = { horizontal: i ? "right" : "left" };
+        });
+        let rr = 3;
+        categoryGroups(sec).forEach((g, gi) => {
+            if (gi) rr += 1; // blank line between categories
+            ws.getCell(rr, 1).value = g.name; ws.getCell(rr, 1).font = { bold: true }; rr += 1;
+            g.rows.forEach(x => {
+                ws.getCell(rr, 1).value = x.desc;
+                ws.getCell(rr, 2).value = x.qty; ws.getCell(rr, 2).numFmt = QTY;
+                ws.getCell(rr, 3).value = x.price; ws.getCell(rr, 3).numFmt = NUM;
+                ws.getCell(rr, 4).value = x.total; ws.getCell(rr, 4).numFmt = NUM;
+                rr += 1;
+            });
+        });
+        rr += 1;
+        ws.getCell(rr, 1).value = "TOTAL";
+        ws.getCell(rr, 4).value = sec.total; ws.getCell(rr, 4).numFmt = NUM;
+        [1, 2, 3, 4].forEach(ci => { const c = ws.getCell(rr, ci); c.font = { bold: true }; c.border = { top: THIN, bottom: THIN }; });
+    }
+
+    // ---- Sheet 4: PR Booklet ----
     const bk = wb.addWorksheet("PR Booklet", { pageSetup: letter });
-    bk.columns = [{ width: 12 }, { width: 12 }, { width: 26 }, { width: 16 }, { width: 24 }, { width: 8 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 34 }];
+    bk.columns = [{ width: 12 }, { width: 12 }, { width: 16 }, { width: 24 }, { width: 8 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 34 }];
     const rows = flatten(bookEntries);
-    const body = rows.map(x => [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.category : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
+    const body = rows.map(x => [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
         x.first && x.mop && x.mop !== "Cash" ? x.mop : ""]);
     // Invoice / online payment receipts are highlighted blue, on every item row of the receipt.
     const fills = rows.map(x => (!!x.mop && x.mop.trim().toLowerCase() !== "cash") ? BLUE : null);
-    r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "CATEGORY", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
-        [null, null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
-    rows.forEach((x, i) => {
-        colorItemCell(bk.getCell(2 + i, 5), x.desc);
-        if (x.first) bk.getCell(2 + i, 3).font = { bold: true, size: 11 }; // category: bold so it is easy to see
-    });
+    r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
+        [null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
+    rows.forEach((x, i) => colorItemCell(bk.getCell(2 + i, 4), x.desc));
     bk.getCell(r, 1).value = "*** NOTHING FOLLOWS ***";
-    bk.mergeCells(r, 1, r, 10);
+    bk.mergeCells(r, 1, r, 9);
     bk.getCell(r, 1).font = { bold: true };
     bk.getCell(r, 1).alignment = { horizontal: "center" };
     r += 2;
@@ -271,7 +335,7 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
         ac.numFmt = NUM;
     });
     const cc = cashCountRows(counts);
-    const ccEnd = writeTable(bk, r, 7, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
+    const ccEnd = writeTable(bk, r, 6, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
     r = Math.max(r + 3, ccEnd) + 1;
 
     [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean)

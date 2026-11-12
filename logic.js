@@ -676,3 +676,19 @@ export function priceChanges(prev, next) {
     for (const p of prev) if (!after.has(key(p))) out.push({ desc: p.desc, kind: 'removed', oldPrice: Number(p.price) || 0, newPrice: null });
     return out;
 }
+// ---- Final report: CASH / ONLINE PAYMENT item tallies grouped by category (the sheet after the TOP sheet) ----
+export const REPORT_GROUPS = ['GLC BOOKS', 'GOSPEL TRACTS', 'DISCIPLESHIP MATERIALS', 'GLC MERCH', 'OTHER'];
+export function reportGroup(desc) {
+    const c = itemCategory(desc);
+    if (c === 'MERCH' || c === 'GLC EVENT') return 'GLC MERCH'; // jackets, shirts and event payments share one block, as on the paper sheet
+    return REPORT_GROUPS.includes(c) ? c : 'OTHER';
+}
+// sec = { rows: [{desc, qty, price, total}], total } from bookletSummary. Returns [{ name, rows }] in report order, empty groups left out.
+export function categoryGroups(sec) {
+    const order = desc => { const d = sheetDescFor(desc); const i = d ? SHEET_ROWS.findIndex(r => r.desc === d) : -1; return i < 0 ? 9999 : i; };
+    return REPORT_GROUPS.map(name => ({
+        name,
+        rows: sec.rows.filter(r => reportGroup(r.desc) === name)
+            .sort((a, b) => order(a.desc) - order(b.desc) || a.desc.localeCompare(b.desc) || a.price - b.price),
+    })).filter(g => g.rows.length);
+}
