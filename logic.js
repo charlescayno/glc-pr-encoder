@@ -252,6 +252,7 @@ export function flatten(entries) {
                 date: fmtDate(e.date),
                 pr: e.pr,
                 buyer: e.buyer,
+                category: prCategory(e),
                 desc: it.desc,
                 qty: it.qty,
                 price: it.price,
@@ -639,4 +640,24 @@ export function salesMatrixCSV(m, kind = 'week') {
     const foot = ['', 'TOTAL UNITS SOLD', ...m.periods.map(p => p.units), sum(p => p.units)];
     const sales = ['', 'TOTAL SALES (PHP)', ...m.periods.map(p => p.total.toFixed(2)), sum(p => p.total).toFixed(2)];
     return [head, ...body, foot, sales].map(r => r.map(q).join(',')).join('\r\n');
+}
+
+// ---- Category per PR (CATEGORY column of the final report), from "PROPER ORDER OF GLC ITEMS FOR WEBSITE" ----
+// Items on that sheet use its categories. Event payments (e.g. "True Life Payment") are GLC EVENT, anything else is OTHER.
+export function itemCategory(desc) {
+    const d = sheetDescFor(desc);
+    const row = d && SHEET_ROWS.find(r => r.desc === d);
+    if (row) return row.category;
+    // Not an exact sheet item (e.g. a jacket sold without a size): still group it by what it is.
+    if (/jacket|polo|shirt|merch/i.test(String(desc || ''))) return 'MERCH';
+    if (/gospel\s*tract/i.test(String(desc || ''))) return 'GOSPEL TRACTS';
+    if (/\bbook\s*\d+/i.test(String(desc || ''))) return 'GLC BOOKS';
+    if (/payment|event|registration|retreat|conference|seminar/i.test(String(desc || ''))) return 'GLC EVENT';
+    return 'OTHER';
+}
+// One label per receipt. A receipt that mixes categories lists each once, in order, e.g. "GLC BOOKS / MERCH".
+export function prCategory(e) {
+    const seen = [];
+    for (const it of e.items || []) { const c = itemCategory(it.desc); if (!seen.includes(c)) seen.push(c); }
+    return seen.join(' / ');
 }

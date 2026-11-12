@@ -110,17 +110,17 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     const online = rows.map(r => !!r.mop && r.mop.trim().toLowerCase() !== "cash");
     const body = rows.map(r => {
         const mop = r.first && r.mop && r.mop !== "Cash" ? r.mop : "";
-        return [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.buyer : "", r.desc, qtyText(r.qty), money(r.price), money(r.total), money(r.grand), mop];
+        return [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.category : "", r.first ? r.buyer : "", r.desc, qtyText(r.qty), money(r.price), money(r.total), money(r.grand), mop];
     });
     doc.autoTable({
         startY: 30, margin: { left: 30, right: 30 }, theme: "grid", body,
-        head: [["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""]],
+        head: [["DATE", "PR NUMBER", "CATEGORY", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""]],
         headStyles: { ...HEAD_STYLE, halign: "center" }, styles: { ...BODY_STYLE, fontSize: 8, cellPadding: 2 },
-        columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" } },
+        columnStyles: { 2: { fontStyle: "bold", cellWidth: 66 }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" }, 8: { halign: "right" } },
         rowPageBreak: "avoid",
         // Invoice / online payment receipts (every item row of the receipt) are highlighted blue.
         didParseCell: d => {
-            centerHead(d); colorItem(d, 3);
+            centerHead(d); colorItem(d, 4);
             if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
         },
     });
@@ -241,17 +241,20 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
 
     // ---- Sheet 2: PR Booklet ----
     const bk = wb.addWorksheet("PR Booklet", { pageSetup: letter });
-    bk.columns = [{ width: 12 }, { width: 12 }, { width: 16 }, { width: 24 }, { width: 8 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 34 }];
+    bk.columns = [{ width: 12 }, { width: 12 }, { width: 26 }, { width: 16 }, { width: 24 }, { width: 8 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 34 }];
     const rows = flatten(bookEntries);
-    const body = rows.map(x => [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
+    const body = rows.map(x => [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.category : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
         x.first && x.mop && x.mop !== "Cash" ? x.mop : ""]);
     // Invoice / online payment receipts are highlighted blue, on every item row of the receipt.
     const fills = rows.map(x => (!!x.mop && x.mop.trim().toLowerCase() !== "cash") ? BLUE : null);
-    r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
-        [null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
-    rows.forEach((x, i) => colorItemCell(bk.getCell(2 + i, 4), x.desc));
+    r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "CATEGORY", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
+        [null, null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
+    rows.forEach((x, i) => {
+        colorItemCell(bk.getCell(2 + i, 5), x.desc);
+        if (x.first) bk.getCell(2 + i, 3).font = { bold: true, size: 11 }; // category: bold so it is easy to see
+    });
     bk.getCell(r, 1).value = "*** NOTHING FOLLOWS ***";
-    bk.mergeCells(r, 1, r, 9);
+    bk.mergeCells(r, 1, r, 10);
     bk.getCell(r, 1).font = { bold: true };
     bk.getCell(r, 1).alignment = { horizontal: "center" };
     r += 2;
@@ -268,7 +271,7 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
         ac.numFmt = NUM;
     });
     const cc = cashCountRows(counts);
-    const ccEnd = writeTable(bk, r, 6, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
+    const ccEnd = writeTable(bk, r, 7, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
     r = Math.max(r + 3, ccEnd) + 1;
 
     [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean)

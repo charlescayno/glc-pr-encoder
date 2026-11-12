@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -222,3 +222,16 @@ assert.equal(itemShortcut(scat, scat[1]), "b7n");
 assert.equal(itemShortcut(scat, scat[3]), "fb1");
 assert.equal(itemShortcut(scat, scat[4]), "rtb");
 assert.equal(itemShortcut(scat, scat[5]), "dk");
+// CATEGORY column of the final report
+assert.equal(itemCategory("Book 6: Basic Doctrines 4th Edition"), "GLC BOOKS");
+assert.equal(itemCategory("Motivate Book English"), "DISCIPLESHIP MATERIALS");
+assert.equal(itemCategory("Life Goals Magazine 2nd Edition"), "DISCIPLESHIP MATERIALS");
+assert.equal(itemCategory("True Life Payment"), "GLC EVENT");
+assert.equal(itemCategory("BLACK GLC Jacket - XL"), "MERCH");
+assert.equal(itemCategory("Gospel Tracts English (New)"), "GOSPEL TRACTS");
+assert.equal(itemCategory("Mystery item"), "OTHER");
+assert.equal(prCategory({ items: [{ desc: "Motivate Book English" }, { desc: "Life Goals Magazine 2nd Edition" }] }), "DISCIPLESHIP MATERIALS");
+assert.equal(prCategory({ items: [{ desc: "GLC Book 3: The Holy Spirit" }, { desc: "BLACK GLC Jacket - XL" }] }), "GLC BOOKS / MERCH");
+assert.equal(flatten([{ id: "q", pr: 5, date: "2026-09-13", buyer: "x", mop: "Cash", items: [{ desc: "True Life Payment", qty: 1, price: 1300 }] }])[0].category, "GLC EVENT");
+assert.equal(itemCategory("GLC Jacket"), "MERCH"); // no size, still merch
+assert.equal(itemCategory("GLC Book 8: Something New"), "GLC BOOKS");
