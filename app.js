@@ -1322,31 +1322,37 @@ $("printBtn").addEventListener("click", () => {
 
 // ---------- Import from spreadsheet ----------
 function importPreview() {
-    const { entries: es, skipped } = parseSheet($("importText").value);
+    const { entries: es, skipped, marks: ms } = parseSheet($("importText").value);
     const exist = es.filter(e => entries.some(x => x.id === e.id)).length;
-    $("importInfo").textContent = es.length
-        ? `${es.length} PRs found${exist ? `, ${exist} will replace existing` : ""}${skipped.length ? `, ${skipped.length} rows skipped` : ""}`
-        : ($("importText").value.trim() ? "Nothing readable found" : "");
-    $("importGo").disabled = !es.length;
-    return es;
+    const parts = [];
+    if (es.length) parts.push(`${es.length} PRs found${exist ? `, ${exist} will replace existing` : ""}`);
+    if (ms.length) parts.push(`${ms.length} void / not used`);
+    if (skipped.length) parts.push(`${skipped.length} rows skipped`);
+    $("importInfo").textContent = parts.length ? parts.join(", ") : ($("importText").value.trim() ? "Nothing readable found" : "");
+    $("importGo").disabled = !es.length && !ms.length;
+    return { es, marks: ms };
 }
 $("importBtn").addEventListener("click", () => { $("importText").value = ""; importPreview(); $("importModal").classList.remove("hidden"); $("importText").focus(); });
 $("importClose").addEventListener("click", () => $("importModal").classList.add("hidden"));
 $("importText").addEventListener("input", importPreview);
 $("importSample").addEventListener("click", () => { $("importText").value = SHEET_0920; importPreview(); });
 $("importGo").addEventListener("click", () => {
-    let es = importPreview();
-    if (!es.length) return;
-    const locked = es.filter(e => isLocked(e.pr)).length;
+    let { es, marks: ms } = importPreview();
+    if (!es.length && !ms.length) return;
+    const locked = es.filter(e => isLocked(e.pr)).length + ms.filter(m => isLocked(m.pr)).length;
     es = es.filter(e => !isLocked(e.pr)); // locked booklets are never touched by an import
-    if (!es.length) return toast("Every PR in that paste belongs to a locked booklet.");
+    // A void / not-used number is only recorded when no receipt (existing or imported) uses it.
+    const taken = new Set([...entries.map(e => Number(e.pr)), ...es.map(e => Number(e.pr))]);
+    ms = ms.filter(m => !isLocked(m.pr) && !taken.has(m.pr));
+    if (!es.length && !ms.length) return toast("Everything in that paste belongs to a locked booklet or is already used.");
     const ids = new Set(es.map(e => e.id));
     entries = entries.filter(e => !ids.has(e.id)).concat(es);
     saveLocal();
     refresh();
     for (const { id, ...data } of es) setDoc(doc(col, id), data).catch(remoteFail);
+    ms.forEach(m => setMark(m.pr, m.status));
     $("importModal").classList.add("hidden");
-    toast(`Imported ${es.length} PRs` + (locked ? `, skipped ${locked} in locked booklets` : ""));
+    toast(`Imported ${es.length} PRs` + (ms.length ? `, ${ms.length} void / not used` : "") + (locked ? `, skipped ${locked} in locked booklets` : ""));
 });
 
 $("clearBtn").addEventListener("click", async () => {

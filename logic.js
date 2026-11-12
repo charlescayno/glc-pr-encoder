@@ -324,23 +324,73 @@ export function withMarks(rows, marks, { booklet = '' } = {}) {
         .map(m => ({ mark: true, pr: Number(m.pr), status: m.status, at: m.at }));
     return [...rows, ...extra].sort((a, b) => Number(a.pr) - Number(b.pr));
 }
+// Payment text -> method / reference / bank, the same wording the app writes in its own table
+// ("GCASH REF # 9876", "BANK TRANSFER - BDO REF # 555", "CHEQUE REF # 12", "OTHERS REF # note"). Old sheets
+// ("INVOICE REF # 689746", "Invoice 689746") still read as before.
+function parseMopLabel(text) {
+    const t = String(text || '').trim();
+    if (!t || /^cash$/i.test(t)) return { method: 'Cash', ref: '', bank: '' };
+    const kindOf = h => /^gcash/i.test(h) ? 'GCash' : /^maya/i.test(h) ? 'Maya' : /^bank/i.test(h) ? 'Bank Transfer'
+        : /^(cheque|check)/i.test(h) ? 'Cheque' : /^others?/i.test(h) ? 'Others' : /^invoice/i.test(h) ? 'Invoice' : '';
+    const r = /^(.*?)\s*\bREF(?:ERENCE)?\b\.?\s*(?:NO\.?|#)?\s*(.*)$/i.exec(t);
+    if (r) {
+        const head = r[1].trim();
+        const method = kindOf(head) || 'Invoice';
+        const bank = method === 'Bank Transfer' ? head.replace(/^bank\s*transfer\s*[-:\u2013]?\s*/i, '').trim() : '';
+        return { method, ref: r[2].trim(), bank };
+    }
+    const k = /^(invoice|gcash|maya|bank\s*transfer|bank|cheque|check|others?)\b[\s\-:]*(.*)$/i.exec(t);
+    if (k) return { method: kindOf(k[1]), ref: k[2].trim(), bank: '' };
+    return { method: 'Invoice', ref: t, bank: '' };
+}
+// "Cash 100.00 + GCASH REF # 1 30.00" -> two payments, or null when the text is not a split.
+function parseSplit(text) {
+    const parts = String(text || '').split(/\s+\+\s+/);
+    if (parts.length < 2) return null;
+    const pays = [];
+    for (const p of parts) {
+        const m = /^(.*?)\s+([\d,]+\.\d{2})$/.exec(p.trim());
+        if (!m) return null;
+        const lab = parseMopLabel(m[1]);
+        const pay = { method: lab.method, amount: Number(m[2].replace(/,/g, '')) };
+        if (lab.method !== 'Cash') { if (lab.ref) pay.ref = lab.ref; if (lab.bank) pay.bank = lab.bank; }
+        pays.push(pay);
+    }
+    return pays;
+}
+// Excel wraps cells with commas or quotes in "...", with "" for a literal quote.
+const unquoteCell = s => /^".*"$/.test(s) ? s.slice(1, -1).replace(/""/g, '"') : s;
+
 // Parse rows pasted from the spreadsheet (tab separated, same columns as the output table).
 // Rows without a PR number continue the previous receipt. Totals and header rows are ignored.
+// VOID / NOT USED rows come back in "marks". Dates: MM-DD-YYYY, MM/DD/YYYY or YYYY-MM-DD.
 export function parseSheet(text) {
     const out = [];
+    const marks = [];
     let cur = null;
     const skipped = [];
     const num = s => Number(String(s).replace(/[,\s\u20B1]/g, ''));
+    const parseDate = d => {
+        let m = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(d || '');
+        if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+        m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(d || '');
+        return m ? `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}` : '';
+    };
     for (const raw of String(text || '').split(/\r?\n/)) {
         if (!raw.trim()) continue;
-        const c = raw.split('\t').map(s => s.trim());
+        const c = raw.split('\t').map(s => unquoteCell(s.trim()));
         if (/^date$/i.test(c[0]) || /pr\s*number/i.test(c[1] || '')) continue;
         const [d, pr, buyer, desc, qty, price, , , mop] = c;
-        const m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(d || '');
-        if (/^\d+$/.test(pr || '') && m) {
+        if (/^\d+$/.test(pr || '') && /^(void|not\s*used|unused)$/i.test(desc || '')) {
+            marks.push({ pr: Number(pr), status: /^void$/i.test(desc) ? 'void' : 'unused' });
+            cur = null;
+            continue;
+        }
+        const iso = parseDate(d);
+        if (/^\d+$/.test(pr || '') && iso) {
             cur = {
                 id: `pr_${Number(pr)}`, pr: Number(pr),
-                date: `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`,
+                date: iso,
                 buyer: !buyer || /^an+onymous$/i.test(buyer) ? 'Anonymous' : buyer,
                 mop: 'Cash', mopRef: '', items: [],
             };
@@ -352,14 +402,20 @@ export function parseSheet(text) {
         const q = num(qty), p = num(price);
         if (!(q > 0) || !Number.isFinite(p)) { skipped.push(raw); continue; }
         cur.items.push({ desc, qty: q, price: p });
-        if (mop && cur.mop === 'Cash') {
-            const r = /^(invoice|gcash|bank[^\s]*)?\s*(?:ref(?:erence)?\.?)?\s*(?:no\.?|#)?\s*(.*)$/i.exec(mop);
-            const kind = /^gcash/i.test(mop) ? 'GCash' : /^bank/i.test(mop) ? 'Bank Transfer' : 'Invoice';
-            cur.mop = kind;
-            cur.mopRef = (/^(invoice|gcash|bank)/i.test(mop) ? mop.replace(/^\S+\s*(ref(erence)?\.?)?\s*(no\.?|#)?\s*/i, '') : mop).trim();
+        if (mop && cur.mop === 'Cash' && !cur.payments) {
+            const split = parseSplit(mop);
+            if (split) { cur.mop = 'Split'; cur.mopRef = ''; cur.payments = split; }
+            else {
+                const lab = parseMopLabel(mop);
+                if (lab.method !== 'Cash') {
+                    cur.mop = lab.method;
+                    cur.mopRef = lab.ref;
+                    if (lab.bank) cur.mopBank = lab.bank;
+                }
+            }
         }
     }
-    return { entries: out, skipped };
+    return { entries: out, skipped, marks };
 }
 
 // End-of-review summary: items sold in the booklet, split into CASH and ONLINE PAYMENT (anything not cash),
