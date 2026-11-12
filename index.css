@@ -935,3 +935,16 @@ tr.row-locked > td { background: rgba(245, 158, 11, 0.08); }
 [data-theme="dark"] tr.booklet-head.bk-locked:hover > td { background: repeating-linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0 10px, rgba(245, 158, 11, 0.18) 10px 20px), var(--color-bg-head); }
 [data-theme="dark"] tr.row-locked > td { background: rgba(245, 158, 11, 0.07); }
 tr.booklet-head.bk-locked.bk-selected > td { box-shadow: inset 4px 0 0 #f59e0b, inset 8px 0 0 var(--color-primary); }
+
+/* Month groups */
+tr.month-head { cursor: pointer; }
+tr.month-head > td { padding: 0.7rem 0.75rem; background: var(--color-primary); color: #fff; border-top: 3px solid var(--color-bg-surface); }
+tr.month-head:hover > td { filter: brightness(1.08); }
+.mh { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.9rem; }
+.mh strong { font-size: 1.05rem; }
+.mh .bk-chevron, .mh .bk-count { color: rgba(255, 255, 255, 0.9); }
+.mh .mh-total { margin-left: auto; color: #fff; font-size: 1.1rem; }
+[data-theme="dark"] tr.month-head > td { background: #0b5f8a; }
+
+tr.sum-month > td { background: color-mix(in srgb, var(--color-primary) 16%, var(--color-bg-surface)); cursor: pointer; font-weight: 600; border-top: 2px solid var(--color-primary); }
+tr.sum-month:hover > td { filter: brightness(0.97); }

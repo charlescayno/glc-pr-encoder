@@ -984,6 +984,29 @@ $("unusedBtn").addEventListener("click", () => markFromForm("unused"));
 // Booklets (50 sheets each) can be collapsed in the output table.
 const collapsedBooklets = new Set();
 let bookletsDefaulted = false;
+// Month groups: booklets are grouped under the month they were finished (latest receipt date).
+const collapsedMonths = new Set();
+let monthsDefaulted = false;
+let renderedStarts = []; // booklets shown in the table right now (also those inside a collapsed month)
+const monthLabel = m => m ? new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" }) : "No date";
+function monthHeaderHtml(m, starts, byBooklet) {
+    const rows = starts.flatMap(s => byBooklet.get(s) || []);
+    const sales = rows.reduce((t, r) => round2(t + (Number(r.total) || 0)), 0);
+    const receipts = new Set(rows.filter(r => !r.mark).map(r => r.pr)).size;
+    const collapsed = collapsedMonths.has(m);
+    return `
+        <tr class="month-head" data-month="${esc(m)}" title="Click to ${collapsed ? "expand" : "collapse"} ${esc(monthLabel(m))}">
+            <td colspan="10">
+                <div class="mh">
+                    <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
+                    <strong>${esc(monthLabel(m))}</strong>
+                    <span class="bk-count">${starts.length} booklet${starts.length === 1 ? "" : "s"}, ${receipts} receipt${receipts === 1 ? "" : "s"}</span>
+                    <span class="bk-total mh-total" title="Sales this month">${peso(sales)}</span>
+                </div>
+            </td>
+        </tr>`;
+}
+
 function allBookletStarts() {
     return [...new Set([...entries, ...marks].map(x => bookletStart(x.pr)))];
 }
@@ -1003,8 +1026,10 @@ updateSortBtn();
 
 $("collapseBtn").addEventListener("click", () => {
     const starts = allBookletStarts();
-    const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
-    if (allCollapsed) collapsedBooklets.clear(); else starts.forEach(s => collapsedBooklets.add(s));
+    const months = [...new Set(entries.map(e => String(e.date || "").slice(0, 7)))];
+    const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s)) && months.every(m => collapsedMonths.has(m));
+    if (allCollapsed) { collapsedBooklets.clear(); collapsedMonths.clear(); }
+    else { starts.forEach(s => collapsedBooklets.add(s)); months.forEach(m => collapsedMonths.add(m)); }
     refresh();
 });
 
@@ -1074,11 +1099,28 @@ function renderBookletSummary(rows) {
     rows.forEach(r => { const b = bookletStart(r.pr); if (!byBook.has(b)) byBook.set(b, []); byBook.get(b).push(r); });
     if (!byBook.size) { box.innerHTML = ""; return; }
     let cash = 0, online = 0, receipts = 0;
-    const body = [...byBook.entries()].sort((a, b) => a[0] - b[0]).map(([start, rs]) => {
-        const split = paymentSplit(rs);
-        const count = new Set(rs.map(r => r.pr)).size;
-        cash = round2(cash + split.cash); online = round2(online + split.online); receipts += count;
-        return `<tr data-summary-booklet="${start}" title="Click to show this booklet in the table">
+    // Same month grouping as the table above (a booklet belongs to the month of its latest receipt).
+    const bookletMonth = new Map();
+    entries.forEach(x => {
+        const b = bookletStart(x.pr), m = String(x.date || "").slice(0, 7);
+        if (m && (!bookletMonth.has(b) || m > bookletMonth.get(b))) bookletMonth.set(b, m);
+    });
+    const byMonth = new Map();
+    [...byBook.keys()].sort((x, y) => prSortDesc ? y - x : x - y).forEach(b => {
+        const m = bookletMonth.get(b) || "";
+        if (!byMonth.has(m)) byMonth.set(m, []);
+        byMonth.get(m).push(b);
+    });
+    const mKeys = [...byMonth.keys()].sort((x, y) => (x === "") - (y === "") || (prSortDesc ? y.localeCompare(x) : x.localeCompare(y)));
+    const body = mKeys.map(m => {
+        const starts = byMonth.get(m);
+        let mCash = 0, mOnline = 0, mReceipts = 0;
+        const bookletRows = starts.map(start => {
+            const rs = byBook.get(start);
+            const split = paymentSplit(rs);
+            const count = new Set(rs.map(r => r.pr)).size;
+            mCash = round2(mCash + split.cash); mOnline = round2(mOnline + split.online); mReceipts += count;
+            return `<tr data-summary-booklet="${start}" title="Click to show this booklet in the table">
             <td><b>${esc(bookletLabel(start))}</b></td>
             <td class="num">${count} / ${BOOKLET_SIZE}</td>
             <td>${reviewBadgeHtml(start) || "-"}</td>
@@ -1086,6 +1128,14 @@ function renderBookletSummary(rows) {
             <td class="num">${money(split.cash)}</td>
             <td class="num">${money(split.online)}</td>
             <td class="num"><b>${money(round2(split.cash + split.online))}</b></td></tr>`;
+        });
+        cash = round2(cash + mCash); online = round2(online + mOnline); receipts += mReceipts;
+        const collapsed = collapsedMonths.has(m);
+        return `<tr class="sum-month" data-sum-month="${esc(m)}" title="Click to ${collapsed ? "expand" : "collapse"} ${esc(monthLabel(m))}">
+            <td><i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"}"></i> <b>${esc(monthLabel(m))}</b> <span class="bk-count">${starts.length} booklet${starts.length === 1 ? "" : "s"}</span></td>
+            <td class="num">${mReceipts}</td><td></td><td></td>
+            <td class="num">${money(mCash)}</td><td class="num">${money(mOnline)}</td>
+            <td class="num"><b>${money(round2(mCash + mOnline))}</b></td></tr>` + (collapsed ? "" : bookletRows.join(""));
     }).join("");
     box.innerHTML = `
         <h3>Summary</h3>
@@ -1096,6 +1146,13 @@ function renderBookletSummary(rows) {
         </table></div>`;
 }
 $("bkSummary").addEventListener("click", ev => {
+    const mrow = ev.target.closest("[data-sum-month]");
+    if (mrow) {
+        const m = mrow.dataset.sumMonth;
+        if (collapsedMonths.has(m)) collapsedMonths.delete(m); else collapsedMonths.add(m);
+        refresh();
+        return;
+    }
     const tr = ev.target.closest("[data-summary-booklet]");
     if (!tr) return;
     const sel = $("bookletFilter");
@@ -1170,19 +1227,41 @@ function refresh() {
         const all = allBookletStarts();
         if (all.length) { all.forEach(s => collapsedBooklets.add(s)); bookletsDefaulted = true; }
     }
-    let html = "";
-    let currentBooklet = null;
     const noFilter = !(f.q.trim() || f.from || f.to || f.unchecked);
     const items = (noFilter ? withMarks(rows, marks, f) : rows).slice();
     if (prSortDesc) items.sort((x, y) => Number(y.pr) - Number(x.pr)); // stable: item rows of one PR keep their order
-    items.forEach(r => {
-        const b = bookletStart(r.pr);
-        if (b !== currentBooklet) { currentBooklet = b; html += bookletHeaderHtml(b, byBooklet.get(b) || []); }
-        if (!collapsedBooklets.has(b)) html += r.mark ? markRowHtml(r) : rowHtml(r);
+    // Group: month -> booklets -> rows. A booklet belongs to the month of its latest receipt.
+    const bookletMonth = new Map();
+    entries.forEach(e => {
+        const b = bookletStart(e.pr), m = String(e.date || "").slice(0, 7);
+        if (m && (!bookletMonth.has(b) || m > bookletMonth.get(b))) bookletMonth.set(b, m);
     });
+    // Months start collapsed except the latest one: applied once, when the first data shows up.
+    if (!monthsDefaulted && bookletMonth.size) {
+        const keys = [...new Set(bookletMonth.values())].sort();
+        keys.slice(0, -1).forEach(m => collapsedMonths.add(m));
+        monthsDefaulted = true;
+    }
+    const itemsByBooklet = new Map();
+    items.forEach(r => { const b = bookletStart(r.pr); if (!itemsByBooklet.has(b)) itemsByBooklet.set(b, []); itemsByBooklet.get(b).push(r); });
+    const monthMap = new Map();
+    for (const b of itemsByBooklet.keys()) { const m = bookletMonth.get(b) || ""; if (!monthMap.has(m)) monthMap.set(m, []); monthMap.get(m).push(b); }
+    const monthKeys = [...monthMap.keys()].sort((x, y) => (x === "") - (y === "") || (prSortDesc ? y.localeCompare(x) : x.localeCompare(y)));
+    renderedStarts = [...itemsByBooklet.keys()];
+    let html = "";
+    for (const m of monthKeys) {
+        const starts = monthMap.get(m);
+        html += monthHeaderHtml(m, starts, byBooklet);
+        if (collapsedMonths.has(m)) continue;
+        for (const b of starts) {
+            html += bookletHeaderHtml(b, byBooklet.get(b) || []);
+            if (collapsedBooklets.has(b)) continue;
+            for (const r of itemsByBooklet.get(b)) html += r.mark ? markRowHtml(r) : rowHtml(r);
+        }
+    }
     body.innerHTML = html;
     const starts = allBookletStarts();
-    const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s));
+    const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s)) && monthKeys.every(m => collapsedMonths.has(m));
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
     $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
     renderVerifiedSection();
@@ -1267,7 +1346,7 @@ function afterRowsRendered(rows, shown, f) {
 
 // ---------- Select booklets / delete whole booklets ----------
 const selectedBooklets = new Set();
-function shownBookletStarts() { return [...document.querySelectorAll("#outBody tr.booklet-head")].map(t => Number(t.dataset.booklet)); }
+function shownBookletStarts() { return renderedStarts.slice(); }
 function pruneBookletSelection() {
     const have = new Set(allBookletStarts());
     [...selectedBooklets].forEach(s => { if (!have.has(s)) selectedBooklets.delete(s); });
@@ -1344,6 +1423,13 @@ $("outBody").addEventListener("click", ev => {
     }
     const b = ev.target.closest("button");
     if (!b) {
+        const mh = ev.target.closest("tr.month-head");
+        if (mh) {
+            const m = mh.dataset.month;
+            if (collapsedMonths.has(m)) collapsedMonths.delete(m); else collapsedMonths.add(m);
+            refresh();
+            return;
+        }
         const head = ev.target.closest("tr.booklet-head");
         if (head) {
             const s = Number(head.dataset.booklet);
