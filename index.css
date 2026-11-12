@@ -495,7 +495,11 @@ body.modal-open { overflow: hidden; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border); }
 .modal-note { padding: 0.6rem 1.25rem 0; font-size: 0.8rem; color: var(--color-text-muted); }
 .modal-body { padding: 1rem 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; }
-.cat-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 90px 40px; gap: 0.4rem; }
+.cat-row { display: grid; grid-template-columns: 240px minmax(0, 1fr) 110px 100px 40px; gap: 0.4rem; }
+.cat-body { display: flex; flex-direction: column; gap: 0.4rem; padding-top: 0.6rem; }
+.cat-head { position: sticky; top: 0; z-index: 2; background: var(--color-bg-app); padding: 0.3rem 0; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); border-bottom: 1px solid var(--color-border); }
+#priceHistoryModal { z-index: 80; }
+@media (max-width: 700px) { .cat-row { grid-template-columns: 120px minmax(0, 1fr) 70px 80px 36px; } }
 .split-tag {
     display: inline-block; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
     padding: 0 0.4rem; border-radius: 999px;

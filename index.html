@@ -302,24 +302,27 @@
         </div>
     </div>
 
-    <!-- Catalog modal -->
-    <div class="modal-overlay hidden no-print" id="catalogModal">
-        <div class="modal">
-            <div class="modal-head">
-                <h2>Item Catalog</h2>
-                <button class="btn btn-close" id="catalogClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
+    <!-- Item catalog page (full page, like the sales summary) -->
+    <div class="review-overlay ss-overlay hidden no-print" id="catalogModal">
+        <div class="review ss-page">
+            <div class="rv-top">
+                <div>
+                    <div class="rv-title">Item Catalog</div>
+                    <div class="rv-sub">Items, categories, shorthand and prices</div>
+                </div>
+                <div class="rv-top-actions ss-actions">
+                    <button type="button" class="btn btn-secondary" id="catalogHistory" title="See every price change"><i class="ri-history-line"></i> Price history</button>
+                    <button type="button" class="btn btn-secondary" id="catalogReset">Reset to default</button>
+                    <button type="button" class="btn btn-secondary" id="catalogAdd"><i class="ri-add-line"></i> Add item</button>
+                    <button type="button" class="btn btn-primary" id="catalogSave">Save</button>
+                    <button type="button" class="btn btn-close" id="catalogClose" title="Close without saving"><i class="ri-close-line"></i> Close</button>
+                </div>
             </div>
-            <p class="modal-note">Shared: saved to the cloud, so every device uses the same items, prices and shorthand (the last save wins). Items default to the glc-inventory price list. Every item also gets automatic shorthand (initials, e.g. "gte" for Gospel Tracts English; "b7" for Book 7); the shorthand column lets you set your own.</p>
-            <div class="modal-body" id="catalogBody"></div>
-            <div class="modal-foot">
-                <button class="btn btn-secondary" id="catalogHistory" title="See every price change"><i class="ri-history-line"></i> Price history</button>
-                <button class="btn btn-secondary" id="catalogReset">Reset to default</button>
-                <button class="btn btn-secondary" id="catalogAdd"><i class="ri-add-line"></i> Add item</button>
-                <button class="btn btn-primary" id="catalogSave">Save</button>
-            </div>
+            <p class="ss-note">Shared: saved to the cloud, so every device uses the same items, categories, prices and shorthand (the last save wins). Saved PRs keep the price they were encoded with. Every item also gets automatic shorthand (initials, e.g. "gte" for Gospel Tracts English; "b7" for Book 7); the shorthand column lets you set your own. The category groups the item in the sales summary and the final report.</p>
+            <div class="ss-body cat-body" id="catalogBody"></div>
+            <datalist id="catCategories"></datalist>
         </div>
     </div>
-
     <!-- Price history -->
     <div class="modal-overlay hidden no-print" id="priceHistoryModal">
         <div class="modal modal-video">

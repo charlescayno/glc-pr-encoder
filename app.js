@@ -1397,16 +1397,29 @@ document.addEventListener("keydown", ev => {
 
 // ---------- Catalog modal ----------
 function renderCatalogRows() {
-    $("catalogBody").innerHTML = catalog.map((c, i) => `
+    const cats = [...new Set(["OTHER", ...catalog.map(c => c.category).filter(Boolean)])];
+    $("catCategories").innerHTML = cats.map(c => `<option value="${esc(c)}">`).join("");
+    $("catalogBody").innerHTML = `<div class="cat-row cat-head"><span>Category</span><span>Item</span><span>Shorthand</span><span>Price</span><span></span></div>` + catalog.map((c, i) => `
         <div class="cat-row">
+            <input type="text" list="catCategories" value="${esc(c.category || "")}" data-i="${i}" data-k="category" placeholder="Category">
             <input type="text" value="${esc(c.desc)}" data-i="${i}" data-k="desc">
             <input type="text" value="${esc(c.code || "")}" data-i="${i}" data-k="code" placeholder="${esc(itemShortcut(catalog, c))}" title="Optional custom shorthand, e.g. gte">
             <input type="number" min="0" step="0.01" value="${c.price}" data-i="${i}" data-k="price">
             <button class="btn btn-danger btn-icon-only" data-rm="${i}"><i class="ri-close-line"></i></button>
         </div>`).join("");
 }
-$("catalogBtn").addEventListener("click", () => { renderCatalogRows(); $("catalogModal").classList.remove("hidden"); });
-$("catalogClose").addEventListener("click", () => { catalog = loadCatalog(); $("catalogModal").classList.add("hidden"); });
+function closeCatalog() {
+    catalog = loadCatalog();
+    $("catalogModal").classList.add("hidden");
+    document.body.classList.remove("modal-open");
+}
+$("catalogBtn").addEventListener("click", () => {
+    renderCatalogRows();
+    $("catalogModal").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    $("catalogBody").scrollTop = 0;
+});
+$("catalogClose").addEventListener("click", closeCatalog);
 $("catalogBody").addEventListener("input", ev => {
     const t = ev.target; if (t.dataset.i === undefined) return;
     catalog[t.dataset.i][t.dataset.k] = t.dataset.k === "price" ? Number(t.value) : t.value;
@@ -1416,8 +1429,9 @@ $("catalogBody").addEventListener("click", ev => {
     catalog.splice(Number(b.dataset.rm), 1); renderCatalogRows();
 });
 $("catalogAdd").addEventListener("click", () => {
-    catalog.push({ desc: "", price: 0 }); renderCatalogRows();
-    const rows = $("catalogBody").querySelectorAll(".cat-row"); rows[rows.length - 1].querySelector("input").focus();
+    catalog.push({ desc: "", price: 0, category: "" }); renderCatalogRows();
+    const rows = $("catalogBody").querySelectorAll(".cat-row"); const last = rows[rows.length - 1];
+    last.scrollIntoView({ block: "end" }); last.querySelectorAll("input")[1].focus();
 });
 $("catalogReset").addEventListener("click", () => {
     if (!confirm("Reset the catalog to the default price list? This changes it on every device.")) return;
@@ -1431,7 +1445,7 @@ $("catalogSave").addEventListener("click", () => {
     catalog = catalog.filter(c => c.desc.trim()).map(c => {
         const item = { desc: c.desc.trim(), price: Number(c.price) || 0 };
         if (c.code && c.code.trim()) item.code = c.code.trim();
-        if (c.category) item.category = c.category;
+        if (c.category && c.category.trim()) item.category = c.category.trim();
         return item;
     });
     recordPriceChanges(loadCatalog(), catalog); // compare with the last saved (shared) catalog before overwriting it
@@ -1439,6 +1453,7 @@ $("catalogSave").addEventListener("click", () => {
     saveCatalogToCloud(catalog);
     catalogOptions();
     $("catalogModal").classList.add("hidden");
+    document.body.classList.remove("modal-open");
     toast("Catalog saved for all devices.");
 });
 
@@ -1463,7 +1478,7 @@ $("catalogHistory").addEventListener("click", () => { $("phSearch").value = ""; 
 $("phClose").addEventListener("click", () => $("priceHistoryModal").classList.add("hidden"));
 $("phSearch").addEventListener("input", renderPriceHistory);
 document.addEventListener("keydown", ev => {
-    if (ev.key === "Escape" && !$("priceHistoryModal").classList.contains("hidden")) { ev.stopPropagation(); $("priceHistoryModal").classList.add("hidden"); }
+    if (ev.key === "Escape" && !$("priceHistoryModal").classList.contains("hidden")) { ev.stopImmediatePropagation(); $("priceHistoryModal").classList.add("hidden"); }
 }, true);
 
 // ---------- Theme & PWA ----------
