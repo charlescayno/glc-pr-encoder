@@ -1109,7 +1109,8 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const prog = reviewProgress(reviewSequence(entries, marks, start));
     const cashBadge = cashBadgeHtml(start);
     // One progress badge instead of a bar + "All encoded" + "Checked x/y".
-    const allChecked = prog.done && prog.entries > 0 && st.complete;
+    const reviewedAll = prog.done && prog.entries > 0; // every receipt checked: the button becomes "Review again"
+    const allChecked = reviewedAll && st.complete;
     const progCls = allChecked ? "verified" : st.complete ? "done" : "";
     const progBadge = `<span class="bk-badge ${progCls}" title="Encoded ${st.used} of ${BOOKLET_SIZE} sheets. Checked ${prog.checked} of ${prog.entries} receipts against the paper.">${allChecked ? `<i class="ri-checkbox-circle-fill"></i> ` : ""}Encoded ${st.used}/${BOOKLET_SIZE} \u00B7 Checked ${prog.checked}/${prog.entries}</span>`;
     const bkLocked = locks.includes(start);
@@ -1143,7 +1144,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                         <span class="bk-total" title="Booklet total">${peso(sales)}</span>
                     </div>
                     <span class="bk-actions">
-                        <button type="button" class="btn btn-secondary" data-review="${start}" title="Check each PR in this booklet against the paper sheets"><i class="ri-checkbox-circle-line"></i> Review</button>
+                        <button type="button" class="btn btn-secondary" data-review="${start}"${reviewedAll ? ' data-first="1"' : ""} title="${reviewedAll ? "Everything is checked. Go through the PRs again from the first one." : "Check each PR in this booklet against the paper sheets"}"><i class="${reviewedAll ? "ri-restart-line" : "ri-checkbox-circle-line"}"></i> ${reviewedAll ? "Review again" : "Review"}</button>
                         <button type="button" class="btn btn-icon-only ${bkLocked ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${bkLocked ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}" aria-label="${bkLocked ? "Unlock booklet" : "Lock booklet"}"><i class="${bkLocked ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i></button>
                     </span>
                 </div>
@@ -1353,7 +1354,7 @@ $("outBody").addEventListener("click", ev => {
     }
     if (b.dataset.lock) toggleLock(Number(b.dataset.lock));
     if (b.dataset.unmark) clearMark(Number(b.dataset.unmark));
-    if (b.dataset.review) openReview(Number(b.dataset.review));
+    if (b.dataset.review) openReview(Number(b.dataset.review), b.dataset.first === "1");
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {
         const e = entries.find(x => x.id === b.dataset.del);
