@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -60,7 +60,7 @@ function loadLocal() {
 function saveLocal() { localStorage.setItem(LS_ENTRIES, JSON.stringify(entries)); }
 function loadCatalog() {
     try { const c = JSON.parse(localStorage.getItem(LS_CATALOG)); if (Array.isArray(c) && c.length) return c; } catch { /* ignore */ }
-    return (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price }));
+    return (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price, category: c.category, code: c.code }));
 }
 
 // ---------- Status / toast ----------
@@ -169,7 +169,7 @@ async function persist(entry, oldId) {
 
 // ---------- Shared item catalog: one document in the cloud, so every device uses the same items, prices and shorthand ----------
 const catalogDoc = doc(collection(db, "pr_encoder_catalog"), "main");
-const defaultCatalog = () => (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price }));
+const defaultCatalog = () => (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price, category: c.category, code: c.code }));
 function saveCatalogToCloud(items) {
     return setDoc(catalogDoc, { items, updatedAt: Date.now() }).catch(err => {
         console.error(err);
@@ -184,6 +184,28 @@ onSnapshot(catalogDoc, snap => {
         saveCatalogToCloud(loadCatalog()); // first time: this device's catalog becomes the shared one
     }
 }, err => console.error("Catalog listener error", err));
+
+// ---------- Price history: every catalog price change is recorded (item, old price, new price, when) ----------
+const LS_PRICE_HISTORY = "pre_price_history_v1";
+const priceHistoryCol = collection(db, "pr_encoder_price_history");
+let priceHistory = (() => { try { return JSON.parse(localStorage.getItem(LS_PRICE_HISTORY)) || []; } catch { return []; } })();
+onSnapshot(priceHistoryCol, snap => {
+    priceHistory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    localStorage.setItem(LS_PRICE_HISTORY, JSON.stringify(priceHistory));
+    if (!$("priceHistoryModal").classList.contains("hidden")) renderPriceHistory();
+}, err => console.error("Price history listener error", err));
+function recordPriceChanges(prev, next) {
+    const changes = priceChanges(prev, next);
+    if (!changes.length) return;
+    const at = Date.now();
+    changes.forEach((c, i) => {
+        const id = `${at}_${String(i).padStart(3, "0")}`;
+        const rec = { ...c, at };
+        priceHistory.push({ id, ...rec });
+        setDoc(doc(priceHistoryCol, id), rec).catch(err => { console.error(err); toast("Could not save the price history to the cloud."); });
+    });
+    localStorage.setItem(LS_PRICE_HISTORY, JSON.stringify(priceHistory));
+}
 
 // ---------- Booklet locks: a locked booklet cannot be changed until it is unlocked ----------
 const LS_LOCKS = "pre_locks_v1";
@@ -351,9 +373,18 @@ function attachItemPicker(input) {
     });
 }
 
+// Price to fill in for a catalog item. A row loaded from a saved PR keeps that PR's saved price for the same item,
+// so editing an old receipt never swaps in today's catalog price. Choosing a different item uses the catalog price.
+function priceFor(row, catalogItem) {
+    const saved = row.dataset.savedDesc;
+    if (saved && saved.toLowerCase() === catalogItem.desc.toLowerCase()) return Number(row.dataset.savedPrice);
+    return catalogItem.price;
+}
+
 function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     const row = document.createElement("div");
     row.className = "item-row";
+    if (editingId && item.desc && item.price !== "") { row.dataset.savedDesc = item.desc; row.dataset.savedPrice = item.price; }
     row.innerHTML = `
         <label class="cell item-name-cell"><span>Item</span>
             <input class="item-name" type="text" placeholder="Search, or type a shorthand (e.g. gte, b1)" value="${esc(item.desc)}">
@@ -371,7 +402,7 @@ function addItemRow(item = { desc: "", qty: 1, price: "" }) {
     const hint = row.querySelector(".sc-hint");
     name.addEventListener("input", () => {
         const hit = catalog.find(c => c.desc.toLowerCase() === name.value.trim().toLowerCase());
-        if (hit) price.value = hit.price;
+        if (hit) price.value = priceFor(row, hit);
         tintItem(name);
         showShortcutHint(name, hint);
         updateFormTotal();
@@ -411,7 +442,7 @@ function applyShortcut(nameInput) {
     const row = nameInput.closest(".item-row");
     nameInput.value = r.items[0].desc;
     tintItem(nameInput);
-    row.querySelector(".item-price").value = r.items[0].price;
+    row.querySelector(".item-price").value = priceFor(row, r.items[0]);
     updateFormTotal();
     return true;
 }
@@ -1390,22 +1421,50 @@ $("catalogAdd").addEventListener("click", () => {
 });
 $("catalogReset").addEventListener("click", () => {
     if (!confirm("Reset the catalog to the default price list? This changes it on every device.")) return;
+    const before = loadCatalog();
     localStorage.removeItem(LS_CATALOG);
     catalog = defaultCatalog(); renderCatalogRows();
+    recordPriceChanges(before, catalog);
     saveCatalogToCloud(catalog);
 });
 $("catalogSave").addEventListener("click", () => {
     catalog = catalog.filter(c => c.desc.trim()).map(c => {
         const item = { desc: c.desc.trim(), price: Number(c.price) || 0 };
         if (c.code && c.code.trim()) item.code = c.code.trim();
+        if (c.category) item.category = c.category;
         return item;
     });
+    recordPriceChanges(loadCatalog(), catalog); // compare with the last saved (shared) catalog before overwriting it
     localStorage.setItem(LS_CATALOG, JSON.stringify(catalog));
     saveCatalogToCloud(catalog);
     catalogOptions();
     $("catalogModal").classList.add("hidden");
     toast("Catalog saved for all devices.");
 });
+
+// ---------- Price history window (opened from Catalog) ----------
+function renderPriceHistory() {
+    const q = $("phSearch").value.trim().toLowerCase();
+    const fmt = n => "\u20B1" + Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const when = at => new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    const rows = [...priceHistory].sort((a, b) => b.at - a.at || String(a.desc).localeCompare(b.desc)).filter(r => !q || String(r.desc).toLowerCase().includes(q));
+    if (!rows.length) { $("phBody").innerHTML = `<div class="empty-msg">${priceHistory.length ? "No match." : "No price changes recorded yet. Changes are logged each time the catalog is saved."}</div>`; return; }
+    const change = r => {
+        if (r.kind === "added") return `<span class="ph-new">New item at ${fmt(r.newPrice)}</span>`;
+        if (r.kind === "removed") return `<span class="ph-removed">Removed (was ${fmt(r.oldPrice)})</span>`;
+        const d = r.newPrice - r.oldPrice;
+        return `${fmt(r.oldPrice)} &rarr; <strong>${fmt(r.newPrice)}</strong> <span class="${d > 0 ? "ph-up" : "ph-down"}">${d > 0 ? "+" : "-"}${fmt(Math.abs(d))}</span>`;
+    };
+    const escH = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+    $("phBody").innerHTML = `<table class="ph-table"><thead><tr><th>When</th><th>Item</th><th>Price change</th></tr></thead><tbody>${
+        rows.map(r => `<tr><td>${escH(when(r.at))}</td><td>${escH(r.desc)}</td><td>${change(r)}</td></tr>`).join("")}</tbody></table>`;
+}
+$("catalogHistory").addEventListener("click", () => { $("phSearch").value = ""; renderPriceHistory(); $("priceHistoryModal").classList.remove("hidden"); });
+$("phClose").addEventListener("click", () => $("priceHistoryModal").classList.add("hidden"));
+$("phSearch").addEventListener("input", renderPriceHistory);
+document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && !$("priceHistoryModal").classList.contains("hidden")) { ev.stopPropagation(); $("priceHistoryModal").classList.add("hidden"); }
+}, true);
 
 // ---------- Theme & PWA ----------
 function applyTheme(t) {

@@ -153,7 +153,7 @@ export function bookletStarts(entries) {
 function itemAutoCodes(desc) {
     const paren = (/\(([^)]*)\)/.exec(desc) || [])[1] || '';
     const main = desc.replace(/\([^)]*\)/g, ' ').trim();
-    const words = main.split(/[\s:]+/).filter(Boolean);
+    const words = main.split(/[\s:]+/).filter(w => /[a-z0-9]/i.test(w)); // ignore lone dashes, e.g. "TLR Shirt - Small"
     const initials = words.map(w => w[0].toLowerCase()).join('');
     const pi = paren ? paren.trim()[0].toLowerCase() : '';
     const codes = new Set([initials]);
@@ -660,4 +660,19 @@ export function prCategory(e) {
     const seen = [];
     for (const it of e.items || []) { const c = itemCategory(it.desc); if (!seen.includes(c)) seen.push(c); }
     return seen.join(' / ');
+}
+// ---- Price history: what changed between two versions of the catalog ----
+// Returns [{ desc, kind: 'changed' | 'added' | 'removed', oldPrice, newPrice }]. Items are matched by name (case-insensitive).
+export function priceChanges(prev, next) {
+    const key = c => String(c.desc || '').trim().toLowerCase();
+    const before = new Map(prev.map(c => [key(c), c]));
+    const after = new Map(next.map(c => [key(c), c]));
+    const out = [];
+    for (const c of next) {
+        const p = before.get(key(c));
+        if (!p) out.push({ desc: c.desc, kind: 'added', oldPrice: null, newPrice: Number(c.price) || 0 });
+        else if ((Number(p.price) || 0) !== (Number(c.price) || 0)) out.push({ desc: c.desc, kind: 'changed', oldPrice: Number(p.price) || 0, newPrice: Number(c.price) || 0 });
+    }
+    for (const p of prev) if (!after.has(key(p))) out.push({ desc: p.desc, kind: 'removed', oldPrice: Number(p.price) || 0, newPrice: null });
+    return out;
 }

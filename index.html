@@ -312,9 +312,25 @@
             <p class="modal-note">Shared: saved to the cloud, so every device uses the same items, prices and shorthand (the last save wins). Items default to the glc-inventory price list. Every item also gets automatic shorthand (initials, e.g. "gte" for Gospel Tracts English; "b7" for Book 7); the shorthand column lets you set your own.</p>
             <div class="modal-body" id="catalogBody"></div>
             <div class="modal-foot">
+                <button class="btn btn-secondary" id="catalogHistory" title="See every price change"><i class="ri-history-line"></i> Price history</button>
                 <button class="btn btn-secondary" id="catalogReset">Reset to default</button>
                 <button class="btn btn-secondary" id="catalogAdd"><i class="ri-add-line"></i> Add item</button>
                 <button class="btn btn-primary" id="catalogSave">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Price history -->
+    <div class="modal-overlay hidden no-print" id="priceHistoryModal">
+        <div class="modal modal-video">
+            <div class="modal-head">
+                <h2>Price history</h2>
+                <button class="btn btn-close" id="phClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
+            </div>
+            <p class="modal-note">Every change to an item's price, newest first. Saved PRs keep the price they were encoded with.</p>
+            <div class="modal-body">
+                <input type="text" id="phSearch" class="ph-search" placeholder="Search item...">
+                <div id="phBody"></div>
             </div>
         </div>
     </div>

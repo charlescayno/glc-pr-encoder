@@ -29,7 +29,7 @@ match /pr_encoder_entries/{id} {
 ```
 
 The same applies to the other collections this app uses: `pr_encoder_marks` (void / not used sheets),
-`pr_encoder_locks` (locked booklets), `pr_encoder_catalog` (the shared item catalog, one document `main`) and `pr_encoder_cashcounts` (cash count per booklet, one document `bk_<first PR>`
+`pr_encoder_locks` (locked booklets), `pr_encoder_catalog` (the shared item catalog, one document `main`), `pr_encoder_price_history` (one document per catalog price change) and `pr_encoder_cashcounts` (cash count per booklet, one document `bk_<first PR>`
 with the counted bills and coins). Add the same kind of rule for each one that is denied.
 
 ## Access and privacy

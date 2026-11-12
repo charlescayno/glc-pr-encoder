@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -235,3 +235,10 @@ assert.equal(prCategory({ items: [{ desc: "GLC Book 3: The Holy Spirit" }, { des
 assert.equal(flatten([{ id: "q", pr: 5, date: "2026-09-13", buyer: "x", mop: "Cash", items: [{ desc: "True Life Payment", qty: 1, price: 1300 }] }])[0].category, "GLC EVENT");
 assert.equal(itemCategory("GLC Jacket"), "MERCH"); // no size, still merch
 assert.equal(itemCategory("GLC Book 8: Something New"), "GLC BOOKS");
+
+// Price history
+const ph = priceChanges(
+    [{ desc: "A", price: 10 }, { desc: "B", price: 5 }, { desc: "C", price: 1 }],
+    [{ desc: "a", price: 12 }, { desc: "B", price: 5 }, { desc: "D", price: 7 }]);
+assert.deepEqual(ph.map(c => [c.desc, c.kind, c.oldPrice, c.newPrice]), [["a", "changed", 10, 12], ["D", "added", null, 7], ["C", "removed", 1, null]]);
+assert.equal(priceChanges([{ desc: "A", price: 1 }], [{ desc: "A", price: 1 }]).length, 0);

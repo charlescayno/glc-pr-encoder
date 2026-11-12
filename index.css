@@ -897,3 +897,13 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 /* --- Tutorial video --- */
 .modal-video { max-width: 1000px; }
 .modal-video video { width: 100%; max-height: 70vh; border-radius: 0.5rem; background: #000; }
+
+/* --- Price history --- */
+.ph-search { width: 100%; box-sizing: border-box; padding: 0.5rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-surface); color: var(--color-text-main); margin-bottom: 0.6rem; }
+.ph-table { width: 100%; font-size: 0.85rem; }
+.ph-table td, .ph-table th { white-space: nowrap; }
+.ph-table td:nth-child(2) { white-space: normal; font-weight: 600; }
+.ph-up { color: var(--color-danger, #dc2626); font-weight: 700; }
+.ph-down { color: var(--color-success, #16a34a); font-weight: 700; }
+.ph-new { color: var(--color-primary, #2563eb); font-weight: 700; }
+.ph-removed { color: var(--color-text-muted, #6b7280); font-weight: 600; }
