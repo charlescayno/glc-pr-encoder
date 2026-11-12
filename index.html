@@ -214,6 +214,7 @@
                     <div class="out-actions no-print">
                         <button class="btn btn-secondary" id="collapseBtn" title="Collapse or expand every booklet"><i class="ri-contract-up-down-line"></i><span class="desktop-only" id="collapseText">Collapse all</span></button>
                         <button class="btn btn-secondary" id="sortBtn" title="Sort booklets and PR numbers: low to high or high to low"><i class="ri-sort-asc"></i><span class="desktop-only" id="sortText">PR no. low-high</span></button>
+                        <button class="btn btn-secondary" id="selectAllBtn" title="Select or unselect every booklet shown"><i class="ri-checkbox-multiple-line"></i><span class="desktop-only" id="selectAllText">Select all</span></button>
                         <button class="btn btn-secondary" id="importBtn"><i class="ri-upload-2-line"></i><span class="desktop-only">Import</span></button>
                         <button class="btn btn-secondary" id="copyBtn"><i class="ri-file-copy-line"></i><span class="desktop-only">Copy table</span></button>
                         <button class="btn btn-secondary" id="csvBtn"><i class="ri-file-excel-2-line"></i><span class="desktop-only">CSV</span></button>
@@ -234,6 +235,14 @@
                     <label class="inline-field"><span>To</span><input type="date" id="toDate"></label>
                     <label class="inline-field check-field"><input type="checkbox" id="uncheckedOnly"> <span>Unchecked only</span></label>
                     <button class="btn btn-secondary" id="clearFilterBtn">Reset</button>
+                </div>
+
+                <div class="sel-bar no-print hidden" id="selBar">
+                    <span id="selInfo"></span>
+                    <span class="sel-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="selClear">Clear selection</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="selDelete"><i class="ri-delete-bin-line"></i> Delete selected</button>
+                    </span>
                 </div>
 
                 <div class="print-title" id="printTitle"></div>

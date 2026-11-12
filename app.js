@@ -1123,10 +1123,11 @@ function bookletHeaderHtml(start, rowsInBooklet) {
         ? `<span class="bk-missing" title="Missing sheets: ${esc(st.missing.join(", "))}"><i class="ri-error-warning-line"></i> Missing ${st.missing.length}: ${esc(shownMissing)}</span>`
         : "";
     return `
-        <tr class="booklet-head" data-booklet="${start}" title="Click to ${collapsed ? "expand" : "collapse"}">
+        <tr class="booklet-head${selectedBooklets.has(start) ? " bk-selected" : ""}${locks.includes(start) ? " bk-locked" : ""}" data-booklet="${start}" title="Click to ${collapsed ? "expand" : "collapse"}">
             <td colspan="10">
                 <div class="bk bk2">
                     <div class="bk-r1">
+                        <label class="bk-sel no-print" title="Select this booklet"><input type="checkbox" data-bk-select="${start}" aria-label="Select booklet ${esc(bookletLabel(start))}" ${selectedBooklets.has(start) ? "checked" : ""}></label>
                         <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
                         <strong>Booklet ${esc(bookletLabel(start))}</strong>
                         <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
@@ -1184,6 +1185,7 @@ function refresh() {
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
     $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
     renderVerifiedSection();
+    pruneBookletSelection();
     renderBookletSummary(flatten(filterEntries(entries, { ...f, booklet: "" }))); // all booklets, even while one is selected below
     afterRowsRendered(rows, shown, f);
 }
@@ -1197,7 +1199,7 @@ function mopCellHtml(r) {
 function markRowHtml(r) {
     const note = r.status === "void" ? "Cancelled sheet, no sale" : "Blank or skipped sheet";
     return `
-        <tr class="mark-row ${esc(r.status)} pr-first">
+        <tr class="mark-row ${esc(r.status)} pr-first${isLocked(r.pr) ? " row-locked" : ""}">
             <td></td>
             <td class="pr-no">${esc(r.pr)}</td>
             <td colspan="7"><span class="mark-tag ${esc(r.status)}">${markLabel(r.status)}</span> <span class="mark-note">${note}</span></td>
@@ -1215,7 +1217,7 @@ function itemNameHtml(desc) {
 
 function rowHtml(r) {
     return `
-        <tr class="${r.first ? "pr-first" : ""}">
+        <tr class="${r.first ? "pr-first" : ""}${isLocked(r.pr) ? " row-locked" : ""}">
             <td>${r.first ? esc(r.date) : ""}</td>
             <td class="pr-no">${r.first ? esc(r.pr) + (r.entry.checkedAt ? `<i class="ri-checkbox-circle-fill chk" title="Checked ${esc(new Date(r.entry.checkedAt).toLocaleString())}"></i>` : "") : ""}</td>
             <td>${r.first ? esc(r.buyer) : ""}</td>
@@ -1262,7 +1264,83 @@ function afterRowsRendered(rows, shown, f) {
     updateBookletHint();
 }
 
+// ---------- Select booklets / delete whole booklets ----------
+const selectedBooklets = new Set();
+function shownBookletStarts() { return [...document.querySelectorAll("#outBody tr.booklet-head")].map(t => Number(t.dataset.booklet)); }
+function pruneBookletSelection() {
+    const have = new Set(allBookletStarts());
+    [...selectedBooklets].forEach(s => { if (!have.has(s)) selectedBooklets.delete(s); });
+    updateSelBar();
+}
+function bookletReceiptCount(s) { return entries.filter(e => bookletStart(e.pr) === s).length; }
+function updateSelBar() {
+    const n = selectedBooklets.size;
+    $("selBar").classList.toggle("hidden", n === 0);
+    const receipts = [...selectedBooklets].reduce((t, s) => t + bookletReceiptCount(s), 0);
+    $("selInfo").textContent = `${n} booklet${n === 1 ? "" : "s"} selected (${receipts} receipt${receipts === 1 ? "" : "s"})`;
+    const shown = shownBookletStarts();
+    const allSel = shown.length > 0 && shown.every(s => selectedBooklets.has(s));
+    $("selectAllText").textContent = allSel ? "Unselect all" : "Select all";
+}
+$("selectAllBtn").addEventListener("click", () => {
+    const shown = shownBookletStarts();
+    const allSel = shown.length > 0 && shown.every(s => selectedBooklets.has(s));
+    if (allSel) shown.forEach(s => selectedBooklets.delete(s)); else shown.forEach(s => selectedBooklets.add(s));
+    refresh();
+});
+$("selClear").addEventListener("click", () => { selectedBooklets.clear(); refresh(); });
+async function commitDeletes(refs) {
+    for (let i = 0; i < refs.length; i += 400) {
+        const batch = writeBatch(db);
+        refs.slice(i, i + 400).forEach(r => batch.delete(r));
+        await batch.commit();
+    }
+}
+$("selDelete").addEventListener("click", async () => {
+    const starts = [...selectedBooklets].sort((x, y) => x - y);
+    if (!starts.length) return;
+    const lockedOnes = starts.filter(s => locks.includes(s));
+    if (lockedOnes.length) return toast(`Booklet ${lockedOnes.map(s => bookletLabel(s)).join(", ")} is locked. Unlock it first, or unselect it.`);
+    const inB = s => x => bookletStart(Number(x.pr)) === s;
+    const ents = starts.flatMap(s => entries.filter(inB(s)));
+    const mks = starts.flatMap(s => marks.filter(inB(s)));
+    const list = starts.map(s => `  Booklet ${bookletLabel(s)}: ${bookletReceiptCount(s)} receipts`).join("\n");
+    if (!confirm(`Delete ${starts.length} whole booklet${starts.length === 1 ? "" : "s"} with ${ents.length} receipts, ${mks.length} void / not-used marks and their cash counts?\n\n${list}\n\nThis cannot be undone.`)) return;
+    if (!confirm("Really delete? Consider downloading a CSV or the booklet PDFs first.")) return;
+    const entIds = new Set(ents.map(e => e.id));
+    const mkIds = new Set(mks.map(m => m.id || `pr_${m.pr}`));
+    const editingGone = editingId && entIds.has(editingId);
+    entries = entries.filter(e => !entIds.has(e.id));
+    marks = marks.filter(m => !mkIds.has(m.id || `pr_${m.pr}`));
+    localStorage.setItem(LS_MARKS, JSON.stringify(marks));
+    saveLocal();
+    const lastPr = Number(localStorage.getItem(LS_LAST_PR));
+    if (starts.includes(bookletStart(lastPr))) localStorage.removeItem(LS_LAST_PR);
+    starts.forEach(s => { delete cashCounts[s]; localStorage.removeItem(cashKey(s)); collapsedBooklets.delete(s); selectedBooklets.delete(s); });
+    if (editingGone) resetForm();
+    refresh();
+    try {
+        await commitDeletes([
+            ...ents.map(e => doc(col, e.id)),
+            ...[...mkIds].map(id => doc(marksCol, id)),
+            ...starts.map(s => doc(cashCountsCol, cashDocId(s))),
+        ]);
+    } catch (e) { remoteFail(e); return; }
+    toast(`Deleted ${starts.length} booklet${starts.length === 1 ? "" : "s"} (${ents.length} receipts).`);
+});
+
 $("outBody").addEventListener("click", ev => {
+    // Booklet checkboxes: select without collapsing / expanding the booklet.
+    if (ev.target.closest(".bk-sel")) {
+        const cb = ev.target.closest("input[data-bk-select]");
+        if (cb) {
+            const s = Number(cb.dataset.bkSelect);
+            if (cb.checked) selectedBooklets.add(s); else selectedBooklets.delete(s);
+            cb.closest("tr.booklet-head").classList.toggle("bk-selected", cb.checked);
+            updateSelBar();
+        }
+        return;
+    }
     const b = ev.target.closest("button");
     if (!b) {
         const head = ev.target.closest("tr.booklet-head");

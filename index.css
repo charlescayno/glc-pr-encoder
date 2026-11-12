@@ -911,3 +911,27 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .ph-down { color: var(--color-success, #16a34a); font-weight: 700; }
 .ph-new { color: var(--color-primary, #2563eb); font-weight: 700; }
 .ph-removed { color: var(--color-text-muted, #6b7280); font-weight: 600; }
+
+/* Booklet selection */
+.bk-sel { display: inline-flex; align-items: center; padding: 0.2rem; cursor: pointer; }
+.bk-sel input { width: 1.1rem; height: 1.1rem; cursor: pointer; accent-color: var(--color-primary); }
+tr.booklet-head.bk-selected > td { background: color-mix(in srgb, var(--color-primary) 14%, var(--color-bg-head)); box-shadow: inset 4px 0 0 var(--color-primary); }
+.sel-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.6rem 0; padding: 0.55rem 0.8rem; border: 1px solid var(--color-primary); border-radius: 0.5rem; background: color-mix(in srgb, var(--color-primary) 10%, var(--color-bg-surface)); font-weight: 600; }
+.sel-bar.hidden { display: none; }
+.sel-actions { display: flex; gap: 0.5rem; }
+
+/* Locked booklets: amber hatched background so they clearly look locked */
+tr.booklet-head.bk-locked > td {
+    background: repeating-linear-gradient(135deg, #fef3c7 0 10px, #fde9a8 10px 20px);
+    border-top-color: #f59e0b;
+    box-shadow: inset 4px 0 0 #f59e0b;
+}
+tr.booklet-head.bk-locked:hover > td { background: repeating-linear-gradient(135deg, #fde9a8 0 10px, #fcdf8a 10px 20px); }
+tr.row-locked > td { background: rgba(245, 158, 11, 0.08); }
+[data-theme="dark"] tr.booklet-head.bk-locked > td {
+    background: repeating-linear-gradient(135deg, rgba(245, 158, 11, 0.20) 0 10px, rgba(245, 158, 11, 0.12) 10px 20px), var(--color-bg-head);
+    box-shadow: inset 4px 0 0 #f59e0b;
+}
+[data-theme="dark"] tr.booklet-head.bk-locked:hover > td { background: repeating-linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0 10px, rgba(245, 158, 11, 0.18) 10px 20px), var(--color-bg-head); }
+[data-theme="dark"] tr.row-locked > td { background: rgba(245, 158, 11, 0.07); }
+tr.booklet-head.bk-locked.bk-selected > td { box-shadow: inset 4px 0 0 #f59e0b, inset 8px 0 0 var(--color-primary); }
