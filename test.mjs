@@ -226,13 +226,13 @@ assert.equal(itemShortcut(scat, scat[5]), "dk");
 assert.equal(itemCategory("Book 6: Basic Doctrines 4th Edition"), "GLC BOOKS");
 assert.equal(itemCategory("Motivate Book English"), "DISCIPLESHIP MATERIALS");
 assert.equal(itemCategory("Life Goals Magazine 2nd Edition"), "DISCIPLESHIP MATERIALS");
-assert.equal(itemCategory("True Life Payment"), "GLC EVENT");
+assert.equal(itemCategory("True Life Payment"), "GLC EVENTS");
 assert.equal(itemCategory("BLACK GLC Jacket - XL"), "MERCH");
 assert.equal(itemCategory("Gospel Tracts English (New)"), "GOSPEL TRACTS");
 assert.equal(itemCategory("Mystery item"), "OTHER");
 assert.equal(prCategory({ items: [{ desc: "Motivate Book English" }, { desc: "Life Goals Magazine 2nd Edition" }] }), "DISCIPLESHIP MATERIALS");
 assert.equal(prCategory({ items: [{ desc: "GLC Book 3: The Holy Spirit" }, { desc: "BLACK GLC Jacket - XL" }] }), "GLC BOOKS / MERCH");
-assert.equal(flatten([{ id: "q", pr: 5, date: "2026-09-13", buyer: "x", mop: "Cash", items: [{ desc: "True Life Payment", qty: 1, price: 1300 }] }])[0].category, "GLC EVENT");
+assert.equal(flatten([{ id: "q", pr: 5, date: "2026-09-13", buyer: "x", mop: "Cash", items: [{ desc: "True Life Payment", qty: 1, price: 1300 }] }])[0].category, "GLC EVENTS");
 assert.equal(itemCategory("GLC Jacket"), "MERCH"); // no size, still merch
 assert.equal(itemCategory("GLC Book 8: Something New"), "GLC BOOKS");
 
@@ -255,8 +255,12 @@ assert.equal(priceChanges([{ desc: "A", price: 1 }], [{ desc: "A", price: 1 }]).
         { desc: "Mystery Thing", qty: 1, price: 1, total: 1 },
     ], total: 4906 };
     const g = categoryGroups(sec);
-    assert.deepEqual(g.map(x => x.name), ["GLC BOOKS", "GOSPEL TRACTS", "DISCIPLESHIP MATERIALS", "GLC MERCH", "OTHER"]);
+    assert.deepEqual(g.map(x => x.name), ["GLC BOOKS", "GOSPEL TRACTS", "DISCIPLESHIP MATERIALS", "GLC MERCH", "GLC EVENTS", "OTHER"]);
     assert.equal(g[0].rows[0].desc, "Book 1: One by One (NEW)"); // sheet order, not alphabetical
-    assert.deepEqual(g[3].rows.map(r => r.desc).sort(), ["GLC Jacket - Large", "True Life Retreat Payment"]);
+    assert.deepEqual(g[3].rows.map(r => r.desc), ["GLC Jacket - Large"]);
+    assert.deepEqual(g[4].rows.map(r => r.desc), ["True Life Retreat Payment"]);
+    assert.equal(itemCategory("Baptismal Certificate"), "GLC EVENTS");
+    assert.equal(itemCategory("GLC Graduation"), "GLC EVENTS");
+    assert.equal(itemCategory("TLR Payment (Participant)"), "GLC EVENTS");
     assert.equal(categoryGroups({ rows: [], total: 0 }).length, 0);
 }

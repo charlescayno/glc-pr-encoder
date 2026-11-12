@@ -592,6 +592,7 @@ export function sheetDescFor(desc) {
         return null;
     }
     if (/gospel\s*tract/.test(t)) return /elevate|lmmr/.test(t) ? 'Gospel Tract (Elevate/LMMR)' : /tagalog/.test(t) ? 'Gospel Tract Tagalog' : 'Gospel Tract English';
+    if (/payment|baptismal|graduation|retreat/.test(t)) return null; // event items are not on the sales sheet
     const size = sizeOf(s);
     if ((/\btlr\b|true\s*life/.test(t)) && /shirt/.test(t)) return size && SIZES.indexOf(size) < 6 ? `TLR Shirt - ${size}` : null;
     if (/jacket/.test(t)) return size ? `BLACK GLC Jacket - ${size}` : null;
@@ -643,7 +644,7 @@ export function salesMatrixCSV(m, kind = 'week') {
 }
 
 // ---- Category per PR (CATEGORY column of the final report), from "PROPER ORDER OF GLC ITEMS FOR WEBSITE" ----
-// Items on that sheet use its categories. Event payments (e.g. "True Life Payment") are GLC EVENT, anything else is OTHER.
+// Items on that sheet use its categories. Event items (payments, certificates, graduation) are GLC EVENTS, anything else is OTHER.
 export function itemCategory(desc) {
     const d = sheetDescFor(desc);
     const row = d && SHEET_ROWS.find(r => r.desc === d);
@@ -652,7 +653,7 @@ export function itemCategory(desc) {
     if (/jacket|polo|shirt|merch/i.test(String(desc || ''))) return 'MERCH';
     if (/gospel\s*tract/i.test(String(desc || ''))) return 'GOSPEL TRACTS';
     if (/\bbook\s*\d+/i.test(String(desc || ''))) return 'GLC BOOKS';
-    if (/payment|event|registration|retreat|conference|seminar/i.test(String(desc || ''))) return 'GLC EVENT';
+    if (/payment|event|registration|retreat|conference|seminar|baptismal|graduation/i.test(String(desc || ''))) return 'GLC EVENTS';
     return 'OTHER';
 }
 // One label per receipt. A receipt that mixes categories lists each once, in order, e.g. "GLC BOOKS / MERCH".
@@ -677,10 +678,10 @@ export function priceChanges(prev, next) {
     return out;
 }
 // ---- Final report: CASH / ONLINE PAYMENT item tallies grouped by category (the sheet after the TOP sheet) ----
-export const REPORT_GROUPS = ['GLC BOOKS', 'GOSPEL TRACTS', 'DISCIPLESHIP MATERIALS', 'GLC MERCH', 'OTHER'];
+export const REPORT_GROUPS = ['GLC BOOKS', 'GOSPEL TRACTS', 'DISCIPLESHIP MATERIALS', 'GLC MERCH', 'GLC EVENTS', 'OTHER'];
 export function reportGroup(desc) {
     const c = itemCategory(desc);
-    if (c === 'MERCH' || c === 'GLC EVENT') return 'GLC MERCH'; // jackets, shirts and event payments share one block, as on the paper sheet
+    if (c === 'MERCH') return 'GLC MERCH'; // jackets and shirts
     return REPORT_GROUPS.includes(c) ? c : 'OTHER';
 }
 // sec = { rows: [{desc, qty, price, total}], total } from bookletSummary. Returns [{ name, rows }] in report order, empty groups left out.

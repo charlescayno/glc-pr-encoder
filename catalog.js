@@ -18,9 +18,9 @@ window.CATALOG = [
   {"category":"GLC BOOKS","desc":"GLC Book 1 (Filipino): One by One","price":50},
   {"category":"GLC BOOKS","desc":"GLC Book 2 (Filipino): Spiritual Disciple","price":70},
   {"category":"GLC BOOKS","desc":"GLC Book 4 (Filipino): CCF DNA","price":55},
-  {"category":"GOSPEL TRACTS","desc":"Gospel Tract Tagalog","price":3},
-  {"category":"GOSPEL TRACTS","desc":"Gospel Tract English","price":3},
   {"category":"GOSPEL TRACTS","desc":"Gospel Tract (Elevate/LMMR)","price":0},
+  {"category":"GOSPEL TRACTS","desc":"Gospel Tract English","price":3},
+  {"category":"GOSPEL TRACTS","desc":"Gospel Tract Tagalog","price":3},
   {"category":"DISCIPLESHIP MATERIALS","desc":"PCS Bookmark","price":1},
   {"category":"DISCIPLESHIP MATERIALS","desc":"PCS Card","price":3},
   {"category":"DISCIPLESHIP MATERIALS","desc":"Holy Spirit Booklet","price":20},
@@ -70,6 +70,10 @@ window.CATALOG = [
   {"category":"MERCH","desc":"BLUE GLC T SHIRT - Medium","price":0,"code":"btm"},
   {"category":"MERCH","desc":"BLUE GLC T SHIRT - Large","price":0,"code":"btl"},
   {"category":"MERCH","desc":"BLUE GLC T SHIRT - XL","price":0,"code":"btxl"},
+  {"category":"GLC EVENTS","desc":"TLR Payment (Participant)","price":0},
+  {"category":"GLC EVENTS","desc":"TLR Payment (Facilitator)","price":0},
+  {"category":"GLC EVENTS","desc":"Baptismal Certificate","price":0},
+  {"category":"GLC EVENTS","desc":"GLC Graduation","price":0},
   {"category":"OTHER","desc":"IDC Bag Blue","price":100},
   {"category":"OTHER","desc":"B1DE","price":0}
 ];
