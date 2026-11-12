@@ -8,7 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -58,8 +58,10 @@ function loadLocal() {
     try { return JSON.parse(localStorage.getItem(LS_ENTRIES)) || []; } catch { return []; }
 }
 function saveLocal() { localStorage.setItem(LS_ENTRIES, JSON.stringify(entries)); }
+// Catalogs saved before categories existed have none: fill each one in from the item name (kept once the catalog is saved).
+const withCategory = c => (c.category ? c : { ...c, category: itemCategory(c.desc) });
 function loadCatalog() {
-    try { const c = JSON.parse(localStorage.getItem(LS_CATALOG)); if (Array.isArray(c) && c.length) return c; } catch { /* ignore */ }
+    try { const c = JSON.parse(localStorage.getItem(LS_CATALOG)); if (Array.isArray(c) && c.length) return c.map(withCategory); } catch { /* ignore */ }
     return (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price, category: c.category, code: c.code }));
 }
 
@@ -171,6 +173,7 @@ async function persist(entry, oldId) {
 const catalogDoc = doc(collection(db, "pr_encoder_catalog"), "main");
 const defaultCatalog = () => (window.CATALOG || []).map(c => ({ desc: c.desc, price: c.price, category: c.category, code: c.code }));
 function saveCatalogToCloud(items) {
+    items = JSON.parse(JSON.stringify(items)); // Firestore rejects undefined fields (e.g. an item without a shorthand code)
     return setDoc(catalogDoc, { items, updatedAt: Date.now() }).catch(err => {
         console.error(err);
         toast("Could not save the catalog to the cloud. It is saved on this device only.");

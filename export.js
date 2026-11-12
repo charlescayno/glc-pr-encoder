@@ -162,8 +162,13 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     y += 22;
     // Cash count breakdown: always printed; counts and amounts stay blank when nothing was counted.
     const counted = counts.filter(c => c.count > 0);
-    // Totals on the left and the cash count on the right, side by side; both move to a new page only if the cash count does not fit.
-    if (y + Math.max(80, ((counted.length || counts.length) + 2) * 17) > 780) { doc.addPage(); y = 40; }
+    // Left column: totals, VOID / NOT USED notes and the signature lines. Right column: the cash count. Everything stays on one page
+    // (the signatures sit under the totals, in the free space beside the cash count); it moves to a new page only if it does not fit.
+    const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
+    doc.setFont("helvetica", "normal").setFontSize(9);
+    const noteLines = notes.flatMap(n => doc.splitTextToSize(n, 280));
+    const leftNeed = 60 + 24 + noteLines.length * 11 + 32 + 84 + 10;
+    if (y + Math.max(80, ((counted.length || counts.length) + 2) * 17, leftNeed) > 780) { doc.addPage(); y = 40; }
     const sales = round2(s.cash.total + s.online.total);
     const topY = y;
     doc.autoTable({
@@ -181,16 +186,14 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         headStyles: { ...HEAD_STYLE, halign: "center" }, footStyles: HEAD_STYLE, columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
         didParseCell: centerHead,
     });
-    y = Math.max(totalsEnd, doc.lastAutoTable.finalY) + 8;
-    const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
+    y = totalsEnd + 24;
     doc.setFont("helvetica", "normal").setFontSize(9);
-    if (y + notes.length * 12 + 44 + 120 > 780) { doc.addPage(); y = 40; } // signatures stay together
-    notes.forEach(n => { doc.text(n, 30, y + 8); y += 12; });
-    y += 44; // one blank line more above Prepared By
+    noteLines.forEach(n => { doc.text(n, 30, y); y += 11; });
+    y += 32; // blank space above Prepared By
     doc.setFontSize(10);
     doc.text(`Prepared By: ${preparedBy || ""}`, 30, y);
-    doc.text("Checked By:", 30, y + 50);   // extra room between lines for signatures
-    doc.text("Received By:", 30, y + 100);
+    doc.text("Checked By:", 30, y + 42);   // room between lines for signatures
+    doc.text("Received By:", 30, y + 84);
 }
 
 // ---- XLSX: same pages as the PDF (TOP Sheet, PR Booklet), with the same look ----
