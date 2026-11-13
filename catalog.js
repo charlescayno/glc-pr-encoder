@@ -47,6 +47,7 @@ window.CATALOG = [
   {"category":"DISCIPLESHIP MATERIALS","desc":"TLR Shirt - XL","price":0,"code":"tsxl"},
   {"category":"DISCIPLESHIP MATERIALS","desc":"TLR Shirt - 2XL","price":0,"code":"ts2xl"},
   {"category":"DISCIPLESHIP MATERIALS","desc":"TLR Shirt - 3XL","price":0,"code":"ts3xl"},
+  {"category":"DISCIPLESHIP MATERIALS","desc":"IDC T-Shirt","price":0,"code":"idcts"},
   {"category":"MERCH","desc":"BLACK GLC Jacket - Small","price":1000,"code":"jks"},
   {"category":"MERCH","desc":"BLACK GLC Jacket - Medium","price":1000,"code":"jkm"},
   {"category":"MERCH","desc":"BLACK GLC Jacket - Large","price":1000,"code":"jkl"},

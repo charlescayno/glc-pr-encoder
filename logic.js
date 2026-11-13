@@ -545,7 +545,7 @@ export function itemColor(desc) {
 // Groups the sheet categories of the "Weekly Inventory & Sales Monitoring Sheet".
 export function salesCategory(desc) {
     const s = String(desc || '');
-    if (/jacket|polo|t[\s-]*shirt/i.test(s) && !/\btlr\b|true\s*life/i.test(s)) return 'MERCH';
+    if (/jacket|polo|t[\s-]*shirt/i.test(s) && !/\b(tlr|idc)\b|true\s*life/i.test(s)) return 'MERCH'; // TLR and IDC shirts are discipleship materials
     if (/gospel\s*tract/i.test(s)) return 'GOSPEL TRACTS';
     if (/\bbook\s*\d+|\bglc\s*book/i.test(s) && !/motivate/i.test(s)) return 'GLC BOOKS';
     return 'DISCIPLESHIP MATERIALS';
@@ -686,7 +686,7 @@ export function sheetDescFor(desc) {
         [/memory\s*verse/, 'Memory Verse Booklet (Volume 2)'], [/real\s*talk/, 'Real Talk Booklet'], [/heart\s*of\s*a\s*champion/, 'Heart Of A Champion'],
         [/d-?group\s*kit/, 'Dgroup Kit'], [/70\s*x\s*7.*usb|usb.*70\s*x\s*7/, '70X7 USB'], [/70\s*x\s*7/, '70X7 Workbook'],
         [/accountability/, 'Accountability Card'], [/discipleship\s*covenant/, 'Discipleship Covenant Card'], [/dj\s*passport/, 'DJ Passport'],
-        [/motivate.*chinese|chinese.*motivate/, 'Motivate Book (Chinese)'], [/motivate/, 'Motivate Book (English)'], [/dare\s*2\s*share/, 'Dare 2 Share'],
+        [/motivate.*chinese|chinese.*motivate/, 'Motivate Book (Chinese)'], [/motivate/, 'Motivate Book (English)'], [/da[rt]e\s*(2|to)\s*share/, 'Dare 2 Share'],
         [/superbook/, 'Superbook Workbook'], [/2\s*be\s*1/, '2Be1 Workbook'],
         [/facilitator/, 'TLR Workbook (Facilitator)'], [/participant/, 'TLR Workbook (Participant)'],
     ];
@@ -733,6 +733,7 @@ export function itemCategory(desc) {
     const row = d && SHEET_ROWS.find(r => r.desc === d);
     if (row) return row.category;
     // Not an exact sheet item (e.g. a jacket sold without a size): still group it by what it is.
+    if (/\b(idc|tlr)\b|true\s*life/i.test(String(desc || '')) && /shirt/i.test(String(desc || ''))) return 'DISCIPLESHIP MATERIALS'; // TLR / IDC shirts
     if (/jacket|polo|shirt|merch/i.test(String(desc || ''))) return 'MERCH';
     if (/gospel\s*tract/i.test(String(desc || ''))) return 'GOSPEL TRACTS';
     if (/\bbook\s*\d+/i.test(String(desc || ''))) return 'GLC BOOKS';

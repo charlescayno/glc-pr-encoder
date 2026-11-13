@@ -282,3 +282,12 @@ assert.equal(priceChanges([{ desc: "A", price: 1 }], [{ desc: "A", price: 1 }]).
     assert.equal(itemCategory("TLR Payment (Participant)"), "GLC EVENTS");
     assert.equal(categoryGroups({ rows: [], total: 0 }).length, 0);
 }
+
+// TLR / IDC shirts and Dare to Share belong to DISCIPLESHIP MATERIALS, not MERCH
+for (const d of ["IDC T-Shirt", "IDC T-shirt", "TLR T-SHIRT", "TLR T-Shirt Large", "TLR Shirt", "TLR Shirt - Small", "Dare to Share Workbook", "Dare 2 Share", "Date to Share Workbook"]) {
+    assert.equal(itemCategory(d), "DISCIPLESHIP MATERIALS", d);
+    assert.equal(salesCategory(d), "DISCIPLESHIP MATERIALS", d);
+}
+assert.equal(itemCategory("GLC Polo Shirt"), "MERCH");
+assert.equal(salesCategory("GLC Polo Shirt"), "MERCH");
+assert.equal(sheetDescFor("Dare to Share Workbook"), "Dare 2 Share");
