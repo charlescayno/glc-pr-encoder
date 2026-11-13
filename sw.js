@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glc-pr-encoder-v43';
+const CACHE_NAME = 'glc-pr-encoder-v44';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
