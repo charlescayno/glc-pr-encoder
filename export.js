@@ -176,7 +176,7 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     const counted = counts.filter(c => c.count > 0);
     // Left column: totals, VOID / NOT USED notes and the signature lines. Right column: the cash count. Everything stays on one page
     // (the signatures sit under the totals, in the free space beside the cash count); it moves to a new page only if it does not fit.
-    const notes = [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean);
+    const notes = [s.voidText ? `VOID: ${s.voidText}` : ""].filter(Boolean);
     doc.setFont("helvetica", "normal").setFontSize(9);
     const noteLines = notes.flatMap(n => doc.splitTextToSize(n, 280));
     const leftNeed = 60 + 24 + noteLines.length * 11 + 32 + 84 + 10;
@@ -328,7 +328,7 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
     const ccEnd = writeTable(bk, r, 6, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
     r = Math.max(r + 3, ccEnd) + 1;
 
-    [s.voidText ? `VOID: ${s.voidText}` : "", s.unusedText ? `NOT USED: ${s.unusedText}` : ""].filter(Boolean)
+    [s.voidText ? `VOID: ${s.voidText}` : ""].filter(Boolean)
         .forEach(n => { bk.getCell(r, 1).value = n; r += 1; });
     r += 1;
     bk.getCell(r, 1).value = `Prepared By: ${preparedBy || ""}`;
