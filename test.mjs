@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -168,6 +168,23 @@ assert.equal(itemColor("Book 11: Spiritual Warfare"), "#5A1818", "book 11 is mar
 assert.equal(itemColor("GLC Book 1: Filipino One by One"), itemColor("GLC Book 1: One by One"), "same book, same color");
 assert.equal(itemColor("Gospel Tracts English (New)"), "#1B8EA0", "tracts are teal");
 assert.equal(itemColor("PCS Card"), null, "no color for other items");
+// search words (AND), amount, PR range, payment and month filters; date far from the booklet
+{
+    const es = [
+        { id: 'pr_42701', pr: 42701, date: '2026-09-01', buyer: 'ANA', mop: 'Cash', items: [{ desc: 'BOOK A', qty: 1, price: 1500 }] },
+        { id: 'pr_42702', pr: 42702, date: '2026-09-03', buyer: 'BEN', mop: 'GCash', items: [{ desc: 'BOOK B', qty: 2, price: 100 }] },
+        { id: 'pr_42703', pr: 42703, date: '2026-09-05', buyer: 'CAL', mop: 'Split', payments: [{ method: 'Cash', amount: 50 }, { method: 'GCash', amount: 50 }], items: [{ desc: 'BOOK A', qty: 1, price: 100 }] },
+    ];
+    assert.equal(filterEntries(es, { q: 'book a ana' }).length, 1);
+    assert.equal(filterEntries(es, { q: '1500' }).length, 1);
+    assert.equal(filterEntries(es, { q: '42702-42703' }).length, 2);
+    assert.equal(filterEntries(es, { mop: 'GCash' }).length, 2); // includes the split's GCash part
+    assert.equal(filterEntries(es, { month: '2026-09' }).length, 3);
+    assert.equal(filterEntries(es, { month: '2026-10' }).length, 0);
+    assert.equal(dateFarFromBooklet(es, 42704, '2026-09-20'), null);
+    assert.equal(dateFarFromBooklet(es, 42704, '2025-09-20').days > 300, true);
+    assert.equal(dateFarFromBooklet(es.slice(0, 2), 42704, '2025-09-20'), null); // too little data to judge
+}
 console.log("all tests passed");
 
 

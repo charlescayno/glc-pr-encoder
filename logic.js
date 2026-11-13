@@ -224,18 +224,44 @@ export function paymentSplit(rows) {
     return out;
 }
 
-export function filterEntries(entries, { q = '', from = '', to = '', booklet = '', unchecked = false } = {}) {
-    const needle = q.trim().toLowerCase();
+function entryHasMop(e, mop) {
+    const same = m => m === mop || (mop === 'Cheque' && m === 'Check');
+    return same(e.mop) || (e.payments || []).some(p => same(p.method));
+}
+
+// Search words are all required (AND). A word can be text, an amount (1500 / 1,500.00) or a PR range (42701-42750).
+export function filterEntries(entries, { q = '', from = '', to = '', booklet = '', unchecked = false, mop = '', month = '' } = {}) {
+    const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return entries.filter(e => {
         if (unchecked && e.checkedAt) return false;
         if (booklet && bookletStart(e.pr) !== Number(booklet)) return false;
         if (from && e.date < from) return false;
         if (to && e.date > to) return false;
-        if (!needle) return true;
-        const hay = [e.pr, e.buyer, mopText(e), fmtDate(e.date), ...(e.items || []).map(i => i.desc)]
+        if (month && !String(e.date || '').startsWith(month)) return false;
+        if (mop && !entryHasMop(e, mop)) return false;
+        if (!terms.length) return true;
+        const total = entryTotal(e);
+        const hay = [e.pr, e.buyer, mopText(e), fmtDate(e.date), total.toFixed(2), money(total), ...(e.items || []).map(i => i.desc)]
             .join(' ').toLowerCase();
-        return hay.includes(needle);
+        return terms.every(t => {
+            const r = /^(\d{3,})-(\d{3,})$/.exec(t);
+            if (r && Number(r[1]) <= Number(r[2])) return e.pr >= Number(r[1]) && e.pr <= Number(r[2]);
+            return hay.includes(t);
+        });
     });
+}
+
+// Is this date far from the other receipts of the same booklet? (a likely typo in month or year)
+export function dateFarFromBooklet(entries, pr, iso, excludeId = null, maxDays = 45) {
+    const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+    if (!ok(iso) || !(Number(pr) > 0)) return null;
+    const start = bookletStart(Number(pr));
+    const ds = entries.filter(e => e.id !== excludeId && bookletStart(Number(e.pr)) === start && ok(e.date)).map(e => e.date).sort();
+    if (ds.length < 3) return null;
+    const day = d => Date.parse(d + 'T00:00:00Z') / 86400000;
+    const usual = ds[Math.floor(ds.length / 2)];
+    const days = Math.round(Math.abs(day(iso) - day(usual)));
+    return days > maxDays ? { usual, days } : null;
 }
 
 // One output row per line item. Grand total is cumulative per line, as in the spreadsheet.

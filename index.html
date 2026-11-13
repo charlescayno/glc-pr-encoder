@@ -160,6 +160,7 @@
 
                         <div class="band band-desc">Description of Transaction / Nature of Service</div>
                         <div id="prWarn" class="warn hidden"></div>
+                        <div id="dateWarn" class="warn hidden"></div>
                         <div class="items-list" id="itemsList"></div>
                         <div class="items-add">
                             <button type="button" class="btn btn-secondary" id="addRowBtn" title="Add item (Alt+N)"><i class="ri-add-line"></i> Add item</button>
@@ -226,16 +227,31 @@
                 <div class="filters no-print">
                     <div class="search-bar">
                         <i class="ri-search-line search-icon"></i>
-                        <input type="text" id="searchInput" placeholder="Search PR no., buyer, item, MOP...">
+                        <input type="text" id="searchInput" placeholder="Search PR no., buyer, item, amount, MOP... (press /)" autocomplete="off">
+                        <button type="button" class="search-clear hidden" id="searchClear" title="Clear search (Esc)" aria-label="Clear search"><i class="ri-close-line"></i></button>
                     </div>
                     <select id="bookletFilter" class="booklet-select" title="Show one PR booklet (50 sheets)">
                         <option value="">All booklets</option>
+                    </select>
+                    <select id="monthFilter" class="booklet-select" title="Show one month">
+                        <option value="">All months</option>
+                    </select>
+                    <select id="mopFilter" class="booklet-select" title="Show one form of payment">
+                        <option value="">All payments</option>
+                        <option value="Cash">Cash</option>
+                        <option value="GCash">GCash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Others">Others</option>
+                        <option value="Split">Split</option>
                     </select>
                     <label class="inline-field"><span>From</span><input type="date" id="fromDate"></label>
                     <label class="inline-field"><span>To</span><input type="date" id="toDate"></label>
                     <label class="inline-field check-field"><input type="checkbox" id="uncheckedOnly"> <span>Unchecked only</span></label>
                     <button class="btn btn-secondary" id="clearFilterBtn">Reset</button>
                 </div>
+
+                <div class="filter-info no-print hidden" id="filterInfo"></div>
 
                 <div class="sel-bar no-print hidden" id="selBar">
                     <span id="selInfo"></span>

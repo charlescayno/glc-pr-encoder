@@ -1,6 +1,6 @@
 import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
 import { renderSalesSheet } from "./sales-sheet.js";
-import { itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
+import { dateFarFromBooklet, itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
@@ -102,12 +102,18 @@ function fieldError(el, msg) {
 }
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, undo) {
     const t = $("toast");
     t.textContent = msg;
+    if (undo) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "toast-undo"; b.textContent = "Undo";
+        b.addEventListener("click", () => { clearTimeout(toastTimer); t.classList.add("hidden"); undo(); });
+        t.appendChild(b);
+    }
     t.classList.remove("hidden");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.add("hidden"), 3000);
+    toastTimer = setTimeout(() => t.classList.add("hidden"), undo ? 8000 : 3000);
 }
 
 // ---------- Firestore sync ----------
@@ -279,6 +285,7 @@ function removeEntry(id) {
     saveLocal();
     refresh();
     deleteDoc(doc(col, id)).catch(remoteFail);
+    if (cur) toast(`PR #${cur.pr} deleted.`, () => { persist(cur); toast(`PR #${cur.pr} restored.`); });
 }
 
 // ---------- Form ----------
@@ -659,7 +666,17 @@ $("fMop").addEventListener("change", () => {
     else if (!$("refField").classList.contains("hidden")) $("fRef").focus();
 });
 // ---- Date entry: type digits only (0913 2026 -> 09-13-2026), or use Today / arrows ----
-function setDate(iso) { $("fDate").value = iso ? fmtDate(iso) : ""; }
+function setDate(iso) { $("fDate").value = iso ? fmtDate(iso) : ""; updateDateWarning(); }
+// Soft warning when the date is far from the booklet's usual month (typo in month or year). Returns the info or null.
+function updateDateWarning() {
+    const el = $("dateWarn");
+    if (!el) return null;
+    const iso = getDate();
+    const far = iso && $("fPr").value ? dateFarFromBooklet(entries, $("fPr").value, iso, editingId) : null;
+    if (far) el.textContent = `This date is ${far.days} days from the other receipts in this booklet (around ${fmtDate(far.usual)}). Check the month and year.`;
+    el.classList.toggle("hidden", !far);
+    return far;
+}
 function getDate() {
     const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec($("fDate").value.trim());
     if (!m) return "";
@@ -731,7 +748,9 @@ function completeYear() {
     const iso = getDate();
     if (iso) localStorage.setItem(LS_LAST_DATE, iso);
 }
-$("fDate").addEventListener("blur", completeYear);
+$("fDate").addEventListener("blur", () => { completeYear(); updateDateWarning(); });
+$("fDate").addEventListener("input", updateDateWarning);
+$("fPr").addEventListener("input", updateDateWarning);
 $("fDate").addEventListener("keydown", ev => { if (ev.key === "Enter") completeYear(); });
 $("fDate").addEventListener("focus", () => $("fDate").select());
 $("datePrev").addEventListener("click", () => shiftDate(-1));
@@ -906,6 +925,8 @@ $("prForm").addEventListener("submit", ev => {
     completeYear();
     $("itemsList").querySelectorAll(".item-name").forEach(applyShortcut); // e.g. submitted with Ctrl+Enter while still on "gte"
     if (!getDate()) { fieldError($("fDate"), "Enter a valid date as MM-DD-YYYY, for example 11-06-2026."); return; }
+    const far = updateDateWarning();
+    if (far && !confirm(`The date ${fmtDate(getDate())} is ${far.days} days away from the other receipts in this booklet (around ${fmtDate(far.usual)}).\n\nSave anyway?`)) { $("fDate").focus(); return; }
     const items = readItems().filter(i => i.desc);
     if (!items.length) { fieldError($("itemsList").querySelector(".item-name"), "Add at least one sold item (search, or type a shorthand like gte)."); return; }
     for (const i of items) {
@@ -940,9 +961,10 @@ $("prForm").addEventListener("submit", ev => {
     }
     const oldId = editingId;
     const wasEdit = !!editingId;
+    const prevEntry = wasEdit ? entries.find(e => e.id === oldId) : null;
     persist(entry, oldId);
     if (marks.some(m => Number(m.pr) === pr)) clearMark(pr); // a real receipt replaces a void / not-used mark
-    if (wasEdit) toast(`PR #${pr} updated.`);
+    if (wasEdit) toast(`PR #${pr} updated.`, prevEntry && (() => { persist({ ...prevEntry }, entry.id); toast(`PR #${prevEntry.pr} changes undone.`); }));
     else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is fully encoded - next sheet starts a new booklet.`);
     else toast(`PR #${pr} added.`);
     localStorage.setItem(LS_LAST_DATE, entry.date);
@@ -954,13 +976,13 @@ $("prForm").addEventListener("submit", ev => {
 
 // ---------- Output ----------
 function currentFilter() {
-    return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value, booklet: $("bookletFilter").value, unchecked: $("uncheckedOnly").checked };
+    return { q: $("searchInput").value, from: $("fromDate").value, to: $("toDate").value, booklet: $("bookletFilter").value, unchecked: $("uncheckedOnly").checked, mop: $("mopFilter").value, month: $("monthFilter").value };
 }
 function visibleRows() {
     const f = currentFilter();
     const rows = flatten(filterEntries(entries, f));
     // Void / not-used numbers belong in the sheet too, unless a search or date filter is narrowing it down.
-    return f.q.trim() || f.from || f.to || f.unchecked ? rows : withMarks(rows, marks, f);
+    return f.q.trim() || f.from || f.to || f.unchecked || f.mop || f.month ? rows : withMarks(rows, marks, f);
 }
 
 // Mark the PR number in the form as void (cancelled) or not used (blank / skipped), then move on.
@@ -1321,6 +1343,14 @@ function updateBookletOptions() {
     sel.innerHTML = `<option value="">All booklets</option>` +
         starts.map(s => `<option value="${s}">Booklet ${esc(bookletLabel(s))}</option>`).join("");
     sel.value = starts.includes(Number(prev)) ? prev : "";
+    const ms = $("monthFilter");
+    const pm = ms.value;
+    const months = [...new Set(entries.map(e => String(e.date || "").slice(0, 7)).filter(x => /^\d{4}-\d{2}$/.test(x)))].sort().reverse();
+    ms.innerHTML = `<option value="">All months</option>` + months.map(m => {
+        const [y, mo] = m.split("-").map(Number);
+        return `<option value="${m}">${new Date(y, mo - 1, 1).toLocaleString("en", { month: "long", year: "numeric" })}</option>`;
+    }).join("");
+    ms.value = months.includes(pm) ? pm : "";
 }
 
 function updateBookletHint() {
@@ -1336,7 +1366,13 @@ function afterRowsRendered(rows, shown, f) {
     $("emptyMsg").textContent = entries.length ? "No receipts match the filter." : "No receipts encoded yet.";
     const total = rows.length ? rows[rows.length - 1].grand : 0;
     $("valAmount").textContent = peso(total);
-    $("valSub").textContent = `${shown.length} receipt${shown.length === 1 ? "" : "s"}` + (f.q || f.from || f.to || f.booklet ? " (filtered)" : "");
+    $("valSub").textContent = `${shown.length} receipt${shown.length === 1 ? "" : "s"}` + (f.q.trim() || f.from || f.to || f.booklet || f.unchecked || f.mop || f.month ? " (filtered)" : "");
+    const active = !!(f.q.trim() || f.from || f.to || f.booklet || f.unchecked || f.mop || f.month);
+    const info = $("filterInfo");
+    info.classList.toggle("hidden", !active);
+    if (active) info.textContent = `${shown.length} of ${entries.length} receipts match - ${peso(total)}`;
+    $("clearFilterBtn").classList.toggle("btn-active", active);
+    $("searchClear").classList.toggle("hidden", !$("searchInput").value);
     const range = f.from || f.to ? `${f.from ? fmtDate(f.from) : "start"} to ${f.to ? fmtDate(f.to) : "latest"}` : "All dates";
     const bk = f.booklet ? `Booklet ${bookletLabel(Number(f.booklet))} - ` : "";
     $("printTitle").textContent = `PR Summary - ${bk}${range} - Total ${peso(total)}`;
@@ -1387,6 +1423,7 @@ $("selDelete").addEventListener("click", async () => {
     const list = starts.map(s => `  Booklet ${bookletLabel(s)}: ${bookletReceiptCount(s)} receipts`).join("\n");
     if (!confirm(`Delete ${starts.length} whole booklet${starts.length === 1 ? "" : "s"} with ${ents.length} receipts, ${mks.length} void / not-used marks and their cash counts?\n\n${list}\n\nThis cannot be undone.`)) return;
     if (!confirm("Really delete? Consider downloading a CSV or the booklet PDFs first.")) return;
+    const priorCash = starts.map(s => [s, loadCashCount(s)]);
     const entIds = new Set(ents.map(e => e.id));
     const mkIds = new Set(mks.map(m => m.id || `pr_${m.pr}`));
     const editingGone = editingId && entIds.has(editingId);
@@ -1406,7 +1443,23 @@ $("selDelete").addEventListener("click", async () => {
             ...starts.map(s => doc(cashCountsCol, cashDocId(s))),
         ]);
     } catch (e) { remoteFail(e); return; }
-    toast(`Deleted ${starts.length} booklet${starts.length === 1 ? "" : "s"} (${ents.length} receipts).`);
+    toast(`Deleted ${starts.length} booklet${starts.length === 1 ? "" : "s"} (${ents.length} receipts).`, async () => {
+        entries = entries.filter(e => !entIds.has(e.id)).concat(ents);
+        marks = marks.filter(m => !mkIds.has(m.id || `pr_${m.pr}`)).concat(mks);
+        localStorage.setItem(LS_MARKS, JSON.stringify(marks));
+        saveLocal();
+        priorCash.forEach(([s, c]) => { if (Object.keys(c).length) saveCashCount(s, c); });
+        refresh();
+        try {
+            const sets = [...ents.map(({ id, ...d }) => [doc(col, id), d]), ...mks.map(({ id, ...d }) => [doc(marksCol, id || `pr_${d.pr}`), d])];
+            for (let i = 0; i < sets.length; i += 400) {
+                const batch = writeBatch(db);
+                sets.slice(i, i + 400).forEach(([r, d]) => batch.set(r, d));
+                await batch.commit();
+            }
+        } catch (e) { remoteFail(e); return; }
+        toast(`Restored ${starts.length} booklet${starts.length === 1 ? "" : "s"} (${ents.length} receipts).`);
+    });
 });
 
 $("outBody").addEventListener("click", ev => {
@@ -1439,7 +1492,12 @@ $("outBody").addEventListener("click", ev => {
         return;
     }
     if (b.dataset.lock) toggleLock(Number(b.dataset.lock));
-    if (b.dataset.unmark) clearMark(Number(b.dataset.unmark));
+    if (b.dataset.unmark) {
+        const pr = Number(b.dataset.unmark);
+        const m = marks.find(x => Number(x.pr) === pr);
+        clearMark(pr);
+        if (m && !isLocked(pr)) toast(`Mark on PR #${pr} removed.`, () => { setMark(pr, m.status); toast(`PR #${pr} marked ${markLabel(m.status)} again.`); });
+    }
     if (b.dataset.review) openReview(Number(b.dataset.review), b.dataset.first === "1");
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {
@@ -1451,10 +1509,21 @@ $("outBody").addEventListener("click", ev => {
     }
 });
 
-["searchInput", "fromDate", "toDate", "bookletFilter"].forEach(id => $(id).addEventListener("input", refresh));
+["fromDate", "toDate", "bookletFilter", "monthFilter", "mopFilter"].forEach(id => $(id).addEventListener("input", refresh));
+let searchTimer;
+$("searchInput").addEventListener("input", () => { clearTimeout(searchTimer); $("searchClear").classList.toggle("hidden", !$("searchInput").value); searchTimer = setTimeout(refresh, 150); });
+$("searchInput").addEventListener("keydown", ev => { if (ev.key === "Escape" && $("searchInput").value) { ev.stopPropagation(); $("searchInput").value = ""; refresh(); } });
+$("searchClear").addEventListener("click", () => { $("searchInput").value = ""; refresh(); $("searchInput").focus(); });
+document.addEventListener("keydown", ev => {
+    if (ev.key !== "/" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const t = ev.target, tag = t && t.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+    if (document.querySelector(".review-overlay:not(.hidden), .modal-overlay:not(.hidden)")) return;
+    ev.preventDefault(); $("searchInput").focus(); $("searchInput").select();
+});
 $("uncheckedOnly").addEventListener("change", refresh);
 $("clearFilterBtn").addEventListener("click", () => {
-    $("searchInput").value = ""; $("fromDate").value = ""; $("toDate").value = ""; $("bookletFilter").value = ""; $("uncheckedOnly").checked = false; refresh();
+    $("searchInput").value = ""; $("fromDate").value = ""; $("toDate").value = ""; $("bookletFilter").value = ""; $("monthFilter").value = ""; $("mopFilter").value = ""; $("uncheckedOnly").checked = false; refresh();
 });
 
 $("copyBtn").addEventListener("click", async () => {
