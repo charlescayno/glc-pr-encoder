@@ -1185,6 +1185,43 @@ $("bkSummary").addEventListener("click", ev => {
     $("outputCard").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+// Write many entry docs in batches of 400.
+async function commitEntrySets(list) {
+    try {
+        for (let i = 0; i < list.length; i += 400) {
+            const batch = writeBatch(db);
+            list.slice(i, i + 400).forEach(({ id, ...data }) => batch.set(doc(col, id), data));
+            await batch.commit();
+        }
+    } catch (e) { remoteFail(e); }
+}
+
+// For booklets that were already checked against the paper (and cash counted) outside the app:
+// tick every receipt as checked in one go, after two confirmations. Undo restores the previous state.
+function markBookletReviewed(start) {
+    if (isLocked(start)) return lockedToast();
+    const list = entries.filter(e => bookletStart(e.pr) === start && !e.checkedAt);
+    if (!list.length) return toast("Every receipt in this booklet is already checked.");
+    const label = bookletLabel(start);
+    const missing = reviewProgress(reviewSequence(entries, marks, start)).missing;
+    if (!confirm(`Mark booklet ${label} as fully reviewed?\n\n${list.length} receipt${list.length === 1 ? "" : "s"} will be ticked as checked without going through them one by one. Only do this if the booklet was already checked against the paper sheets and the cash was counted.` +
+        (missing ? `\n\nNote: ${missing} PR number${missing === 1 ? " is" : "s are"} still missing (mark them Void or Not used to finish the review).` : ""))) return;
+    if (!confirm(`Final check: complete the review of booklet ${label}?\n\nThis marks ${list.length} receipt${list.length === 1 ? "" : "s"} as checked now. You can press Undo for a few seconds, or use "Review again" later.`)) return;
+    const now = Date.now();
+    const ids = new Set(list.map(e => e.id));
+    entries = entries.map(e => ids.has(e.id) ? { ...e, checkedAt: now } : e);
+    saveLocal();
+    refresh();
+    commitEntrySets(entries.filter(e => ids.has(e.id)));
+    toast(`Booklet ${label}: ${list.length} receipt${list.length === 1 ? "" : "s"} marked reviewed.`, () => {
+        entries = entries.map(e => ids.has(e.id) ? list.find(o => o.id === e.id) : e);
+        saveLocal();
+        refresh();
+        commitEntrySets(list);
+        toast(`Booklet ${label}: review undone.`);
+    });
+}
+
 function bookletHeaderHtml(start, rowsInBooklet) {
     const st = bookletStats(entries, start, marks);
     const prog = reviewProgress(reviewSequence(entries, marks, start));
@@ -1225,6 +1262,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                         <span class="bk-total" title="Booklet total">${peso(sales)}</span>
                     </div>
                     <span class="bk-actions">
+                        ${!reviewedAll && !bkLocked && prog.unchecked > 0 ? `<button type="button" class="btn btn-secondary" data-markreviewed="${start}" title="Already checked against the paper and cash counted? Mark every receipt in this booklet as reviewed (asks twice)."><i class="ri-check-double-line"></i> Mark reviewed</button>` : ""}
                         <button type="button" class="btn btn-secondary" data-review="${start}"${reviewedAll ? ' data-first="1"' : ""} title="${reviewedAll ? "Everything is checked. Go through the PRs again from the first one." : "Check each PR in this booklet against the paper sheets"}"><i class="${reviewedAll ? "ri-restart-line" : "ri-checkbox-circle-line"}"></i> ${reviewedAll ? "Review again" : "Review"}</button>
                         <button type="button" class="btn btn-icon-only ${bkLocked ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${bkLocked ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}" aria-label="${bkLocked ? "Unlock booklet" : "Lock booklet"}"><i class="${bkLocked ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i></button>
                     </span>
@@ -1500,6 +1538,7 @@ $("outBody").addEventListener("click", ev => {
         clearMark(pr);
         if (m && !isLocked(pr)) toast(`Mark on PR #${pr} removed.`, () => { setMark(pr, m.status); toast(`PR #${pr} marked ${markLabel(m.status)} again.`); });
     }
+    if (b.dataset.markreviewed) markBookletReviewed(Number(b.dataset.markreviewed));
     if (b.dataset.review) openReview(Number(b.dataset.review), b.dataset.first === "1");
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {
