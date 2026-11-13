@@ -42,6 +42,8 @@ const LS_MARKS = "pre_marks_v1";
 let marks = (() => { try { return JSON.parse(localStorage.getItem(LS_MARKS)) || []; } catch { return []; } })();
 let rv = null;                // review session: { start, pr, summary, viewOnly }
 let reviewEditing = false;    // the encoder card is open as a dialog inside the review
+let viewMode = localStorage.getItem("pre_view") === "cards" ? "cards" : "table"; // output: table rows or booklet cards
+let cardMonth = null;
 let splitOn = false;          // split payment (part cash, part online) for the current form
 let splitAnchor = "cash";     // which split amount the user typed last; the other is calculated
 let formSum = 0;              // current receipt total
@@ -1197,6 +1199,137 @@ $("bkSummary").addEventListener("click", ev => {
     $("outputCard").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+// ---------- Cards view: month tabs + one card per booklet with its 50 PR squares ----------
+function applyViewClasses() {
+    const cards = viewMode === "cards";
+    $("cardsView").classList.toggle("hidden", !cards);
+    $("tableWrap").classList.toggle("hidden", cards);
+    $("collapseBtn").classList.toggle("hidden", cards);
+    $("viewTable").className = "btn " + (cards ? "btn-secondary" : "btn-primary");
+    $("viewCards").className = "btn " + (cards ? "btn-primary" : "btn-secondary");
+}
+function setView(mode) {
+    viewMode = mode;
+    localStorage.setItem("pre_view", mode);
+    applyViewClasses();
+    refresh();
+}
+$("viewTable").addEventListener("click", () => setView("table"));
+$("viewCards").addEventListener("click", () => setView("cards"));
+applyViewClasses();
+
+function bookletMonthOf(start) {
+    let m = "";
+    entries.forEach(e => { if (bookletStart(e.pr) === start) { const x = String(e.date || "").slice(0, 7); if (x > m) m = x; } });
+    return m;
+}
+
+function prStripHtml(start) {
+    const byPr = new Map(entries.filter(e => bookletStart(e.pr) === start).map(e => [Number(e.pr), e]));
+    const markBy = new Map(marks.filter(m => bookletStart(m.pr) === start).map(m => [Number(m.pr), m]));
+    const nums = [...byPr.keys(), ...markBy.keys()];
+    const highest = nums.length ? Math.max(...nums) : start - 1;
+    let out = "";
+    for (let n = start; n < start + BOOKLET_SIZE; n++) {
+        let cls, tip;
+        if (byPr.has(n)) {
+            const e = byPr.get(n);
+            cls = e.checkedAt ? "ok" : "enc";
+            tip = `PR #${n} - ${e.checkedAt ? "checked" : "encoded, not checked yet"} - ${peso(entryTotal(e))}`;
+        } else if (markBy.has(n)) {
+            const st = markBy.get(n).status;
+            cls = st === "void" ? "void" : "unused";
+            tip = `PR #${n} - ${markLabel(st)}`;
+        } else if (n < highest) { cls = "miss"; tip = `PR #${n} - missing (not encoded, not marked)`; }
+        else { cls = "future"; tip = `PR #${n} - not used yet`; }
+        out += `<button type="button" class="sq ${cls}" data-sq="${n}" data-start="${start}" title="${esc(tip)}" aria-label="${esc(tip)}"></button>`;
+    }
+    return out;
+}
+
+function bookletCardHtml(start, rows) {
+    const st = bookletStats(entries, start, marks);
+    const prog = reviewProgress(reviewSequence(entries, marks, start));
+    const reviewedAll = prog.done && prog.entries > 0;
+    const allChecked = reviewedAll && st.complete;
+    const bkLocked = locks.includes(start);
+    const sales = rows.reduce((t, r) => round2(t + (Number(r.total) || 0)), 0);
+    const split = paymentSplit(rows);
+    const actions = `<button type="button" class="btn btn-secondary" data-review="${start}"${reviewedAll ? ' data-first="1"' : ""}><i class="${reviewedAll ? "ri-restart-line" : "ri-checkbox-circle-line"}"></i> ${reviewedAll ? "Review again" : "Review"}</button>` +
+        (bkLocked
+            ? `<button type="button" class="btn btn-icon-only btn-locked" data-lock="${start}" title="Locked. Click to unlock." aria-label="Unlock booklet"><i class="ri-lock-fill"></i></button>`
+            : `<button type="button" class="btn btn-secondary btn-icon-only" data-bkmenu="${start}" data-canmark="${!reviewedAll && prog.unchecked > 0 ? 1 : 0}" title="More actions" aria-haspopup="menu" aria-label="More actions"><i class="ri-more-2-fill"></i></button>`);
+    const missing = st.missing.length ? `<span class="bk-missing" title="Missing sheets: ${esc(st.missing.join(", "))}"><i class="ri-error-warning-line"></i> Missing ${st.missing.length}</span>` : "";
+    return `
+        <div class="cv-card${bkLocked ? " locked" : ""}${allChecked ? " verified" : ""}" data-start="${start}">
+            <div class="cv-top">
+                <strong>${bkLocked ? `<i class="ri-lock-fill"></i> ` : ""}Booklet ${esc(bookletLabel(start))}</strong>
+                <span class="bk-count">${st.used} / ${BOOKLET_SIZE} sheets</span>
+                <button type="button" class="btn btn-secondary btn-sm cv-open" data-open="${start}" title="Show this booklet's receipts in the table"><i class="ri-table-line"></i> Rows</button>
+            </div>
+            <div class="sq-strip">${prStripHtml(start)}</div>
+            <div class="cv-meta">
+                <span class="bk-badge ${allChecked ? "verified" : st.complete ? "done" : ""}">${allChecked ? `<i class="ri-checkbox-circle-fill"></i> ` : ""}Checked ${prog.checked}/${prog.entries}</span>
+                ${cashBadgeHtml(start)}
+                ${missing}
+            </div>
+            <div class="cv-pay">
+                <span class="pay cash"><i class="ri-money-dollar-circle-line"></i> Cash <b>${peso(split.cash)}</b></span>
+                <span class="pay online"><i class="ri-smartphone-line"></i> Online <b>${peso(split.online)}</b></span>
+                <span class="bk-total">${peso(sales)}</span>
+            </div>
+            <div class="cv-actions">${actions}</div>
+        </div>`;
+}
+
+function renderCards(monthKeys, monthMap, byBooklet) {
+    const box = $("cardsView");
+    if (viewMode !== "cards") { box.innerHTML = ""; return; }
+    if (!monthKeys.length) { box.innerHTML = `<div class="empty-msg">${entries.length ? "No receipts match the filter." : "No receipts encoded yet."}</div>`; return; }
+    if (!monthKeys.includes(cardMonth)) cardMonth = [...monthKeys].filter(Boolean).sort().pop() || monthKeys[0];
+    const tabs = monthKeys.map(m => {
+        const starts = monthMap.get(m);
+        let verified = 0;
+        for (const bs of starts) {
+            const st = bookletStats(entries, bs, marks);
+            const pg = reviewProgress(reviewSequence(entries, marks, bs));
+            if (pg.done && pg.entries > 0 && st.complete) verified++;
+        }
+        const sales = starts.flatMap(bs => byBooklet.get(bs) || []).reduce((t, r) => round2(t + (Number(r.total) || 0)), 0);
+        return `<button type="button" class="cv-tab${m === cardMonth ? " active" : ""}${verified === starts.length ? " all" : ""}" data-cmonth="${esc(m)}">
+            <strong>${esc(monthLabel(m))}</strong>
+            <span>${verified === starts.length ? "&#10003; " : ""}${verified}/${starts.length} verified</span>
+            <span>${peso(sales)}</span></button>`;
+    }).join("");
+    const legend = `<div class="sq-legend"><span><i class="sq ok"></i> Checked</span><span><i class="sq enc"></i> Encoded</span><span><i class="sq void"></i> Void</span><span><i class="sq unused"></i> Not used</span><span><i class="sq miss"></i> Missing</span><span><i class="sq future"></i> Not yet</span></div>`;
+    box.innerHTML = `<div class="cv-tabs">${tabs}</div>${legend}<div class="cv-grid">${(monthMap.get(cardMonth) || []).map(bs => bookletCardHtml(bs, byBooklet.get(bs) || [])).join("")}</div>`;
+}
+
+// Jump from a card (or one PR square) to the matching rows in the table view.
+function openRows(start, pr) {
+    const m = bookletMonthOf(start);
+    collapsedMonths.delete(m);
+    collapsedBooklets.delete(start);
+    setView("table");
+    const target = pr
+        ? document.querySelector(`[data-edit="pr_${pr}"], [data-unmark="${pr}"]`)?.closest("tr")
+        : null;
+    const el = target || document.querySelector(`tr.booklet-head[data-booklet="${start}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (target) { target.classList.add("row-flash"); setTimeout(() => target.classList.remove("row-flash"), 2500); }
+}
+$("cardsView").addEventListener("click", ev => {
+    const t = ev.target.closest("[data-cmonth], [data-review], [data-bkmenu], [data-lock], [data-open], [data-sq]");
+    if (!t) return;
+    if (t.dataset.cmonth !== undefined) { cardMonth = t.dataset.cmonth; refresh(); }
+    else if (t.dataset.review) openReview(Number(t.dataset.review), t.dataset.first === "1");
+    else if (t.dataset.bkmenu) openBkMenu(t);
+    else if (t.dataset.lock) toggleLock(Number(t.dataset.lock));
+    else if (t.dataset.open) openRows(Number(t.dataset.open));
+    else if (t.dataset.sq) openRows(Number(t.dataset.start), Number(t.dataset.sq));
+});
+
 // "..." menu on a booklet header: less common actions, so Review stays the one obvious button.
 let bkMenuEl = null;
 function closeBkMenu() { if (bkMenuEl) { bkMenuEl.remove(); bkMenuEl = null; } }
@@ -1358,7 +1491,7 @@ function refresh() {
     const monthKeys = [...monthMap.keys()].sort((x, y) => (x === "") - (y === "") || (prSortDesc ? y.localeCompare(x) : x.localeCompare(y)));
     renderedStarts = [...itemsByBooklet.keys()];
     let html = "";
-    for (const m of monthKeys) {
+    for (const m of (viewMode === "table" ? monthKeys : [])) {
         const starts = monthMap.get(m);
         html += monthHeaderHtml(m, starts, byBooklet);
         if (collapsedMonths.has(m)) continue;
@@ -1369,6 +1502,7 @@ function refresh() {
         }
     }
     body.innerHTML = html;
+    renderCards(monthKeys, monthMap, byBooklet);
     const starts = allBookletStarts();
     const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s)) && monthKeys.every(m => collapsedMonths.has(m));
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";

@@ -204,6 +204,10 @@
                 <div class="card-head">
                     <h2>Output</h2>
                     <div class="out-actions no-print">
+                        <div class="btn-group view-toggle" role="group" aria-label="View">
+                            <button type="button" class="btn btn-primary" id="viewTable" title="Table view: every receipt row"><i class="ri-table-line"></i><span class="desktop-only">Table</span></button>
+                            <button type="button" class="btn btn-secondary" id="viewCards" title="Cards view: one card per booklet with its 50 PR numbers"><i class="ri-layout-grid-line"></i><span class="desktop-only">Cards</span></button>
+                        </div>
                         <button class="btn btn-secondary" id="collapseBtn" title="Collapse or expand every booklet"><i class="ri-contract-up-down-line"></i><span class="desktop-only" id="collapseText">Collapse all</span></button>
                         <button class="btn btn-secondary" id="sortBtn" title="Sort booklets and PR numbers: low to high or high to low"><i class="ri-sort-asc"></i><span class="desktop-only" id="sortText">PR no. low-high</span></button>
                         <button class="btn btn-secondary" id="selectAllBtn" title="Select or unselect every booklet shown"><i class="ri-checkbox-multiple-line"></i><span class="desktop-only" id="selectAllText">Select all</span></button>
@@ -251,7 +255,9 @@
 
                 <div class="print-title" id="printTitle"></div>
 
-                <div class="table-container">
+                <div class="cards-view no-print hidden" id="cardsView"></div>
+
+                <div class="table-container" id="tableWrap">
                     <table id="outTable">
                         <thead>
                             <tr>
