@@ -1018,6 +1018,15 @@ function monthHeaderHtml(m, starts, byBooklet) {
     const sales = rows.reduce((t, r) => round2(t + (Number(r.total) || 0)), 0);
     const receipts = new Set(rows.filter(r => !r.mark).map(r => r.pr)).size;
     const collapsed = collapsedMonths.has(m);
+    let verified = 0, checkedN = 0, entryN = 0;
+    for (const bs of starts) {
+        const st = bookletStats(entries, bs, marks);
+        const pg = reviewProgress(reviewSequence(entries, marks, bs));
+        checkedN += pg.checked; entryN += pg.entries;
+        if (pg.done && pg.entries > 0 && st.complete) verified++;
+    }
+    const split = paymentSplit(rows);
+    const vCls = verified === starts.length ? " all" : "";
     return `
         <tr class="month-head" data-month="${esc(m)}" title="Click to ${collapsed ? "expand" : "collapse"} ${esc(monthLabel(m))}">
             <td colspan="10">
@@ -1025,6 +1034,9 @@ function monthHeaderHtml(m, starts, byBooklet) {
                     <i class="${collapsed ? "ri-arrow-right-s-line" : "ri-arrow-down-s-line"} bk-chevron"></i>
                     <strong>${esc(monthLabel(m))}</strong>
                     <span class="bk-count">${starts.length} booklet${starts.length === 1 ? "" : "s"}, ${receipts} receipt${receipts === 1 ? "" : "s"}</span>
+                    <span class="mh-badge${vCls}" title="Booklets fully encoded and fully checked: ${verified} of ${starts.length}. Receipts checked: ${checkedN} of ${entryN}.">${verified === starts.length ? `<i class="ri-checkbox-circle-fill"></i> ` : ""}Verified ${verified}/${starts.length} \u00B7 Checked ${checkedN}/${entryN}</span>
+                    <span class="mh-pay" title="Cash payments"><i class="ri-money-dollar-circle-line"></i> Cash <b>${peso(split.cash)}</b></span>
+                    <span class="mh-pay" title="Online payments"><i class="ri-smartphone-line"></i> Online <b>${peso(split.online)}</b></span>
                     <span class="bk-total mh-total" title="Sales this month">${peso(sales)}</span>
                 </div>
             </td>
@@ -1185,6 +1197,40 @@ $("bkSummary").addEventListener("click", ev => {
     $("outputCard").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+// "..." menu on a booklet header: less common actions, so Review stays the one obvious button.
+let bkMenuEl = null;
+function closeBkMenu() { if (bkMenuEl) { bkMenuEl.remove(); bkMenuEl = null; } }
+function openBkMenu(btn) {
+    const start = Number(btn.dataset.bkmenu);
+    const wasOpen = bkMenuEl && bkMenuEl.dataset.start === String(start);
+    closeBkMenu();
+    if (wasOpen) return;
+    const m = document.createElement("div");
+    m.className = "bk-menu no-print";
+    m.setAttribute("role", "menu");
+    m.dataset.start = String(start);
+    m.innerHTML = (btn.dataset.canmark === "1" ? `<button type="button" role="menuitem" data-act="mark"><i class="ri-check-double-line"></i> Mark reviewed<small>Already checked and cash counted</small></button>` : "") +
+        `<button type="button" role="menuitem" data-act="lock"><i class="ri-lock-line"></i> Lock booklet<small>Nothing can be changed</small></button>`;
+    document.body.appendChild(m);
+    const r = btn.getBoundingClientRect();
+    const h = m.offsetHeight, w = m.offsetWidth;
+    m.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + "px";
+    m.style.top = (r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + "px";
+    m.addEventListener("click", ev => {
+        const x = ev.target.closest("button[data-act]");
+        if (!x) return;
+        closeBkMenu();
+        if (x.dataset.act === "mark") markBookletReviewed(start);
+        else if (x.dataset.act === "lock") toggleLock(start);
+    });
+    bkMenuEl = m;
+    m.querySelector("button").focus({ preventScroll: true });
+}
+document.addEventListener("mousedown", ev => { if (bkMenuEl && !ev.target.closest(".bk-menu, [data-bkmenu]")) closeBkMenu(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape" && bkMenuEl) { ev.stopPropagation(); closeBkMenu(); } }, true);
+window.addEventListener("resize", closeBkMenu);
+window.addEventListener("scroll", closeBkMenu, true);
+
 // Write many entry docs in batches of 400.
 async function commitEntrySets(list) {
     try {
@@ -1262,9 +1308,10 @@ function bookletHeaderHtml(start, rowsInBooklet) {
                         <span class="bk-total" title="Booklet total">${peso(sales)}</span>
                     </div>
                     <span class="bk-actions">
-                        ${!reviewedAll && !bkLocked && prog.unchecked > 0 ? `<button type="button" class="btn btn-secondary" data-markreviewed="${start}" title="Already checked against the paper and cash counted? Mark every receipt in this booklet as reviewed (asks twice)."><i class="ri-check-double-line"></i> Mark reviewed</button>` : ""}
                         <button type="button" class="btn btn-secondary" data-review="${start}"${reviewedAll ? ' data-first="1"' : ""} title="${reviewedAll ? "Everything is checked. Go through the PRs again from the first one." : "Check each PR in this booklet against the paper sheets"}"><i class="${reviewedAll ? "ri-restart-line" : "ri-checkbox-circle-line"}"></i> ${reviewedAll ? "Review again" : "Review"}</button>
-                        <button type="button" class="btn btn-icon-only ${bkLocked ? "btn-locked" : "btn-secondary"}" data-lock="${start}" title="${bkLocked ? "Locked: nothing in this booklet can be changed. Click to unlock." : "Lock this booklet so it cannot be changed"}" aria-label="${bkLocked ? "Unlock booklet" : "Lock booklet"}"><i class="${bkLocked ? "ri-lock-fill" : "ri-lock-unlock-line"}"></i></button>
+                        ${bkLocked
+                            ? `<button type="button" class="btn btn-icon-only btn-locked" data-lock="${start}" title="Locked: nothing in this booklet can be changed. Click to unlock." aria-label="Unlock booklet"><i class="ri-lock-fill"></i></button>`
+                            : `<button type="button" class="btn btn-secondary btn-icon-only" data-bkmenu="${start}" data-canmark="${!reviewedAll && prog.unchecked > 0 ? 1 : 0}" title="More actions" aria-haspopup="menu" aria-label="More actions"><i class="ri-more-2-fill"></i></button>`}
                     </span>
                 </div>
             </td>
@@ -1538,6 +1585,7 @@ $("outBody").addEventListener("click", ev => {
         clearMark(pr);
         if (m && !isLocked(pr)) toast(`Mark on PR #${pr} removed.`, () => { setMark(pr, m.status); toast(`PR #${pr} marked ${markLabel(m.status)} again.`); });
     }
+    if (b.dataset.bkmenu) { openBkMenu(b); return; }
     if (b.dataset.markreviewed) markBookletReviewed(Number(b.dataset.markreviewed));
     if (b.dataset.review) openReview(Number(b.dataset.review), b.dataset.first === "1");
     if (b.dataset.edit) startEdit(b.dataset.edit);
