@@ -6,7 +6,7 @@ function bookletRows(s, bookEntries) {
     const marks = [...(s.void || []).map(pr => ({ pr, status: "void" })), ...(s.unused || []).map(pr => ({ pr, status: "unused" }))];
     return withMarks(flatten(bookEntries), marks, {});
 }
-const markNote = status => status === "void" ? "Cancelled sheet, no sale" : "Blank or skipped sheet";
+const markNote = status => status === "void" ? "Cancelled sheet, no sale" : "";
 // Table cells of a mark row: PR number, the VOID / NOT USED tag in the buyer column and the note in the items column.
 const markCells = r => ["", r.pr, markLabel(r.status), markNote(r.status), "", "", "", "", ""];
 
