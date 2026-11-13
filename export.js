@@ -1,5 +1,14 @@
 // Booklet exports: TOP Sheet PDF, PR Booklet Summary PDF and XLSX. Libraries are bundled in ./vendor and load on demand (cached for offline use).
-import { flatten, money, round2, itemColor, categoryGroups } from "./logic.js";
+import { flatten, money, round2, itemColor, categoryGroups, withMarks, markLabel } from "./logic.js";
+
+// Receipt rows plus a row for every void / not-used PR number of the booklet, in PR order (s.void / s.unused come from markSummary).
+function bookletRows(s, bookEntries) {
+    const marks = [...(s.void || []).map(pr => ({ pr, status: "void" })), ...(s.unused || []).map(pr => ({ pr, status: "unused" }))];
+    return withMarks(flatten(bookEntries), marks, {});
+}
+const markNote = status => status === "void" ? "Cancelled sheet, no sale" : "Blank or skipped sheet";
+// Table cells of a mark row: PR number, the VOID / NOT USED tag in the buyer column and the note in the items column.
+const markCells = r => ["", r.pr, markLabel(r.status), markNote(r.status), "", "", "", "", ""];
 
 const LIBS = {
     jspdf: "./vendor/jspdf.umd.min.js",
@@ -135,9 +144,10 @@ export async function viewBookletPdf(s, bookEntries, counts, preparedBy, win) {
 
 // Booklet summary: every receipt row, cash/online totals, cash count and signature lines.
 function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
-    const rows = flatten(bookEntries);
-    const online = rows.map(r => !!r.mop && r.mop.trim().toLowerCase() !== "cash");
+    const rows = bookletRows(s, bookEntries);
+    const online = rows.map(r => !r.mark && !!r.mop && r.mop.trim().toLowerCase() !== "cash");
     const body = rows.map(r => {
+        if (r.mark) return markCells(r);
         const mop = r.first && r.mop && r.mop !== "Cash" ? r.mop : "";
         return [r.first ? mdy(r.entry.date) : "", r.first ? r.pr : "", r.first ? r.buyer : "", r.desc, qtyText(r.qty), money(r.price), money(r.total), money(r.grand), mop];
     });
@@ -149,7 +159,9 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
         rowPageBreak: "avoid",
         // Invoice / online payment receipts (every item row of the receipt) are highlighted blue.
         didParseCell: d => {
-            centerHead(d); colorItem(d, 3);
+            centerHead(d);
+            if (d.section === "body" && rows[d.row.index].mark) { d.cell.styles.fontStyle = "italic"; d.cell.styles.textColor = [90, 100, 115]; d.cell.styles.fillColor = [240, 240, 240]; return; }
+            colorItem(d, 3);
             if (d.section === "body" && online[d.row.index]) d.cell.styles.fillColor = [189, 215, 255];
         },
     });
@@ -287,14 +299,14 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
     // ---- Sheet 2: PR Booklet ----
     const bk = wb.addWorksheet("PR Booklet", { pageSetup: letter });
     bk.columns = [{ width: 12 }, { width: 12 }, { width: 16 }, { width: 24 }, { width: 8 }, { width: 13 }, { width: 13 }, { width: 14 }, { width: 34 }];
-    const rows = flatten(bookEntries);
-    const body = rows.map(x => [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
+    const rows = bookletRows(s, bookEntries);
+    const body = rows.map(x => x.mark ? markCells(x) : [x.first ? mdy(x.entry.date) : "", x.first ? x.pr : "", x.first ? x.buyer : "", x.desc, x.qty, x.price, x.total, x.grand,
         x.first && x.mop && x.mop !== "Cash" ? x.mop : ""]);
     // Invoice / online payment receipts are highlighted blue, on every item row of the receipt.
-    const fills = rows.map(x => (!!x.mop && x.mop.trim().toLowerCase() !== "cash") ? BLUE : null);
+    const fills = rows.map(x => x.mark ? GREY : (!!x.mop && x.mop.trim().toLowerCase() !== "cash") ? BLUE : null);
     r = writeTable(bk, 1, 1, ["DATE", "PR NUMBER", "BUYER", "SOLD ITEMS", "QTY", "UNIT PRICE", "TOTAL", "GRAND TOTAL", ""], body, null,
         [null, null, null, null, QTY, NUM, NUM, NUM, null], fills);
-    rows.forEach((x, i) => colorItemCell(bk.getCell(2 + i, 4), x.desc));
+    rows.forEach((x, i) => { if (!x.mark) colorItemCell(bk.getCell(2 + i, 4), x.desc); });
     bk.getCell(r, 1).value = "*** NOTHING FOLLOWS ***";
     bk.mergeCells(r, 1, r, 9);
     bk.getCell(r, 1).font = { bold: true };
