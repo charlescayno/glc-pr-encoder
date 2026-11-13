@@ -225,7 +225,8 @@ export function paymentSplit(rows) {
 }
 
 function entryHasMop(e, mop) {
-    const same = m => m === mop || (mop === 'Cheque' && m === 'Check');
+    // "Online Payment" = any non-cash method (GCash, bank transfer, invoice, ...).
+    const same = m => mop === 'Online Payment' ? !!m && m !== 'Cash' && m !== 'Split' : (m === mop || (mop === 'Cheque' && m === 'Check'));
     return same(e.mop) || (e.payments || []).some(p => same(p.method));
 }
 

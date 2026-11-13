@@ -503,10 +503,8 @@ function recalcSplit() {
 function toggleSplit(on) {
     splitOn = on;
     $("splitPanel").classList.toggle("hidden", !on);
-    $("fMop").disabled = on;
-    $("splitBtnText").textContent = on ? "Single payment" : "Split payment";
-    $("splitBtn").classList.toggle("btn-primary", on);
-    $("splitBtn").classList.toggle("btn-secondary", !on);
+    if (on) $("fMop").value = "Split";
+    else if ($("fMop").value === "Split") $("fMop").value = "Cash";
     if (on) {
         $("refField").classList.add("hidden");
         $("fRef").value = ""; $("bankField").classList.add("hidden"); $("fBank").value = "";
@@ -527,7 +525,6 @@ function updateSplitRefLabel() {
     $("sBankField").classList.toggle("hidden", !bank);
     if (!bank) $("sBank").value = "";
 }
-$("splitBtn").addEventListener("click", () => { toggleSplit(!splitOn); if (splitOn) $("sCash").focus(); });
 $("sCash").addEventListener("input", () => { splitAnchor = "cash"; recalcSplit(); });
 $("sOnline").addEventListener("input", () => { splitAnchor = "online"; recalcSplit(); });
 $("sMethod").addEventListener("change", () => { updateSplitRefLabel(); (($("sMethod").value === "Bank Transfer") ? $("sBank") : $("sRef")).focus(); });
@@ -598,7 +595,7 @@ function resetForm() {
     $("fMop").value = "Cash";
     $("fRef").value = "";
     toggleSplit(false);
-    $("sMethod").value = "GCash";
+    $("sMethod").value = "Online Payment";
     $("itemsList").innerHTML = "";
     addItemRow();
     $("formTitle").textContent = "New Provisional Receipt";
@@ -651,7 +648,7 @@ function ensureOption(sel, value) {
 }
 function updateRefField() {
     const v = $("fMop").value;
-    const show = !!v && v !== "Cash";
+    const show = !!v && v !== "Cash" && v !== "Split";
     $("refField").classList.toggle("hidden", !show);
     $("refLabel").textContent = v === "Others" ? "Please specify" : v === "Cheque" ? "Cheque No." : "Reference No.";
     $("fRef").placeholder = v === "Others" ? "Please specify" : "e.g. 689746";
@@ -661,6 +658,11 @@ function updateRefField() {
     if (!bank) $("fBank").value = "";
 }
 $("fMop").addEventListener("change", () => {
+    const wantSplit = $("fMop").value === "Split";
+    if (wantSplit !== splitOn) {
+        toggleSplit(wantSplit);
+        if (wantSplit) { $("sCash").focus(); return; }
+    }
     updateRefField();
     if (!$("bankField").classList.contains("hidden")) $("fBank").focus();
     else if (!$("refField").classList.contains("hidden")) $("fRef").focus();

@@ -179,6 +179,7 @@ assert.equal(itemColor("PCS Card"), null, "no color for other items");
     assert.equal(filterEntries(es, { q: '1500' }).length, 1);
     assert.equal(filterEntries(es, { q: '42702-42703' }).length, 2);
     assert.equal(filterEntries(es, { mop: 'GCash' }).length, 2); // includes the split's GCash part
+    assert.equal(filterEntries(es, { mop: 'Online Payment' }).length, 2); // any non-cash method, incl. the split's online part
     assert.equal(filterEntries(es, { month: '2026-09' }).length, 3);
     assert.equal(filterEntries(es, { month: '2026-10' }).length, 0);
     assert.equal(dateFarFromBooklet(es, 42704, '2026-09-20'), null);

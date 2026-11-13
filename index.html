@@ -106,10 +106,8 @@
                                     <span>MOP</span>
                                     <select id="fMop" title="Alt+C Cash">
                                         <option value="Cash" selected>Cash</option>
-                                        <option>GCash</option>
-                                        <option>Bank Transfer</option>
-                                        <option>Cheque</option>
-                                        <option>Others</option>
+                                        <option value="Online Payment">Online Payment</option>
+                                        <option value="Split">Split</option>
                                     </select>
                                 </label>
                                 <label class="field hidden" id="bankField">
@@ -120,10 +118,6 @@
                                     <span id="refLabel">Reference No.</span>
                                     <input type="text" id="fRef" placeholder="e.g. 689746">
                                 </label>
-                                <div class="field split-toggle">
-                                    <span>Special case</span>
-                                    <button type="button" class="btn btn-secondary" id="splitBtn" title="Part cash, part online (Alt+S)"><i class="ri-split-cells-horizontal"></i> <span id="splitBtnText">Split payment</span></button>
-                                </div>
                                 <div class="field split-toggle">
                                     <span>Cancelled / blank sheet</span>
                                     <div class="btn-group">
@@ -172,12 +166,9 @@
                         <div class="split-grid">
                             <label class="field"><span>Cash amount</span>
                                 <input type="number" id="sCash" min="0" step="0.01" placeholder="0.00"></label>
-                            <label class="field"><span>Online method</span>
+                            <label class="field hidden"><span>Online method</span>
                                 <select id="sMethod">
-                                    <option>GCash</option>
-                                    <option>Bank Transfer</option>
-                                    <option>Cheque</option>
-                                    <option>Others</option>
+                                    <option>Online Payment</option>
                                 </select></label>
                             <label class="field"><span id="sRefLabel">Reference No.</span>
                                 <input type="text" id="sRef" placeholder="e.g. 689746"></label>
@@ -239,10 +230,7 @@
                     <select id="mopFilter" class="booklet-select" title="Show one form of payment">
                         <option value="">All payments</option>
                         <option value="Cash">Cash</option>
-                        <option value="GCash">GCash</option>
-                        <option value="Bank Transfer">Bank Transfer</option>
-                        <option value="Cheque">Cheque</option>
-                        <option value="Others">Others</option>
+                        <option value="Online Payment">Online Payment</option>
                         <option value="Split">Split</option>
                     </select>
                     <label class="inline-field"><span>From</span><input type="date" id="fromDate"></label>
