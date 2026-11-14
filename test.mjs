@@ -129,6 +129,10 @@ assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shor
     // Safety checks before importing: total mismatch warning and what would be replaced.
     const bad = parseSheet("9/20/2026\t7\tAna\tReal Talk\t2\t25\t99.00\t99.00\t");
     assert.equal(bad.warnings.length, 1, "wrong total is flagged");
+    // Void / not used rows as written by the PDF / Excel export (tag in the buyer column) and by copy / CSV (tag in the items column).
+    const mk = parseSheet("\t55802\tNOT USED\t\t\t\t\t\t\n\t55804\tVOID\tCancelled sheet, no sale\t\t\t\t\t\n\t55806\t\tNot used\t\t\t\t\t");
+    assert.equal(mk.marks.map(m => m.pr + m.status).join(","), "55802unused,55804void,55806unused", "export marks import back");
+    assert.equal(mk.entries.length + "|" + mk.skipped.length, "0|0");
     const old = [{ id: "pr_7", pr: 7, date: "2026-09-20", buyer: "Ana", items: [{ desc: "Real Talk", qty: 1, price: 25 }] },
                  { id: "pr_8", pr: 8, date: "2026-09-20", buyer: "Bo", items: [{ desc: "Real Talk", qty: 1, price: 25 }] }];
     const ch = importChanges(parseSheet("9/20/2026\t7\tAna\tReal Talk\t2\t25\t50.00\t50.00\t\n9/20/2026\t8\tBo\tReal Talk\t1\t25\t25.00\t25.00\t\n9/20/2026\t9\tCy\tReal Talk\t1\t25\t25.00\t25.00\t"), old);

@@ -409,8 +409,11 @@ export function parseSheet(text) {
         const c = raw.split('\t').map(s => unquoteCell(s.trim()));
         if (/^date$/i.test(c[0]) || /pr\s*number/i.test(c[1] || '')) continue;
         const [d, pr, buyer, desc, qty, price, , , mop] = c;
-        if (/^\d+$/.test(pr || '') && /^(void|not\s*used|unused)$/i.test(desc || '')) {
-            marks.push({ pr: Number(pr), status: /^void$/i.test(desc) ? 'void' : 'unused' });
+        // The tag is in the items column (copy / CSV) or in the buyer column (PDF / Excel export, where there is no date).
+        const tag = /^(void|not\s*used|unused)$/i;
+        const word = tag.test(desc || '') ? desc : (!parseDate(d) && tag.test(buyer || '')) ? buyer : '';
+        if (/^\d+$/.test(pr || '') && word) {
+            marks.push({ pr: Number(pr), status: /^void$/i.test(word) ? 'void' : 'unused' });
             cur = null;
             continue;
         }
