@@ -1,6 +1,6 @@
 import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
 import { renderSalesSheet } from "./sales-sheet.js";
-import { dateFarFromBooklet, itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, skipMarked, withMarks, markLabel } from "./logic.js";
+import { dateFarFromBooklet, itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, importChanges, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import {
@@ -1779,23 +1779,49 @@ $("printBtn").addEventListener("click", () => {
 
 // ---------- Import from spreadsheet ----------
 function importPreview() {
-    const { entries: es, skipped, marks: ms } = parseSheet($("importText").value);
-    const exist = es.filter(e => entries.some(x => x.id === e.id)).length;
+    const parsed = parseSheet($("importText").value);
+    const { entries: es, skipped, marks: ms, warnings } = parsed;
+    const ch = importChanges(parsed, entries);
+    const exist = ch.replaced.length + ch.same.length;
     const parts = [];
-    if (es.length) parts.push(`${es.length} PRs found${exist ? `, ${exist} will replace existing` : ""}`);
+    if (es.length) parts.push(`${es.length} PRs found${exist ? `, ${exist} already exist` : ""}`);
     if (ms.length) parts.push(`${ms.length} void / not used`);
     if (skipped.length) parts.push(`${skipped.length} rows skipped`);
+    if (warnings.length) parts.push(`${warnings.length} total mismatch${warnings.length === 1 ? "" : "es"}`);
     $("importInfo").textContent = parts.length ? parts.join(", ") : ($("importText").value.trim() ? "Nothing readable found" : "");
     $("importGo").disabled = !es.length && !ms.length;
-    return { es, marks: ms };
+    renderImportDetail(parsed, ch);
+    return { es, marks: ms, parsed, changes: ch };
+}
+// Shows what the paste will do before anything is saved: replaced receipts (and what differs), locked / dropped items, problems.
+function renderImportDetail(parsed, ch) {
+    const box = $("importDetail");
+    const { entries: es, skipped, marks: ms, warnings } = parsed;
+    const list = (items, max = 12) => `<ul>${items.slice(0, max).map(t => `<li>${t}</li>`).join("")}${items.length > max ? `<li class="muted">...and ${items.length - max} more</li>` : ""}</ul>`;
+    const lockedPrs = [...es.map(e => e.pr), ...ms.map(m => m.pr)].filter(pr => isLocked(pr));
+    const taken = new Set([...entries.map(e => Number(e.pr)), ...es.map(e => Number(e.pr))]);
+    const dropped = ms.filter(m => !isLocked(m.pr) && taken.has(m.pr)).map(m => m.pr);
+    let html = "";
+    if (ch.replaced.length) html += `<h4 class="warn">Will replace ${ch.replaced.length} existing receipt${ch.replaced.length === 1 ? "" : "s"}</h4>` + list(ch.replaced.map(r => `<b>PR ${esc(r.pr)}</b>: ${esc(r.diffs.join("; "))}`));
+    if (ch.added.length) html += `<h4>${ch.added.length} new</h4><div class="muted">${esc(ch.added.slice(0, 20).join(", "))}${ch.added.length > 20 ? ", ..." : ""}</div>`;
+    if (ch.same.length) html += `<h4>${ch.same.length} identical to what you already have</h4>`;
+    if (lockedPrs.length) html += `<h4 class="warn">${lockedPrs.length} in locked booklets (will be skipped)</h4><div class="muted">${esc(lockedPrs.slice(0, 20).join(", "))}</div>`;
+    if (dropped.length) html += `<h4 class="warn">${dropped.length} void / not used not recorded (the number already has a receipt)</h4><div class="muted">${esc(dropped.slice(0, 20).join(", "))}</div>`;
+    if (warnings.length) html += `<h4 class="warn">Total mismatch (check for shifted columns)</h4>` + list(warnings.map(esc));
+    if (skipped.length) html += `<h4 class="warn">${skipped.length} row${skipped.length === 1 ? "" : "s"} skipped (no usable quantity / price or description)</h4>` + list(skipped.map(r => `<code>${esc(r.length > 90 ? r.slice(0, 90) + "..." : r)}</code>`), 6);
+    box.innerHTML = html;
+    box.classList.toggle("hidden", !html);
 }
 $("importBtn").addEventListener("click", () => { $("importText").value = ""; importPreview(); $("importModal").classList.remove("hidden"); $("importText").focus(); });
 $("importClose").addEventListener("click", () => $("importModal").classList.add("hidden"));
 $("importText").addEventListener("input", importPreview);
 $("importSample").addEventListener("click", () => { $("importText").value = SHEET_0920; importPreview(); });
 $("importGo").addEventListener("click", () => {
-    let { es, marks: ms } = importPreview();
+    let { es, marks: ms, parsed, changes } = importPreview();
     if (!es.length && !ms.length) return;
+    const overwrite = changes.replaced.filter(r => !isLocked(r.pr)).length;
+    if (overwrite && !confirm(`${overwrite} existing receipt${overwrite === 1 ? "" : "s"} will be replaced with different data. Continue? (You can undo right after.)`)) return;
+    if (parsed.warnings.length && !confirm(`${parsed.warnings.length} row${parsed.warnings.length === 1 ? "" : "s"} have a total that does not match qty x price. The columns may be shifted. Import anyway?`)) return;
     const locked = es.filter(e => isLocked(e.pr)).length + ms.filter(m => isLocked(m.pr)).length;
     es = es.filter(e => !isLocked(e.pr)); // locked booklets are never touched by an import
     // A void / not-used number is only recorded when no receipt (existing or imported) uses it.
@@ -1803,13 +1829,26 @@ $("importGo").addEventListener("click", () => {
     ms = ms.filter(m => !isLocked(m.pr) && !taken.has(m.pr));
     if (!es.length && !ms.length) return toast("Everything in that paste belongs to a locked booklet or is already used.");
     const ids = new Set(es.map(e => e.id));
+    // Keep what the import is about to overwrite, so it can be undone.
+    const oldEntries = entries.filter(e => ids.has(e.id));
+    const oldMarks = ms.map(m => marks.find(x => Number(x.pr) === m.pr) || null);
     entries = entries.filter(e => !ids.has(e.id)).concat(es);
     saveLocal();
     refresh();
     for (const { id, ...data } of es) setDoc(doc(col, id), data).catch(remoteFail);
     ms.forEach(m => setMark(m.pr, m.status));
     $("importModal").classList.add("hidden");
-    toast(`Imported ${es.length} PRs` + (ms.length ? `, ${ms.length} void / not used` : "") + (locked ? `, skipped ${locked} in locked booklets` : ""));
+    const undoImport = () => {
+        const oldIds = new Set(oldEntries.map(e => e.id));
+        entries = entries.filter(e => !ids.has(e.id)).concat(oldEntries);
+        saveLocal();
+        refresh();
+        es.filter(e => !oldIds.has(e.id)).forEach(e => deleteDoc(doc(col, e.id)).catch(remoteFail));
+        for (const { id, ...data } of oldEntries) setDoc(doc(col, id), data).catch(remoteFail);
+        ms.forEach((m, i) => { const o = oldMarks[i]; if (o) setMark(o.pr, o.status); else clearMark(m.pr); });
+        toast(`Import undone: ${es.length} PR${es.length === 1 ? "" : "s"} back to how they were.`);
+    };
+    toast(`Imported ${es.length} PRs` + (ms.length ? `, ${ms.length} void / not used` : "") + (locked ? `, skipped ${locked} in locked booklets` : ""), undoImport);
 });
 
 $("clearBtn").addEventListener("click", async () => {

@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, importChanges, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -125,6 +125,15 @@ assert.equal(one("Dare 2 Share"), "none", "exact names are never treated as shor
     assert.equal(rows[rows.length - 1].grand, 8841, "sheet total");
     const hdr = "DATE\tPR NUMBER\tBUYER\tSOLD ITEMS\tQTY\tUNIT PRICE\tTOTAL\tGRAND TOTAL\tMOP\n";
     assert.equal(parseSheet(hdr + SHEET_0920 + "\n\t\t\t\t\t\t8,841.00\t8,841.00").entries.length, 50, "header and total line ignored");
+    assert.equal(parseSheet(SHEET_0920).warnings.length, 0, "a good sheet has no total mismatches");
+    // Safety checks before importing: total mismatch warning and what would be replaced.
+    const bad = parseSheet("9/20/2026\t7\tAna\tReal Talk\t2\t25\t99.00\t99.00\t");
+    assert.equal(bad.warnings.length, 1, "wrong total is flagged");
+    const old = [{ id: "pr_7", pr: 7, date: "2026-09-20", buyer: "Ana", items: [{ desc: "Real Talk", qty: 1, price: 25 }] },
+                 { id: "pr_8", pr: 8, date: "2026-09-20", buyer: "Bo", items: [{ desc: "Real Talk", qty: 1, price: 25 }] }];
+    const ch = importChanges(parseSheet("9/20/2026\t7\tAna\tReal Talk\t2\t25\t50.00\t50.00\t\n9/20/2026\t8\tBo\tReal Talk\t1\t25\t25.00\t25.00\t\n9/20/2026\t9\tCy\tReal Talk\t1\t25\t25.00\t25.00\t"), old);
+    assert.equal(ch.replaced.length + "|" + ch.same.length + "|" + ch.added.length, "1|1|1", "replaced / identical / new");
+    assert.equal(ch.replaced[0].diffs[0], "total 25.00 -> 50.00");
 }
 {
     const es = [{ id: "pr_1", pr: 1, date: "2026-09-20", buyer: "A", mop: "Cash", items: [{ desc: "x", qty: 1, price: 3 }] },

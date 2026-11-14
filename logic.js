@@ -396,6 +396,7 @@ export function parseSheet(text) {
     const marks = [];
     let cur = null;
     const skipped = [];
+    const warnings = [];
     const num = s => Number(String(s).replace(/[,\s\u20B1]/g, ''));
     const parseDate = d => {
         let m = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(d || '');
@@ -428,6 +429,11 @@ export function parseSheet(text) {
         if (!cur || !desc) continue;
         const q = num(qty), p = num(price);
         if (!(q > 0) || !Number.isFinite(p)) { skipped.push(raw); continue; }
+        // The pasted TOTAL column is not used (the site recalculates), but a mismatch usually means shifted or cut-off columns.
+        const lineTotal = c[6] ? num(c[6]) : NaN;
+        if (Number.isFinite(lineTotal) && Math.abs(lineTotal - round2(q * p)) > 0.01) {
+            warnings.push(`PR ${cur.pr}, ${desc}: sheet total ${lineTotal.toFixed(2)}, but qty x price is ${round2(q * p).toFixed(2)}`);
+        }
         cur.items.push({ desc, qty: q, price: p });
         if (mop && cur.mop === 'Cash' && !cur.payments) {
             const split = parseSplit(mop);
@@ -442,7 +448,25 @@ export function parseSheet(text) {
             }
         }
     }
-    return { entries: out, skipped, marks };
+    return { entries: out, skipped, marks, warnings };
+}
+
+// What an import would change, for the preview: new PRs, PRs that replace an existing receipt (with what differs), and marks.
+export function importChanges(parsed, existing) {
+    const total = e => round2((e.items || []).reduce((t, i) => t + i.qty * i.price, 0));
+    const byId = new Map(existing.map(e => [e.id, e]));
+    const added = [], replaced = [], same = [];
+    for (const e of parsed.entries) {
+        const old = byId.get(e.id);
+        if (!old) { added.push(e.pr); continue; }
+        const diffs = [];
+        if (total(old) !== total(e)) diffs.push(`total ${total(old).toFixed(2)} -> ${total(e).toFixed(2)}`);
+        if ((old.buyer || 'Anonymous') !== e.buyer) diffs.push(`buyer "${old.buyer || 'Anonymous'}" -> "${e.buyer}"`);
+        if ((old.date || '') !== e.date) diffs.push(`date ${old.date || '-'} -> ${e.date}`);
+        if ((old.items || []).length !== e.items.length) diffs.push(`${(old.items || []).length} -> ${e.items.length} items`);
+        if (diffs.length) replaced.push({ pr: e.pr, diffs }); else same.push(e.pr);
+    }
+    return { added, replaced, same };
 }
 
 // End-of-review summary: items sold in the booklet, split into CASH and ONLINE PAYMENT (anything not cash),

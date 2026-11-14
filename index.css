@@ -557,6 +557,13 @@ body.modal-open { overflow: hidden; }
 .review .rv-sys { margin: 0; font-size: 0.8rem; flex: 1; text-align: center; }
 
 .import-text { width: 100%; box-sizing: border-box; font-family: ui-monospace, Consolas, monospace; font-size: 0.78rem; white-space: pre; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-surface); color: var(--color-text-main); padding: 0.5rem; }
+.import-detail { margin-top: 0.6rem; max-height: 11rem; overflow: auto; font-size: 0.8rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 0.5rem 0.65rem; background: var(--color-bg-surface); color: var(--color-text-main); }
+.import-detail.hidden { display: none; }
+.import-detail h4 { margin: 0.45rem 0 0.15rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.import-detail h4:first-child { margin-top: 0; }
+.import-detail h4.warn { color: #b45309; }
+.import-detail ul { margin: 0; padding-left: 1.1rem; }
+.import-detail .muted { color: var(--color-text-muted); }
 .import-info { margin-right: auto; font-size: 0.82rem; color: var(--color-text-muted); }
 
 #rvHead:empty { display: none; }
