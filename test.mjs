@@ -304,3 +304,53 @@ for (const d of ["IDC T-Shirt", "IDC T-shirt", "TLR T-SHIRT", "TLR T-Shirt Large
 assert.equal(itemCategory("GLC Polo Shirt"), "MERCH");
 assert.equal(salesCategory("GLC Polo Shirt"), "MERCH");
 assert.equal(sheetDescFor("Dare to Share Workbook"), "Dare 2 Share");
+
+// ---- Booklet exports (Node only: needs the bundled ExcelJS / jsPDF libraries) ----
+if (typeof process !== "undefined" && process.versions && process.versions.node) {
+    const { buildSummaryWorkbook, buildBookletPdf } = await import("./export.js");
+    const { createRequire } = await import("node:module");
+    const fs = await import("node:fs");
+    const vm = await import("node:vm");
+    const ExcelJS = createRequire(import.meta.url)("./vendor/exceljs.min.js");
+    const es = [
+        { id: "pr_55801", pr: 55801, date: "2026-10-04", buyer: "Pinky Palaguittu", mop: "Cash", mopRef: "", items: [{ desc: "Real Talk", qty: 3, price: 25 }, { desc: "Accountability Card", qty: 10, price: 2 }] },
+        { id: "pr_55803", pr: 55803, date: "2026-10-04", buyer: "Gerry T. Torreja", mop: "Invoice", mopRef: "689746", items: [{ desc: "Real Talk", qty: 2, price: 25 }] },
+    ];
+    const mk = [{ pr: 55802, status: "unused" }, { pr: 55804, status: "void" }];
+    const s = { ...bookletSummary(es), ...markSummary(mk, 55801), firstPr: 55801, lastPr: 55850 };
+    const counts = [{ value: 100, kind: "Bill", count: 1, amount: 100 }];
+
+    // XLSX: Void / Not used numbers are rows between the receipts, and nothing else mentions them.
+    const ws = buildSummaryWorkbook(ExcelJS, s, es, counts, "Ynah Orgasan").getWorksheet("PR Booklet");
+    const cell = (r, c) => { const v = ws.getRow(r).getCell(c).value; return v == null ? "" : v; };
+    const body = [];
+    for (let r = 2; !String(cell(r, 1)).startsWith("***"); r++) body.push(r);
+    assert.equal(body.map(r => cell(r, 2) || "").filter(Boolean).join(","), "55801,55802,55803,55804", "marked numbers sit between the receipts");
+    const rowOf = pr => body.find(r => cell(r, 2) === pr);
+    assert.equal(cell(rowOf(55802), 3) + "|" + cell(rowOf(55802), 4) + "|" + cell(rowOf(55802), 7), "NOT USED||", "not used row: tag only, no note, no amount");
+    assert.equal(cell(rowOf(55804), 3) + "|" + cell(rowOf(55804), 4), "VOID|Cancelled sheet, no sale");
+    let allText = "";
+    ws.eachRow(row => row.eachCell(c => { allText += " " + c.value; }));
+    assert.equal(allText.includes("NOT USED:"), false, "no NOT USED note under the table");
+    assert.equal(allText.includes("VOID: 55804"), true, "VOID note is kept");
+    assert.equal(allText.includes("Cash Sales"), true);
+    assert.equal(cell(rowOf(55804), 7) + cell(rowOf(55804), 8), "", "marked rows add no amount");
+
+    // Export -> paste -> import gives back the same receipts and marks.
+    const pasted = body.map(r => Array.from({ length: 9 }, (_, i) => cell(r, i + 1)).join("\t")).join("\n");
+    const back = parseSheet(pasted);
+    assert.equal(back.entries.map(e => e.pr + e.buyer + e.items.length + e.mop).join(","), "55801Pinky Palaguittu2Cash,55803Gerry T. Torreja1Invoice", "receipts round-trip");
+    assert.equal(back.marks.map(m => m.pr + m.status).join(","), "55802unused,55804void", "marks round-trip");
+    assert.equal(back.skipped.length + "|" + back.warnings.length, "0|0", "nothing skipped or flagged");
+
+    // PDF: the same rows (the text is stored uncompressed, so it can be searched).
+    globalThis.window = globalThis;
+    globalThis.document = { head: { appendChild(el) { try { vm.runInThisContext(fs.readFileSync(new URL(el.src, import.meta.url), "utf8")); el.onload(); } catch (e) { el.onerror(e); } } }, createElement: () => ({}) };
+    const raw = (await buildBookletPdf(s, es, counts, "Ynah Orgasan")).output();
+    assert.equal(raw.includes("(NOT USED)") && raw.includes("(55802)"), true, "PDF has the not used row");
+    assert.equal(raw.includes("(VOID)") && raw.includes("(Cancelled sheet, no sale)"), true, "PDF has the void row");
+    assert.equal(raw.includes("NOT USED: 55802"), false, "PDF has no NOT USED note under the table");
+    assert.equal(raw.includes("(VOID: 55804)"), true, "PDF keeps the VOID note");
+    delete globalThis.window; delete globalThis.document;
+    console.log("all tests passed (including the exports)");
+}

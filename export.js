@@ -106,7 +106,7 @@ function drawTopSheet(doc, s) {
 }
 
 // One PDF (letter size): the TOP sheet (one page), then the booklet summary (logs).
-async function buildBookletPdf(s, bookEntries, counts, preparedBy) {
+export async function buildBookletPdf(s, bookEntries, counts, preparedBy) {
     const doc = await pdfDoc();
     drawTopSheet(doc, s);
     doc.addPage();
