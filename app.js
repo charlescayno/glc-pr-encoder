@@ -1,5 +1,6 @@
 import { downloadBookletPdf, viewBookletPdf, printBookletPdf, downloadSummaryXlsx } from "./export.js";
 import { renderSalesSheet } from "./sales-sheet.js";
+import { renderAnalytics } from "./analytics.js";
 import { dateFarFromBooklet, itemColor, markSummary, bookletSummary, summaryTSV, parseSheet, importChanges, skipMarked, withMarks, markLabel } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
@@ -1898,6 +1899,30 @@ $("salesPrint").addEventListener("click", () => {
 });
 document.addEventListener("keydown", ev => {
     if (ev.key === "Escape" && !$("salesOverlay").classList.contains("hidden")) { ev.preventDefault(); closeSales(); }
+});
+
+// ---------- Analytics: full page, like the sales summary ----------
+function closeAnalytics() {
+    $("analyticsOverlay").classList.add("hidden");
+    document.body.classList.remove("modal-open", "print-sales");
+}
+let analyticsRange = {}; // the chosen dates are kept while the page is closed and reopened
+$("analyticsBtn").addEventListener("click", () => {
+    renderAnalytics($("analyticsBody"), entries, marks, analyticsRange);
+    $("analyticsOverlay").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    $("analyticsBody").scrollTop = 0;
+});
+$("analyticsClose").addEventListener("click", closeAnalytics);
+$("analyticsPrint").addEventListener("click", () => {
+    document.body.classList.add("print-sales");
+    window.print();
+    setTimeout(() => document.body.classList.remove("print-sales"), 500);
+});
+$("analyticsBody").addEventListener("change", () => { analyticsRange = { from: $("anFrom")?.value || "", to: $("anTo")?.value || "" }; });
+$("analyticsBody").addEventListener("click", ev => { if (ev.target.closest("[data-an]")) setTimeout(() => { analyticsRange = { from: $("anFrom")?.value || "", to: $("anTo")?.value || "" }; }); });
+document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && !$("analyticsOverlay").classList.contains("hidden")) { ev.preventDefault(); closeAnalytics(); }
 });
 
 // ---------- Catalog modal ----------

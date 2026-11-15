@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glc-pr-encoder-v47';
+const CACHE_NAME = 'glc-pr-encoder-v48';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const PRECACHE_ASSETS = [
   './app.js',
   './logic.js',
   './sales-sheet.js',
+  './analytics.js',
   './export.js',
   './vendor/jspdf.umd.min.js',
   './vendor/jspdf.plugin.autotable.min.js',

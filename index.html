@@ -39,6 +39,7 @@
                         </div>
                         <button id="tutorialBtn" class="btn btn-secondary" title="Watch the how-to video"><i class="ri-play-circle-line"></i><span class="desktop-only">Tutorial</span></button>
                         <button id="salesBtn" class="btn btn-secondary" title="Sales summary per week and per month"><i class="ri-bar-chart-box-line"></i><span class="desktop-only">Sales summary</span></button>
+                        <button id="analyticsBtn" class="btn btn-secondary" title="Analytics: totals, trends, top items"><i class="ri-line-chart-line"></i><span class="desktop-only">Analytics</span></button>
                         <button id="themeBtn" class="btn btn-secondary" title="Toggle theme"><i class="ri-moon-line" id="themeIcon"></i></button>
                         <button id="catalogBtn" class="btn btn-secondary" title="Edit item catalog"><i class="ri-settings-3-line"></i><span class="desktop-only">Catalog</span></button>
                         <button id="installBtn" class="btn btn-secondary hidden" title="Install as App"><i class="ri-download-2-line"></i><span class="desktop-only">Install</span></button>
@@ -410,6 +411,23 @@
                 </div>
             </div>
             <div class="ss-body" id="salesBody"></div>
+        </div>
+    </div>
+
+    <!-- Analytics page (full page, like the sales summary) -->
+    <div class="review-overlay ss-overlay hidden" id="analyticsOverlay">
+        <div class="review ss-page">
+            <div class="rv-top">
+                <div>
+                    <div class="rv-title">Analytics</div>
+                    <div class="rv-sub">Sales, receipts and PR numbers</div>
+                </div>
+                <div class="rv-top-actions ss-actions">
+                    <button type="button" class="btn btn-secondary" id="analyticsPrint"><i class="ri-printer-line"></i> Print</button>
+                    <button type="button" class="btn btn-close" id="analyticsClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
+                </div>
+            </div>
+            <div class="ss-body an-body" id="analyticsBody"></div>
         </div>
     </div>
 

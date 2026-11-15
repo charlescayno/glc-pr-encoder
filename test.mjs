@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, importChanges, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, importChanges, analytics, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -304,6 +304,34 @@ for (const d of ["IDC T-Shirt", "IDC T-shirt", "TLR T-SHIRT", "TLR T-Shirt Large
 assert.equal(itemCategory("GLC Polo Shirt"), "MERCH");
 assert.equal(salesCategory("GLC Polo Shirt"), "MERCH");
 assert.equal(sheetDescFor("Dare to Share Workbook"), "Dare 2 Share");
+
+// ---- Analytics ----
+{
+    const row = (id, pr, date, mop, items) => ({ id: "pr_" + id, pr, date, buyer: "A", mop, mopRef: mop === "Invoice" ? "1" : "", items });
+    const es = [
+        row(55801, 55801, "2026-10-04", "Cash", [{ desc: "Real Talk", qty: 3, price: 25 }, { desc: "Accountability Card", qty: 10, price: 2 }]),
+        row(55803, 55803, "2026-10-05", "Invoice", [{ desc: "Real Talk", qty: 2, price: 25 }]),
+        row(55805, 55805, "2026-10-05", "Cash", [{ desc: "Real Talk", qty: 1, price: 25 }]),
+        row(55808, 55808, "2026-10-06", "Cash", [{ desc: "Real Talk", qty: 1, price: 25 }]),
+    ];
+    const mk = [{ pr: 55802, status: "unused" }, { pr: 55804, status: "void" }];
+    const a = analytics(es, mk);
+    assert.equal(a.receipts + "|" + a.total + "|" + a.cash + "|" + a.online, "4|195|145|50", "totals");
+    assert.equal(a.avgReceipt, 48.75, "average receipt");
+    assert.equal(a.bestDay.date + "|" + a.bestDay.total, "2026-10-04|95", "best day");
+    assert.equal(a.biggest.pr, 55801, "biggest receipt");
+    assert.equal(a.weekdays[0].total + "|" + a.weekdays[1].total + "|" + a.weekdays[2].total, "95|75|25", "weekday totals (Oct 4, 2026 is a Sunday)");
+    assert.equal(a.days.length + "|" + a.activeDays, "3|3", "days");
+    assert.equal(a.categories.find(c => c.category === "DISCIPLESHIP MATERIALS").total, 195, "category total");
+    assert.equal(a.methods[0].method + "|" + a.methods[0].share, "Cash|74.36", "payment methods, share in percent");
+    assert.equal(a.topItems[0].desc + "|" + a.topItems[0].total, "Real Talk|175", "top item");
+    assert.equal(a.marks.void + "|" + a.marks.unused + "|" + a.marks.missing, "1|1|2", "55806 and 55807 are missing; marked numbers are not");
+    const r = analytics(es, mk, { from: "2026-10-05" });
+    assert.equal(r.receipts + "|" + r.total, "3|100", "date range");
+    assert.equal(r.marks.missing, 2, "PR number counts ignore the date range");
+    const none = analytics([], []);
+    assert.equal(none.receipts + "|" + none.total + "|" + none.avgReceipt + "|" + none.bestDay, "0|0|0|null", "empty data does not break");
+}
 
 // ---- Booklet exports (Node only: needs the bundled ExcelJS / jsPDF libraries) ----
 if (typeof process !== "undefined" && process.versions && process.versions.node) {

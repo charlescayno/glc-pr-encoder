@@ -804,3 +804,58 @@ export function categoryGroups(sec) {
             .sort((a, b) => order(a.desc) - order(b.desc) || a.desc.localeCompare(b.desc) || a.price - b.price),
     })).filter(g => g.rows.length);
 }
+// ---- Analytics -----------------------------------------------------------------------------
+// Numbers behind the Analytics page. `from` / `to` (YYYY-MM-DD, both optional) limit the receipts by PR date.
+// Void / not-used / missing counts are about the PR numbers themselves, so they always cover everything.
+export function analytics(entries, marks = [], { from = '', to = '' } = {}) {
+    const es = entries.filter(e => e.date && (!from || e.date >= from) && (!to || e.date <= to));
+    const rows = flatten(es);
+    const split = paymentSplit(rows);
+    const total = round2(split.cash + split.online);
+    const units = round2(rows.reduce((s, r) => s + r.qty, 0));
+
+    const dayMap = new Map(), wd = Array.from({ length: 7 }, () => ({ total: 0, receipts: 0, days: new Set() }));
+    let biggest = null;
+    for (const e of es) {
+        const t = entryTotal(e);
+        const d = dayMap.get(e.date) || { date: e.date, total: 0, receipts: 0 };
+        d.total = round2(d.total + t); d.receipts += 1; dayMap.set(e.date, d);
+        const w = wd[utc(e.date).getUTCDay()];
+        w.total = round2(w.total + t); w.receipts += 1; w.days.add(e.date);
+        if (!biggest || t > biggest.total) biggest = { pr: e.pr, total: t, buyer: e.buyer || 'Anonymous' };
+    }
+    const days = [...dayMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const bestDay = days.reduce((b, d) => (!b || d.total > b.total ? d : b), null);
+
+    const cats = new Map(SALES_CATEGORIES.map(c => [c, { category: c, units: 0, total: 0 }]));
+    const items = new Map();
+    for (const r of rows) {
+        const c = cats.get(salesCategory(r.desc));
+        c.units = round2(c.units + r.qty); c.total = round2(c.total + r.total);
+        const it = items.get(r.desc) || { desc: r.desc, category: salesCategory(r.desc), qty: 0, total: 0 };
+        it.qty = round2(it.qty + r.qty); it.total = round2(it.total + r.total);
+        items.set(r.desc, it);
+    }
+    const share = v => (total > 0 ? round2((v / total) * 100) : 0);
+    const methods = Object.entries(split.byMethod).map(([method, amount]) => ({ method, total: amount, share: share(amount) })).sort((a, b) => b.total - a.total);
+
+    // PR numbers: void / not used marks, and numbers inside an encoded booklet that have neither a receipt nor a mark.
+    const have = new Set([...entries.map(e => Number(e.pr)), ...marks.map(m => Number(m.pr))]);
+    let missing = 0;
+    for (const b of bookletStarts(entries)) {
+        const last = Math.max(...entries.filter(e => bookletStart(e.pr) === b).map(e => Number(e.pr)));
+        for (let n = b; n <= last; n++) if (!have.has(n)) missing++;
+    }
+    return {
+        from: days.length ? days[0].date : '', to: days.length ? days[days.length - 1].date : '',
+        receipts: es.length, units, total, cash: split.cash, online: split.online,
+        avgReceipt: es.length ? round2(total / es.length) : 0,
+        avgItems: es.length ? round2(rows.length / es.length) : 0,
+        activeDays: days.length, bestDay, biggest, days,
+        weekdays: wd.map((w, i) => ({ day: i, total: w.total, receipts: w.receipts, activeDays: w.days.size, avg: w.days.size ? round2(w.total / w.days.size) : 0 })),
+        categories: [...cats.values()].map(c => ({ ...c, share: share(c.total) })),
+        methods,
+        topItems: [...items.values()].sort((a, b) => b.total - a.total || b.qty - a.qty),
+        marks: { void: marks.filter(m => m.status === 'void').length, unused: marks.filter(m => m.status === 'unused').length, missing },
+    };
+}
