@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, paymentText, mopText, reviewSequence, reviewProgress, pesoWords
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, paymentText, mopText, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -349,6 +349,65 @@ function tintItem(input) {
     input.classList.toggle("item-c", !!c);
     if (c) input.style.setProperty("--item-color", c); else input.style.removeProperty("--item-color");
 }
+
+// ---- Buyer autocomplete: names already used on earlier receipts ----
+let buyerPop = null, buyerItems = [], buyerActive = -1;
+function closeBuyerPop() { if (buyerPop) buyerPop.classList.add("hidden"); buyerItems = []; buyerActive = -1; }
+function paintBuyerPop() {
+    buyerPop.innerHTML = buyerItems.map((b, i) =>
+        `<div class="item-opt${i === buyerActive ? " active" : ""}" role="option" data-i="${i}"><span class="item-opt-name">${esc(b.name)}</span><span class="item-opt-price" title="Receipts with this buyer">\u00D7${b.n}</span></div>`).join("");
+    const act = buyerPop.querySelector(".active");
+    if (act) act.scrollIntoView({ block: "nearest" });
+}
+function openBuyerPop() {
+    const input = $("fBuyer");
+    const items = document.activeElement === input ? buyerSuggestions(entries, input.value) : [];
+    if (!items.length) { closeBuyerPop(); return; }
+    if (!buyerPop) {
+        buyerPop = document.createElement("div");
+        buyerPop.className = "item-pop hidden";
+        buyerPop.setAttribute("role", "listbox");
+        buyerPop.addEventListener("mousedown", ev => { // mousedown so the field keeps focus
+            ev.preventDefault();
+            const li = ev.target.closest("[data-i]");
+            if (li) pickBuyer(buyerItems[Number(li.dataset.i)].name);
+        });
+        document.body.appendChild(buyerPop);
+        window.addEventListener("resize", closeBuyerPop);
+        window.addEventListener("scroll", ev => { if (!buyerPop.contains(ev.target)) closeBuyerPop(); }, true);
+    }
+    buyerItems = items; buyerActive = -1;
+    const r = input.getBoundingClientRect();
+    buyerPop.style.left = r.left + "px";
+    buyerPop.style.top = (r.bottom + 4) + "px";
+    buyerPop.style.minWidth = Math.max(r.width, 220) + "px";
+    buyerPop.style.maxHeight = Math.max(120, Math.min(300, window.innerHeight - r.bottom - 16)) + "px";
+    buyerPop.classList.remove("hidden");
+    paintBuyerPop();
+}
+function pickBuyer(name) {
+    $("fBuyer").value = name;
+    closeBuyerPop();
+    $("fBuyer").dispatchEvent(new Event("input", { bubbles: true }));
+}
+$("fBuyer").addEventListener("input", openBuyerPop);
+$("fBuyer").addEventListener("blur", closeBuyerPop);
+$("fBuyer").addEventListener("keydown", ev => {
+    const open = buyerPop && !buyerPop.classList.contains("hidden");
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        if (!open) { openBuyerPop(); if (!buyerPop || buyerPop.classList.contains("hidden")) return; }
+        ev.preventDefault();
+        const n = buyerItems.length;
+        buyerActive = ev.key === "ArrowDown" ? (buyerActive + 1) % n : (buyerActive - 1 + n) % n;
+        paintBuyerPop();
+    } else if (open && ev.key === "Enter" && buyerActive >= 0) {
+        pickBuyer(buyerItems[buyerActive].name); // then Enter carries on to the next field as usual
+    } else if (open && ev.key === "Escape") {
+        ev.preventDefault(); ev.stopPropagation(); closeBuyerPop();
+    } else if (open && ev.key === "Tab") {
+        closeBuyerPop();
+    }
+});
 
 // ---- Item picker: custom suggestion list (each book in its cover color, price on the right) ----
 let itemPop = null, itemPopFor = null, itemPopItems = [], itemPopActive = -1;
@@ -1388,20 +1447,42 @@ function renderCards(monthKeys, monthMap, byBooklet) {
     box.innerHTML = `<div class="cv-tabs">${tabs}</div>${legend}<div class="cv-grid">${(monthMap.get(cardMonth) || []).map(bs => bookletCardHtml(bs, byBooklet.get(bs) || [])).join("")}</div>`;
 }
 
-// Jump from a card (or one PR square) to the matching rows in the table view.
+// Jump from a card (or one PR square, or "Go to PR") to the matching rows in the table view.
+// If a filter hides them, the filters are cleared first.
 function openRows(start, pr) {
-    const m = bookletMonthOf(start);
-    collapsedMonths.delete(m);
-    collapsedBooklets.delete(start);
+    const open = () => { collapsedMonths.delete(bookletMonthOf(start)); collapsedBooklets.delete(start); };
+    open();
     setView("table");
-    const target = pr
-        ? document.querySelector(`[data-edit="pr_${pr}"], [data-unmark="${pr}"]`)?.closest("tr")
-        : null;
-    const el = target || document.querySelector(`tr.booklet-head[data-booklet="${start}"]`);
+    const find = () => ({
+        row: pr ? document.querySelector(`[data-edit="pr_${pr}"], [data-unmark="${pr}"]`)?.closest("tr") : null,
+        head: document.querySelector(`tr.booklet-head[data-booklet="${start}"]`),
+    });
+    let { row, head } = find();
+    if (!row && !head) { // hidden by a filter
+        $("clearFilterBtn").click();
+        open(); refresh();
+        ({ row, head } = find());
+        if (row || head) toast("Filters cleared to show it.");
+    }
+    const el = row || head;
     if (!el) return;
     el.scrollIntoView({ block: "center", behavior: "smooth" });
-    if (target) { target.classList.add("row-flash"); setTimeout(() => target.classList.remove("row-flash"), 2500); }
+    if (row) { row.classList.add("row-flash"); setTimeout(() => row.classList.remove("row-flash"), 2500); }
 }
+
+// "Go to PR #": open the month and booklet that hold this PR number and flash its row.
+function goToPr(raw) {
+    const pr = Number(String(raw).replace(/\D/g, ""));
+    if (!(pr > 0)) return toast("Type a PR number, for example 42710.");
+    const start = bookletStart(pr);
+    const hasEntry = entries.some(e => Number(e.pr) === pr);
+    const hasMark = marks.some(m => Number(m.pr) === pr);
+    const bookletExists = hasEntry || hasMark || entries.some(e => bookletStart(e.pr) === start) || marks.some(m => bookletStart(m.pr) === start);
+    if (!bookletExists) return toast(`PR #${pr} is not in any booklet yet.`);
+    openRows(start, hasEntry || hasMark ? pr : null);
+    if (!hasEntry && !hasMark) toast(`PR #${pr} has no receipt or mark yet. Booklet ${bookletLabel(start)} is open.`);
+}
+$("gotoForm").addEventListener("submit", ev => { ev.preventDefault(); goToPr($("gotoPr").value); $("gotoPr").select(); });
 $("cardsView").addEventListener("click", ev => {
     const t = ev.target.closest("[data-cmonth], [data-review], [data-bkmenu], [data-lock], [data-open], [data-sq]");
     if (!t) return;
@@ -1833,11 +1914,13 @@ $("searchInput").addEventListener("input", () => { clearTimeout(searchTimer); $(
 $("searchInput").addEventListener("keydown", ev => { if (ev.key === "Escape" && $("searchInput").value) { ev.stopPropagation(); $("searchInput").value = ""; refresh(); } });
 $("searchClear").addEventListener("click", () => { $("searchInput").value = ""; refresh(); $("searchInput").focus(); });
 document.addEventListener("keydown", ev => {
-    if (ev.key !== "/" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if ((ev.key !== "/" && ev.key !== "g") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const t = ev.target, tag = t && t.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
     if (document.querySelector(".review-overlay:not(.hidden), .modal-overlay:not(.hidden)")) return;
-    ev.preventDefault(); $("searchInput").focus(); $("searchInput").select();
+    ev.preventDefault();
+    const box = ev.key === "g" ? $("gotoPr") : $("searchInput");
+    box.focus(); box.select();
 });
 $("uncheckedOnly").addEventListener("change", refresh);
 $("clearFilterBtn").addEventListener("click", () => {

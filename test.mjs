@@ -3,7 +3,7 @@ const assert = {
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
-import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, importChanges, analytics, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
+import { itemColor, flatten, toTSV, checkPr, nextPr, mopText, filterEntries, dateFarFromBooklet, buyerSuggestions, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, reviewSequence, reviewProgress, pesoWords, bookletSummary, summaryTSV, markSummary, compressRanges, parseSheet, importChanges, analytics, skipMarked, withMarks, salesSummary, salesCategory, periodOf, salesSummaryCSV, sheetDescFor, salesMatrix, SHEET_ROWS, itemShortcut, itemCategory, prCategory, priceChanges, categoryGroups } from "./logic.js";
 import { SHEET_0920 } from "./seed-sheet.js";
 
 const entries = [
@@ -380,5 +380,22 @@ if (typeof process !== "undefined" && process.versions && process.versions.node)
     assert.equal(raw.includes("NOT USED: 55802"), false, "PDF has no NOT USED note under the table");
     assert.equal(raw.includes("(VOID: 55804)"), true, "PDF keeps the VOID note");
     delete globalThis.window; delete globalThis.document;
-    console.log("all tests passed (including the exports)");
+    // buyer autocomplete
+{
+    const es = [
+        { buyer: 'Ana Cruz', date: '2026-09-01' }, { buyer: 'ANA CRUZ', date: '2026-09-02' }, { buyer: 'Ana Cruz', date: '2026-09-03' },
+        { buyer: 'Ben Reyes', date: '2026-09-04' }, { buyer: 'Anonymous', date: '2026-09-05' }, { buyer: 'Cathy Ana', date: '2026-09-06' },
+        { buyer: 'Ben Reyes', date: '2026-09-07' },
+        { buyer: 'Anonyous', date: '2026-09-08' }, { buyer: 'Anonnymous', date: '2026-09-09' },
+    ];
+    assert.deepEqual(buyerSuggestions(es, '').map(x => x.name), ['Ana Cruz', 'Ben Reyes', 'Cathy Ana']); // most used first, no Anonymous
+    assert.equal(buyerSuggestions(es, 'Anonymous').length, 3); // the default name is not a search
+    assert.deepEqual(buyerSuggestions(es, 'ana').map(x => x.name), ['Ana Cruz', 'Cathy Ana']); // prefix match before contains
+    assert.equal(buyerSuggestions(es, 'ana')[0].n, 3); // capital variants merged
+    assert.deepEqual(buyerSuggestions(es, 'ben re'), [{ name: 'Ben Reyes', n: 2 }]);
+    assert.equal(buyerSuggestions(es, 'Ben Reyes').length, 0); // exactly what is typed already
+    assert.equal(buyerSuggestions(es, 'zzz').length, 0);
+}
+
+console.log("all tests passed (including the exports)");
 }

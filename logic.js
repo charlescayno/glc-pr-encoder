@@ -252,6 +252,44 @@ export function filterEntries(entries, { q = '', from = '', to = '', booklet = '
     });
 }
 
+// Edit distance, used to spot typos of "Anonymous" (Anonyous, Anonnymous...) so they are never suggested.
+function editDistance(a, b) {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+        const cur = [i];
+        for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = cur;
+    }
+    return prev[b.length];
+}
+
+// Buyer names already used, best first: names starting with what was typed, then the most used, then the most recent.
+// Spelling variants that differ only in capitals are merged (the most common spelling is shown). "Anonymous" is never suggested.
+export function buyerSuggestions(entries, q = '', limit = 8) {
+    const t = String(q).trim().toLowerCase();
+    const needle = t === 'anonymous' ? '' : t;
+    const groups = new Map();
+    for (const e of entries) {
+        const name = String(e.buyer || '').trim();
+        const key = name.toLowerCase();
+        if (!name || (key.length >= 6 && editDistance(key, 'anonymous') <= 2)) continue;
+        const g = groups.get(key) || { key, spellings: new Map(), n: 0, last: 0 };
+        g.spellings.set(name, (g.spellings.get(name) || 0) + 1);
+        g.n++;
+        g.last = Math.max(g.last, Number(e.updatedAt) || Date.parse(e.date) || 0);
+        groups.set(key, g);
+    }
+    let list = [...groups.values()].map(g => ({
+        name: [...g.spellings].sort((a, b) => b[1] - a[1])[0][0], key: g.key, n: g.n, last: g.last,
+    }));
+    if (needle) list = list.filter(x => x.key.includes(needle));
+    list.sort((a, b) => (b.key.startsWith(needle) - a.key.startsWith(needle)) || b.n - a.n || b.last - a.last);
+    list = list.slice(0, limit);
+    // Nothing useful to suggest when the only match is exactly what is already typed.
+    if (list.length === 1 && list[0].name === String(q).trim()) return [];
+    return list.map(({ name, n }) => ({ name, n }));
+}
+
 // Is this date far from the other receipts of the same booklet? (a likely typo in month or year)
 export function dateFarFromBooklet(entries, pr, iso, excludeId = null, maxDays = 45) {
     const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');

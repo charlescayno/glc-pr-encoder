@@ -1066,3 +1066,8 @@ tr.row-flash > td { animation: rowflash 2.5s ease-out; }
 .sync-indicator.status-error { cursor: pointer; border-color: var(--color-danger); color: var(--color-danger); font-weight: 600; }
 .sync-indicator.status-online .sync-label { font-weight: 600; }
 .sync-indicator.status-offline { border-color: var(--color-warning); }
+
+/* --- Go to PR box --- */
+.goto-box { position: relative; flex: 0 0 150px; margin: 0; }
+.goto-box input { padding-left: 2rem; }
+.goto-icon { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: var(--color-text-light); pointer-events: none; }
