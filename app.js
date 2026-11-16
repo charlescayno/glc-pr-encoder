@@ -73,9 +73,20 @@ const SYNC_BANNERS = {
     error: "Not saved to the cloud. Your receipts are kept on this device only. Check your internet connection and reload. Do not clear this browser's data until it syncs.",
     offline: "You are offline. Receipts you add are kept on this device and will sync when you are back online.",
 };
+const SYNC_LABELS = { online: "Saved \u2713", saving: "Saving\u2026", offline: "Offline", error: "Not saved" };
+let lastSync = 0;
 function setStatus(kind, label) {
+    const connecting = label === "Connecting";
     $("syncStatus").className = `sync-indicator status-${kind}`;
-    $("syncLabel").textContent = label;
+    $("syncLabel").textContent = connecting ? "Connecting\u2026" : (SYNC_LABELS[kind] || label);
+    if (kind === "online") lastSync = Date.now();
+    const at = lastSync ? new Date(lastSync).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+    $("syncTime").textContent = kind === "online" ? at : "";
+    $("syncStatus").title = connecting ? "Connecting to the cloud..."
+        : kind === "online" ? `Everything is saved to the cloud. Last synced ${at}.`
+        : kind === "saving" ? "Saving your changes to the cloud..."
+        : kind === "offline" ? "You are offline. Changes are kept on this device and will sync when you are back online."
+        : "Not saved to the cloud. Your receipts are kept on this device only. Click to reload and retry.";
     const msg = SYNC_BANNERS[kind];
     $("syncBanner").classList.toggle("hidden", !msg);
     $("syncBanner").classList.toggle("error", kind === "error");
@@ -84,6 +95,43 @@ function setStatus(kind, label) {
 window.addEventListener("offline", () => setStatus("offline", "Offline"));
 window.addEventListener("online", () => setStatus(remoteOk ? "saving" : "error", remoteOk ? "Syncing..." : "Local only"));
 $("syncReload").addEventListener("click", () => location.reload());
+$("syncStatus").addEventListener("click", () => { if ($("syncStatus").classList.contains("status-error")) location.reload(); });
+// ---------- In-app confirm dialog (replaces the browser confirm box) ----------
+let dlgCancelCurrent = null;
+function askConfirm({ title = "Please confirm", message = "", ok = "OK", cancel = "Cancel", danger = false } = {}) {
+    if (dlgCancelCurrent) dlgCancelCurrent();
+    return new Promise(resolve => {
+        const o = $("dlg"), okB = $("dlgOk"), noB = $("dlgCancel");
+        $("dlgTitle").textContent = title;
+        $("dlgMsg").textContent = message;
+        okB.textContent = ok; noB.textContent = cancel;
+        okB.className = "btn " + (danger ? "btn-danger" : "btn-primary");
+        $("dlgIcon").className = danger ? "ri-error-warning-fill dlg-danger" : "ri-question-line";
+        const prev = document.activeElement;
+        const done = v => {
+            o.classList.add("hidden");
+            dlgCancelCurrent = null;
+            document.removeEventListener("keydown", onKey, true);
+            okB.onclick = noB.onclick = o.onmousedown = null;
+            if (prev && prev.focus) prev.focus({ preventScroll: true });
+            resolve(v);
+        };
+        const onKey = ev => {
+            ev.stopPropagation();
+            if (ev.key === "Escape") { ev.preventDefault(); done(false); }
+            else if (ev.key === "Enter") { ev.preventDefault(); done(document.activeElement !== noB); }
+            else if (ev.key === "Tab") { ev.preventDefault(); (document.activeElement === okB ? noB : okB).focus(); }
+        };
+        okB.onclick = () => done(true);
+        noB.onclick = () => done(false);
+        o.onmousedown = ev => { if (ev.target === o) done(false); };
+        dlgCancelCurrent = () => done(false);
+        document.addEventListener("keydown", onKey, true);
+        o.classList.remove("hidden");
+        (danger ? noB : okB).focus({ preventScroll: true }); // dangerous actions default to Cancel
+    });
+}
+
 // ---------- Field errors: a red outline and a message right under the field ----------
 function clearFieldErrors() {
     document.querySelectorAll("#prForm .field-err").forEach(e => e.remove());
@@ -153,6 +201,7 @@ onSnapshot(marksCol, snap => {
 
 function marksFail(err) {
     console.error(err);
+    setStatus("error", "Local only");
     toast("Could not save the void / not-used mark to the cloud. Saved on this device only.");
 }
 
@@ -233,9 +282,9 @@ onSnapshot(locksCol, snap => {
 const isLocked = pr => locks.includes(bookletStart(Number(pr)));
 const lockedToast = () => toast("This booklet is locked. Unlock it first to make changes.");
 
-function toggleLock(start) {
+async function toggleLock(start) {
     const on = !locks.includes(start);
-    if (!on && !confirm(`Unlock booklet ${bookletLabel(start)}? It can be changed again.`)) return;
+    if (!on && !(await askConfirm({ title: `Unlock booklet ${bookletLabel(start)}?`, message: "It can be changed again.", ok: "Unlock" }))) return;
     locks = on ? [...locks, start] : locks.filter(s => s !== start);
     localStorage.setItem(LS_LOCKS, JSON.stringify(locks));
     const ref = doc(locksCol, `bk_${start}`);
@@ -918,9 +967,10 @@ $("prForm").addEventListener("keydown", ev => {
 $("cancelEditBtn").addEventListener("click", () => { resetForm(); finishReviewEdit(); });
 
 let suppressSubmit = false;
-$("prForm").addEventListener("submit", ev => {
+let submitBusy = false;
+$("prForm").addEventListener("submit", async ev => {
     ev.preventDefault();
-    if (suppressSubmit) return;
+    if (suppressSubmit || submitBusy) return;
     clearFieldErrors();
     if (!$("fPr").value) { fieldError($("fPr"), "Enter the PR number printed on the paper receipt."); return; }
     if (!updatePrWarning()) {
@@ -931,7 +981,12 @@ $("prForm").addEventListener("submit", ev => {
     $("itemsList").querySelectorAll(".item-name").forEach(applyShortcut); // e.g. submitted with Ctrl+Enter while still on "gte"
     if (!getDate()) { fieldError($("fDate"), "Enter a valid date as MM-DD-YYYY, for example 11-06-2026."); return; }
     const far = updateDateWarning();
-    if (far && !confirm(`The date ${fmtDate(getDate())} is ${far.days} days away from the other receipts in this booklet (around ${fmtDate(far.usual)}).\n\nSave anyway?`)) { $("fDate").focus(); return; }
+    if (far) {
+        submitBusy = true;
+        const okFar = await askConfirm({ title: "Check the date", message: `The date ${fmtDate(getDate())} is ${far.days} days away from the other receipts in this booklet (around ${fmtDate(far.usual)}).\n\nSave anyway?`, ok: "Save anyway", cancel: "Fix the date" });
+        submitBusy = false;
+        if (!okFar) { $("fDate").focus(); return; }
+    }
     const items = readItems().filter(i => i.desc);
     if (!items.length) { fieldError($("itemsList").querySelector(".item-name"), "Add at least one sold item (search, or type a shorthand like gte)."); return; }
     for (const i of items) {
@@ -991,13 +1046,13 @@ function visibleRows() {
 }
 
 // Mark the PR number in the form as void (cancelled) or not used (blank / skipped), then move on.
-function markFromForm(status) {
+async function markFromForm(status) {
     const pr = Number($("fPr").value);
     if (!(pr > 0)) return toast("Enter the PR number first.");
     if (editingId) return toast("Finish or cancel the edit first.");
     if (isLocked(pr)) return lockedToast();
     if (entries.some(e => Number(e.pr) === pr)) return toast(`PR #${pr} already has a receipt. Delete it first if the sheet was cancelled.`);
-    if (!confirm(`Mark PR #${pr} as ${markLabel(status)}?`)) return;
+    if (!(await askConfirm({ title: `Mark PR #${pr} as ${markLabel(status)}?`, message: "You can clear the mark later from the list.", ok: "Mark it" }))) return;
     setMark(pr, status);
     localStorage.setItem(LS_LAST_PR, String(pr));
     toast(`PR #${pr} marked ${markLabel(status)}.`);
@@ -1015,6 +1070,33 @@ let bookletsDefaulted = false;
 const collapsedMonths = new Set();
 let monthsDefaulted = false;
 let renderedStarts = []; // booklets shown in the table right now (also those inside a collapsed month)
+
+// Remember the view (open months and booklets, filters, cards month) across reloads.
+const LS_VIEW_STATE = "pre_view_state_v1";
+let pendingSel = null; // saved booklet / month filter, applied once those dropdowns have options
+(function restoreViewState() {
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(LS_VIEW_STATE)); } catch { /* ignore */ }
+    if (!st || typeof st !== "object") return;
+    (st.months || []).forEach(m => collapsedMonths.add(m));
+    (st.booklets || []).forEach(b => collapsedBooklets.add(Number(b)));
+    monthsDefaulted = true; bookletsDefaulted = true;
+    if (st.cardMonth) cardMonth = st.cardMonth;
+    const f = st.f || {};
+    $("searchInput").value = f.q || ""; $("fromDate").value = f.from || ""; $("toDate").value = f.to || "";
+    $("uncheckedOnly").checked = !!f.unchecked; $("mopFilter").value = f.mop || "";
+    pendingSel = { booklet: f.booklet || "", month: f.month || "" };
+})();
+function saveViewState() {
+    if (!monthsDefaulted || !bookletsDefaulted) return; // nothing loaded yet
+    const f = currentFilter();
+    try {
+        localStorage.setItem(LS_VIEW_STATE, JSON.stringify({
+            months: [...collapsedMonths], booklets: [...collapsedBooklets], cardMonth,
+            f: { q: f.q, booklet: pendingSel ? pendingSel.booklet : f.booklet, month: pendingSel ? pendingSel.month : f.month, mop: f.mop, from: f.from, to: f.to, unchecked: f.unchecked },
+        }));
+    } catch { /* storage full or blocked */ }
+}
 const monthLabel = m => m ? new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" }) : "No date";
 function monthHeaderHtml(m, starts, byBooklet) {
     const rows = starts.flatMap(s => byBooklet.get(s) || []);
@@ -1378,15 +1460,23 @@ async function commitEntrySets(list) {
 
 // For booklets that were already checked against the paper (and cash counted) outside the app:
 // tick every receipt as checked in one go, after two confirmations. Undo restores the previous state.
-function markBookletReviewed(start) {
+async function markBookletReviewed(start) {
     if (isLocked(start)) return lockedToast();
     const list = entries.filter(e => bookletStart(e.pr) === start && !e.checkedAt);
     if (!list.length) return toast("Every receipt in this booklet is already checked.");
     const label = bookletLabel(start);
     const missing = reviewProgress(reviewSequence(entries, marks, start)).missing;
-    if (!confirm(`Mark booklet ${label} as fully reviewed?\n\n${list.length} receipt${list.length === 1 ? "" : "s"} will be ticked as checked without going through them one by one. Only do this if the booklet was already checked against the paper sheets and the cash was counted.` +
-        (missing ? `\n\nNote: ${missing} PR number${missing === 1 ? " is" : "s are"} still missing (mark them Void or Not used to finish the review).` : ""))) return;
-    if (!confirm(`Final check: complete the review of booklet ${label}?\n\nThis marks ${list.length} receipt${list.length === 1 ? "" : "s"} as checked now. You can press Undo for a few seconds, or use "Review again" later.`)) return;
+    const n = list.length, rec = `${n} receipt${n === 1 ? "" : "s"}`;
+    if (!(await askConfirm({
+        title: `Mark booklet ${label} as fully reviewed?`,
+        message: `${rec} will be ticked as checked without going through them one by one. Only do this if the booklet was already checked against the paper sheets and the cash was counted.` +
+            (missing ? `\n\nNote: ${missing} PR number${missing === 1 ? " is" : "s are"} still missing (mark them Void or Not used to finish the review).` : ""),
+        ok: "Continue" }))) return;
+    if (!(await askConfirm({
+        title: "Final check",
+        message: `Complete the review of booklet ${label}?\n\nThis marks ${rec} as checked now. You can press Undo for a few seconds, or use "Review again" later.`,
+        ok: "Complete the review" }))) return;
+    if (isLocked(start)) return lockedToast();
     const now = Date.now();
     const ids = new Set(list.map(e => e.id));
     entries = entries.map(e => ids.has(e.id) ? { ...e, checkedAt: now } : e);
@@ -1512,6 +1602,7 @@ function refresh() {
     pruneBookletSelection();
     renderBookletSummary(flatten(filterEntries(entries, { ...f, booklet: "" }))); // all booklets, even while one is selected below
     afterRowsRendered(rows, shown, f);
+    saveViewState();
 }
 
 function mopCellHtml(r) {
@@ -1560,19 +1651,20 @@ function rowHtml(r) {
 
 function updateBookletOptions() {
     const sel = $("bookletFilter");
-    const prev = sel.value;
+    const prev = pendingSel ? pendingSel.booklet : sel.value;
     const starts = bookletStarts(entries);
     sel.innerHTML = `<option value="">All booklets</option>` +
         starts.map(s => `<option value="${s}">Booklet ${esc(bookletLabel(s))}</option>`).join("");
     sel.value = starts.includes(Number(prev)) ? prev : "";
     const ms = $("monthFilter");
-    const pm = ms.value;
+    const pm = pendingSel ? pendingSel.month : ms.value;
     const months = [...new Set(entries.map(e => String(e.date || "").slice(0, 7)).filter(x => /^\d{4}-\d{2}$/.test(x)))].sort().reverse();
     ms.innerHTML = `<option value="">All months</option>` + months.map(m => {
         const [y, mo] = m.split("-").map(Number);
         return `<option value="${m}">${new Date(y, mo - 1, 1).toLocaleString("en", { month: "long", year: "numeric" })}</option>`;
     }).join("");
     ms.value = months.includes(pm) ? pm : "";
+    if (pendingSel && entries.length) pendingSel = null;
 }
 
 function updateBookletHint() {
@@ -1643,8 +1735,10 @@ $("selDelete").addEventListener("click", async () => {
     const ents = starts.flatMap(s => entries.filter(inB(s)));
     const mks = starts.flatMap(s => marks.filter(inB(s)));
     const list = starts.map(s => `  Booklet ${bookletLabel(s)}: ${bookletReceiptCount(s)} receipts`).join("\n");
-    if (!confirm(`Delete ${starts.length} whole booklet${starts.length === 1 ? "" : "s"} with ${ents.length} receipts, ${mks.length} void / not-used marks and their cash counts?\n\n${list}\n\nThis cannot be undone.`)) return;
-    if (!confirm("Really delete? Consider downloading a CSV or the booklet PDFs first.")) return;
+    if (!(await askConfirm({ title: `Delete ${starts.length} whole booklet${starts.length === 1 ? "" : "s"}?`, danger: true, ok: "Delete",
+        message: `${ents.length} receipts, ${mks.length} void / not-used marks and their cash counts will be removed.\n\n${list}` }))) return;
+    if (!(await askConfirm({ title: "Really delete?", danger: true, ok: "Yes, delete", cancel: "Keep them",
+        message: "Consider downloading a CSV or the booklet PDFs first. You can press Undo for a few seconds afterwards." }))) return;
     const priorCash = starts.map(s => [s, loadCashCount(s)]);
     const entIds = new Set(ents.map(e => e.id));
     const mkIds = new Set(mks.map(m => m.id || `pr_${m.pr}`));
@@ -1684,7 +1778,7 @@ $("selDelete").addEventListener("click", async () => {
     });
 });
 
-$("outBody").addEventListener("click", ev => {
+$("outBody").addEventListener("click", async ev => {
     // Booklet checkboxes: select without collapsing / expanding the booklet.
     if (ev.target.closest(".bk-sel")) {
         const cb = ev.target.closest("input[data-bk-select]");
@@ -1726,7 +1820,7 @@ $("outBody").addEventListener("click", ev => {
     if (b.dataset.edit) startEdit(b.dataset.edit);
     if (b.dataset.del) {
         const e = entries.find(x => x.id === b.dataset.del);
-        if (e && confirm(`Delete PR #${e.pr}?`)) {
+        if (e && await askConfirm({ title: `Delete PR #${e.pr}?`, message: "You can press Undo for a few seconds afterwards.", danger: true, ok: "Delete" })) {
             removeEntry(e.id);
             if (editingId === e.id) resetForm();
         }
@@ -1817,12 +1911,12 @@ $("importBtn").addEventListener("click", () => { $("importText").value = ""; imp
 $("importClose").addEventListener("click", () => $("importModal").classList.add("hidden"));
 $("importText").addEventListener("input", importPreview);
 $("importSample").addEventListener("click", () => { $("importText").value = SHEET_0920; importPreview(); });
-$("importGo").addEventListener("click", () => {
+$("importGo").addEventListener("click", async () => {
     let { es, marks: ms, parsed, changes } = importPreview();
     if (!es.length && !ms.length) return;
     const overwrite = changes.replaced.filter(r => !isLocked(r.pr)).length;
-    if (overwrite && !confirm(`${overwrite} existing receipt${overwrite === 1 ? "" : "s"} will be replaced with different data. Continue? (You can undo right after.)`)) return;
-    if (parsed.warnings.length && !confirm(`${parsed.warnings.length} row${parsed.warnings.length === 1 ? "" : "s"} have a total that does not match qty x price. The columns may be shifted. Import anyway?`)) return;
+    if (overwrite && !(await askConfirm({ title: "Replace existing receipts?", message: `${overwrite} existing receipt${overwrite === 1 ? "" : "s"} will be replaced with different data. You can press Undo right after.`, ok: "Replace and import", danger: true }))) return;
+    if (parsed.warnings.length && !(await askConfirm({ title: "Totals do not match", message: `${parsed.warnings.length} row${parsed.warnings.length === 1 ? "" : "s"} have a total that does not match qty x price. The columns may be shifted. Import anyway?`, ok: "Import anyway", danger: true }))) return;
     const locked = es.filter(e => isLocked(e.pr)).length + ms.filter(m => isLocked(m.pr)).length;
     es = es.filter(e => !isLocked(e.pr)); // locked booklets are never touched by an import
     // A void / not-used number is only recorded when no receipt (existing or imported) uses it.
@@ -1855,8 +1949,8 @@ $("importGo").addEventListener("click", () => {
 $("clearBtn").addEventListener("click", async () => {
     if (!entries.length) return toast("Nothing to clear.");
     if (locks.length) return toast("Some booklets are locked. Unlock them first to clear everything.");
-    if (!confirm(`Delete ALL ${entries.length} receipts? This cannot be undone.`)) return;
-    if (!confirm("Really delete everything? Consider downloading a CSV first.")) return;
+    if (!(await askConfirm({ title: `Delete ALL ${entries.length} receipts?`, message: "This cannot be undone.", danger: true, ok: "Delete all" }))) return;
+    if (!(await askConfirm({ title: "Really delete everything?", message: "Consider downloading a CSV first.", danger: true, ok: "Yes, delete everything", cancel: "Keep them" }))) return;
     const ids = entries.map(e => e.id);
     entries = [];
     marks = [];
@@ -1963,8 +2057,8 @@ $("catalogAdd").addEventListener("click", () => {
     const rows = $("catalogBody").querySelectorAll(".cat-row"); const last = rows[rows.length - 1];
     last.scrollIntoView({ block: "end" }); last.querySelectorAll("input")[1].focus();
 });
-$("catalogReset").addEventListener("click", () => {
-    if (!confirm("Reset the catalog to the default price list? This changes it on every device.")) return;
+$("catalogReset").addEventListener("click", async () => {
+    if (!(await askConfirm({ title: "Reset the catalog?", message: "Reset to the default price list. This changes it on every device.", danger: true, ok: "Reset" }))) return;
     const before = loadCatalog();
     localStorage.removeItem(LS_CATALOG);
     catalog = defaultCatalog(); renderCatalogRows();
@@ -2628,12 +2722,12 @@ $("rvCard").addEventListener("click", ev => {
 $("rvClose").addEventListener("click", closeReview);
 // Uncheck every PR of the booklet and restart the review from the first sheet.
 $("rvLock").addEventListener("click", () => { if (rv) toggleLock(rv.start); });
-$("rvRestart").addEventListener("click", () => {
+$("rvRestart").addEventListener("click", async () => {
     if (!rv) return;
     if (locks.includes(rv.start)) return lockedToast();
     const checked = entries.filter(e => bookletStart(e.pr) === rv.start && e.checkedAt);
     if (!checked.length) return toast("Nothing is checked in this booklet.");
-    if (!confirm(`Uncheck all ${checked.length} checked PRs in booklet ${bookletLabel(rv.start)} and restart the review?`)) return;
+    if (!(await askConfirm({ title: "Restart the review?", message: `Uncheck all ${checked.length} checked PRs in booklet ${bookletLabel(rv.start)} and start again.`, ok: "Uncheck all" }))) return;
     const ids = new Set(checked.map(e => e.id));
     entries = entries.map(e => {
         if (!ids.has(e.id)) return e;

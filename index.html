@@ -36,6 +36,7 @@
                         <div id="syncStatus" class="sync-indicator status-offline" title="Database connection status">
                             <span class="sync-dot"></span>
                             <span class="sync-label" id="syncLabel">Connecting</span>
+                            <small class="sync-time desktop-only" id="syncTime"></small>
                         </div>
                         <button id="tutorialBtn" class="btn btn-secondary" title="Watch the how-to video"><i class="ri-play-circle-line"></i><span class="desktop-only">Tutorial</span></button>
                         <button id="salesBtn" class="btn btn-secondary" title="Sales summary per week and per month"><i class="ri-bar-chart-box-line"></i><span class="desktop-only">Sales summary</span></button>
@@ -431,6 +432,16 @@
         </div>
     </div>
 
+    <div id="dlg" class="dlg-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle" aria-describedby="dlgMsg">
+        <div class="dlg-box">
+            <div class="dlg-head"><i id="dlgIcon" class="ri-question-line"></i><h3 id="dlgTitle"></h3></div>
+            <div class="dlg-msg" id="dlgMsg"></div>
+            <div class="dlg-actions">
+                <button type="button" class="btn btn-secondary" id="dlgCancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="dlgOk">OK</button>
+            </div>
+        </div>
+    </div>
     <div id="toast" class="toast hidden"></div>
 
     <script src="catalog.js"></script>
