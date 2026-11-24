@@ -2712,7 +2712,7 @@ function receiptPaperHtml(e) {
     const bank = pays.find(p => p.method === "Bank Transfer");
     const online = pays.filter(p => p.method && !["Cash", "Check", "Cheque", "Bank Transfer"].includes(p.method));
     const chanOf = p => (p.channel || "").trim();
-    const invoiceRef = online.map(p => `${(p.ref || "").trim() || p.method}${chanOf(p) ? " - " + chanOf(p) : ""}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
+    const invoiceRef = online.map(p => `${chanOf(p) ? chanOf(p) + " " : ""}${(p.ref || "").trim() || (chanOf(p) ? "" : p.method)}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
     const chanNames = [...new Set(online.map(chanOf).filter(Boolean))].join(", ");
     const bankText = bank ? `${(bank.bank || "").trim() || "Bank Transfer"}${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
 
