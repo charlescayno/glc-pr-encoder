@@ -2705,13 +2705,15 @@ function reviewPayText(p) {
 function receiptPaperHtml(e) {
     const total = entryTotal(e);
     const pays = Array.isArray(e.payments) && e.payments.length
-        ? e.payments : [{ method: e.mop && e.mop !== "Split" ? e.mop : "Cash", amount: total, ref: e.mopRef || "", bank: e.mopBank || "" }];
+        ? e.payments : [{ method: e.mop && e.mop !== "Split" ? e.mop : "Cash", amount: total, ref: e.mopRef || "", bank: e.mopBank || "", channel: e.mopChannel || "" }];
     const multi = pays.length > 1;
     const hasCash = pays.some(p => !p.method || p.method === "Cash");
     const check = pays.find(p => /^che(que|ck)$/i.test(p.method));
     const bank = pays.find(p => p.method === "Bank Transfer");
     const online = pays.filter(p => p.method && !["Cash", "Check", "Cheque", "Bank Transfer"].includes(p.method));
-    const invoiceRef = online.map(p => `${(p.ref || "").trim() || p.method}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
+    const chanOf = p => (p.channel || "").trim();
+    const invoiceRef = online.map(p => `${(p.ref || "").trim() || p.method}${chanOf(p) ? " - " + chanOf(p) : ""}${multi ? " (" + money(p.amount) + ")" : ""}`).join(", ");
+    const chanNames = [...new Set(online.map(chanOf).filter(Boolean))].join(", ");
     const bankText = bank ? `${(bank.bank || "").trim() || "Bank Transfer"}${bank.ref ? " " + bank.ref : ""}${multi ? " (" + money(bank.amount) + ")" : ""}` : "";
 
     const rows = e.items.map(i => ({ text: `${i.desc} - ${i.qty}`, amt: money(round2(i.qty * i.price)) }));
@@ -2719,7 +2721,8 @@ function receiptPaperHtml(e) {
     // Registered name on the paper: any non-cash payment (invoice, GCash, bank...) reads "Online Payment".
     const allCash = pays.every(p => !p.method || p.method === "Cash");
     const named = (e.buyer || "").trim() && !/^an+onymous$/i.test(e.buyer.trim());
-    const regName = allCash ? `Cash - ${e.buyer || "Anonymous"}` : named ? `Online Payment - ${e.buyer.trim()}` : "Online Payment";
+    const onlineLabel = chanNames ? `Online Payment (${chanNames})` : "Online Payment";
+    const regName = allCash ? `Cash - ${e.buyer || "Anonymous"}` : named ? `${onlineLabel} - ${e.buyer.trim()}` : onlineLabel;
     const lines = rows.map(r => `<div class="pp-row"><span class="ink">${esc(r.text)}</span><span class="ink amt">${esc(r.amt)}</span></div>`).join("");
 
     return `
