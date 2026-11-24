@@ -424,8 +424,14 @@ console.log("all tests passed (including the exports)");
     assert.deepEqual(L.filterEntries(all, { q: "gcash" }).map(e => e.pr), [1]);
     assert.deepEqual(L.channelTotals(all).map(c => [c.channel, c.total]), [["GoTyme", 40], ["BDO", 30], ["GCash", 30], ["No channel", 30]]);
     assert.deepEqual(L.channelTotals([cash, noCh]), []);
-    assert.equal(L.bookletSummary(all).channels.length, 4);
-    assert.equal(L.analytics(all, [], {}).channels.length, 3);
+    // the per-channel split is hidden: one online total, no channel rows in summaries, copy text or analytics
+    assert.equal(L.SHOW_CHANNEL_TOTALS, false);
+    assert.equal(L.bookletSummary(all).channels.length, 0);
+    assert.equal(L.analytics(all, [], {}).channels.length, 0);
+    assert.equal(L.analytics(all, [], {}).channelsNone, 0);
+    const tsv = L.summaryTSV(L.bookletSummary(all));
+    assert.ok(!/GCash|BDO|GoTyme|No channel/.test(tsv), "copy summary has no channel rows");
+    assert.ok(/ONLINE PAYMENT\n/.test(tsv) && /\nTOTAL\t\t\t/.test(tsv));
     assert.equal(L.matchChannel(["GCash", "BDO"], " gcash "), "GCash");
     assert.equal(L.matchChannel(["GCash"], "Coins.ph"), "Coins.ph");
     // text round trip (export -> import)

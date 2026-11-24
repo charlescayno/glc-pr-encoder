@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, cascadeDateTargets, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, SHOW_CHANNEL_TOTALS, cascadeDateTargets, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -1922,7 +1922,7 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
     const split = paymentSplit(rowsInBooklet);
-    const chanTip = Object.entries(split.byChannel).filter(([c]) => c).map(([c, v]) => `   ${c}: ${peso(v)}`).join("\n");
+    const chanTip = !SHOW_CHANNEL_TOTALS ? "" : Object.entries(split.byChannel).filter(([c]) => c).map(([c, v]) => `   ${c}: ${peso(v)}`).join("\n");
     const onlineTip = (Object.entries(split.byMethod).filter(([m]) => m !== "Cash")
         .map(([m, v]) => `${m}: ${peso(v)}`).join("\n") || "No online payments") + (chanTip ? "\n" + chanTip : "");
     const shownMissing = st.missing.slice(0, 8).join(", ") + (st.missing.length > 8 ? `, +${st.missing.length - 8} more` : "");

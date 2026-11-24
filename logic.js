@@ -15,6 +15,8 @@ export function fmtDate(iso) {
     return `${m}-${d}-${y}`;
 }
 
+// The online total is one line (no GCash / BDO / No channel rows under it). Set to true to show the per-channel split again in summaries, exports and analytics.
+export const SHOW_CHANNEL_TOTALS = false;
 // Online payment channels (the sub-option of Online Payment). The list can be extended from the form and is shared across devices.
 export const DEFAULT_CHANNELS = ['GCash', 'BPI', 'BDO', 'PSBank', 'Security Bank', 'Maribank', 'Atome', 'GoTyme', 'InstaPay'];
 // Channel name as typed -> the one in the list (case-insensitive), or the trimmed text itself.
@@ -582,7 +584,7 @@ export function bookletSummary(entries) {
     return {
         cash: finish(sections.cash),
         online: finish(sections.online),
-        channels: channelTotals(entries),
+        channels: SHOW_CHANNEL_TOTALS ? channelTotals(entries) : [],
         firstPr: prs.length ? Math.min(...prs) : null,
         lastPr: prs.length ? Math.max(...prs) : null,
         dateRange: dates.length ? (dates[0] === dates[dates.length - 1] ? md(dates[0]) : `${md(dates[0])} \u2013 ${md(dates[dates.length - 1])}`) : '',
@@ -925,8 +927,8 @@ export function analytics(entries, marks = [], { from = '', to = '' } = {}) {
         weekdays: wd.map((w, i) => ({ day: i, total: w.total, receipts: w.receipts, activeDays: w.days.size, avg: w.days.size ? round2(w.total / w.days.size) : 0 })),
         categories: [...cats.values()].map(c => ({ ...c, share: share(c.total) })),
         methods,
-        channels: Object.entries(split.byChannel).filter(([c, v]) => c && v > 0).map(([channel, amount]) => ({ channel, total: amount, share: share(amount) })).sort((a, b) => b.total - a.total),
-        channelsNone: split.byChannel[''] || 0,
+        channels: !SHOW_CHANNEL_TOTALS ? [] : Object.entries(split.byChannel).filter(([c, v]) => c && v > 0).map(([channel, amount]) => ({ channel, total: amount, share: share(amount) })).sort((a, b) => b.total - a.total),
+        channelsNone: SHOW_CHANNEL_TOTALS ? (split.byChannel[''] || 0) : 0,
         topItems: [...items.values()].sort((a, b) => b.total - a.total || b.qty - a.qty),
         marks: { void: marks.filter(m => m.status === 'void').length, unused: marks.filter(m => m.status === 'unused').length, missing },
     };
