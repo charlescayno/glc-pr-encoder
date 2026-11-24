@@ -472,3 +472,18 @@ console.log("all tests passed (including the exports)");
     assert.deepEqual(L.deletedPrs(h2, [{ pr: 3 }]).map(v => v.pr), [1]);
     assert.deepEqual(L.deletedPrs(h2, []).map(v => v.pr), [1, 3]);
 }
+
+// Date cascade
+{
+    const L = await import("./logic.js");
+    const mk = (pr, date) => ({ id: "pr_" + pr, pr, date, items: [] });
+    const all = [mk(42784, "2026-09-20"), mk(42785, "2026-09-13"), mk(42786, "2026-09-25"), mk(42787, "2026-09-20"), mk(42783, "2026-09-10"), mk(42801, "2026-09-01")];
+    const r = L.cascadeDateTargets(all, mk(42784, "2026-09-20"));
+    assert.deepEqual(r.change.map(e => e.pr), [42785, 42786]); // later in booklet, different date (even a newer one); not the same date, earlier PR or next booklet
+    assert.deepEqual(r.skipped, []);
+    const r2 = L.cascadeDateTargets(all, mk(42784, "2026-09-20"), pr => pr === 42786);
+    assert.deepEqual(r2.change.map(e => e.pr), [42785]);
+    assert.deepEqual(r2.skipped.map(e => e.pr), [42786]);
+    assert.deepEqual(L.cascadeDateTargets(all, mk(42800, "2026-10-01")).change, []);
+    assert.deepEqual(L.cascadeDateTargets(all, mk(42760, "2026-09-05")).change.map(e => e.pr), [42783, 42784, 42785, 42786, 42787]);
+}

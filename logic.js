@@ -975,3 +975,13 @@ export function deletedPrs(history, entries) {
     for (const v of history || []) { const c = latest.get(Number(v.pr)); if (!c || v.at > c.at) latest.set(Number(v.pr), v); }
     return [...latest.values()].filter(v => v.action === 'deleted' && !have.has(Number(v.pr))).sort((x, y) => y.at - x.at);
 }
+
+// Date cascade: after a PR gets a new date, every higher-numbered PR in the same booklet takes that date too.
+// Returns the PRs to change (not locked) and the ones skipped because their booklet is locked, both in PR order.
+export function cascadeDateTargets(entries, entry, isLocked = () => false) {
+    const start = bookletStart(Number(entry.pr));
+    const later = (entries || [])
+        .filter(e => Number(e.pr) > Number(entry.pr) && bookletStart(Number(e.pr)) === start && e.date !== entry.date)
+        .sort((a, b) => a.pr - b.pr);
+    return { change: later.filter(e => !isLocked(e.pr)), skipped: later.filter(e => isLocked(e.pr)) };
+}

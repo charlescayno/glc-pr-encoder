@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, cascadeDateTargets, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -1235,11 +1235,29 @@ $("prForm").addEventListener("submit", async ev => {
     const oldId = editingId;
     const wasEdit = !!editingId;
     const prevEntry = wasEdit ? entries.find(e => e.id === oldId) : null;
+    // A changed date carries on to the later PRs of the booklet (higher PR number = same or later date).
+    let cascade = [];
+    if (!prevEntry || prevEntry.date !== entry.date) {
+        const ct = cascadeDateTargets(entries, entry, isLocked);
+        if (ct.change.length) {
+            const n = ct.change.length, s = n > 1 ? "s" : "";
+            const range = n > 1 ? `#${ct.change[0].pr} to #${ct.change[n - 1].pr}` : `#${ct.change[0].pr}`;
+            const skipped = ct.skipped.length ? ` ${ct.skipped.length} locked PR${ct.skipped.length > 1 ? "s" : ""} will not change.` : "";
+            if (await askConfirm({ title: `Change ${n} later PR${s} to ${fmtDate(entry.date)}?`, message: `PR${s} ${range} in booklet ${bookletLabel(bookletStart(pr))} will get the same date as PR #${pr}.${skipped} You can change any of them again later.`, ok: `Change all ${n}`, cancel: "Only this PR" })) cascade = ct.change;
+        }
+    }
+    const cascadeOriginals = cascade.map(t => ({ ...t }));
     persist(entry, oldId);
+    cascade.forEach(t => persist({ ...t, date: entry.date, updatedAt: Date.now() }, undefined, "edited"));
     if (marks.some(m => Number(m.pr) === pr)) clearMark(pr); // a real receipt replaces a void / not-used mark
     if (wasEdit) toast(`PR #${pr} updated.`, prevEntry && (() => { persist({ ...prevEntry }, entry.id, "restored"); toast(`PR #${prevEntry.pr} changes undone.`); }));
     else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is fully encoded - next sheet starts a new booklet.`);
     else toast(`PR #${pr} added.`);
+    if (cascade.length) toast(`PR #${pr} ${wasEdit ? "updated" : "added"}. ${cascade.length} later PR${cascade.length > 1 ? "s" : ""} changed to ${fmtDate(entry.date)}.`, () => {
+        if (wasEdit && prevEntry) persist({ ...prevEntry }, entry.id, "restored");
+        cascadeOriginals.forEach(o => persist(o, undefined, "restored"));
+        toast("Date changes undone.");
+    });
     localStorage.setItem(LS_LAST_DATE, entry.date);
     if (!wasEdit) localStorage.setItem(LS_LAST_PR, String(pr));
     resetForm();
