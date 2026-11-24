@@ -78,6 +78,8 @@ export function renderAnalytics(el, entries, marks, state = {}) {
             <div><h2>By category</h2>${barList(a.categories.filter(c => c.total > 0).sort((x, y) => y.total - x.total).map(c => ({ label: c.category, ...c })), r => r.total, r => `${peso(r.total)} <small>${Number(r.share.toFixed(1))}% &middot; ${num(r.units)} units</small>`)}</div>
             <div><h2>By payment method</h2>${barList(a.methods.map(m => ({ label: m.method, ...m })), r => r.total, r => `${peso(r.total)} <small>${Number(r.share.toFixed(1))}%</small>`, "alt")}</div>
         </div>
+        ${a.channels.length ? `<h2>Online payments by channel${a.channelsNone > 0 ? ` <small class="an-h2-sub">${peso(a.channelsNone)} online without a channel</small>` : ""}</h2>
+        ${barList(a.channels.map(c => ({ label: c.channel, ...c })), r => r.total, r => `${peso(r.total)} <small>${Number(r.share.toFixed(1))}%</small>`, "alt")}` : ""}
         <h2>Busiest weekdays <small class="an-h2-sub">average sales per day that had receipts${wdBest && wdBest.avg ? `, best: ${WEEKDAYS[wdBest.day]}` : ""}</small></h2>
         ${barList(a.weekdays.map(w => ({ label: WEEKDAYS[w.day], ...w })), r => r.avg, r => r.activeDays ? `${peso(r.avg)} <small>${r.activeDays} day${r.activeDays === 1 ? "" : "s"}</small>` : `<small>-</small>`, "alt")}
         <h2>Top items <small class="an-h2-sub">by sales amount</small></h2>

@@ -1077,3 +1077,7 @@ tr.row-flash > td { animation: rowflash 2.5s ease-out; }
 .goto-box { position: relative; flex: 0 0 150px; margin: 0; }
 .goto-box input { padding-left: 2rem; }
 .goto-icon { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: var(--color-text-light); pointer-events: none; }
+
+/* --- Online payment channel --- */
+#channelField input, #sChannelField input { margin-top: 0.3rem; }
+.rs-table tfoot .rs-chan td { font-weight: 400; font-style: italic; }

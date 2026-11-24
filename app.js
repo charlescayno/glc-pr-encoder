@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, paymentText, mopText, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -245,6 +245,71 @@ onSnapshot(catalogDoc, snap => {
         saveCatalogToCloud(loadCatalog()); // first time: this device's catalog becomes the shared one
     }
 }, err => console.error("Catalog listener error", err));
+
+// ---------- Online payment channels (GCash, BDO, ...): one shared list, extendable from the form ----------
+const LS_CHANNELS = "pre_channels_v1";
+const channelsDoc = doc(collection(db, "pr_encoder_catalog"), "channels"); // same collection as the item catalog (no new Firestore rule needed)
+const loadChannels = () => { try { const c = JSON.parse(localStorage.getItem(LS_CHANNELS)); if (Array.isArray(c) && c.length) return c; } catch { /* ignore */ } return [...DEFAULT_CHANNELS]; };
+let channels = loadChannels();
+function saveChannels() {
+    localStorage.setItem(LS_CHANNELS, JSON.stringify(channels));
+    return setDoc(channelsDoc, { items: channels, updatedAt: Date.now() }).catch(err => {
+        console.error(err);
+        toast("Could not save the channel list to the cloud. It is saved on this device only.");
+    });
+}
+onSnapshot(channelsDoc, snap => {
+    if (snap.exists() && Array.isArray(snap.data().items) && snap.data().items.length) {
+        channels = snap.data().items;
+        localStorage.setItem(LS_CHANNELS, JSON.stringify(channels));
+        fillChannelSelects();
+    } else if (!snap.metadata.fromCache && localStorage.getItem(LS_CHANNELS)) saveChannels(); // first time: this device's list becomes the shared one
+}, err => console.error("Channels listener error", err));
+// Fills the two channel dropdowns (form and split) and the channel entries of the payment filter, keeping what is selected.
+function fillChannelSelects() {
+    [$("fChannel"), $("sChannel")].forEach(sel => {
+        const cur = sel.value === "__new" ? "" : sel.value;
+        const list = cur && !channels.some(c => c.toLowerCase() === cur.toLowerCase()) ? [...channels, cur] : channels; // a channel on an old receipt stays selectable
+        sel.innerHTML = `<option value="">Select channel...</option>` + list.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("") + `<option value="__new">+ Add new channel...</option>`;
+        sel.value = cur;
+    });
+    const f = $("mopFilter"), cur = f.value;
+    f.querySelectorAll("option[value^='channel:']").forEach(o => o.remove());
+    channels.forEach(c => f.add(new Option(`Online - ${c}`, `channel:${c}`)));
+    if (cur && ![...f.options].some(o => o.value === cur)) f.add(new Option(cur.replace(/^channel:/, "Online - "), cur));
+    f.value = cur;
+}
+function addChannel(name) {
+    const n = matchChannel(channels, name);
+    if (n && !channels.some(c => c === n)) { channels.push(n); saveChannels(); fillChannelSelects(); }
+    return n;
+}
+// Dropdown + "add new" box: choosing "+ Add new channel..." shows the box; Enter adds the name to the shared list and selects it.
+function bindChannelInput(sel, input) {
+    const done = () => { input.classList.add("hidden"); input.value = ""; };
+    const commit = () => {
+        const n = input.value.trim() ? addChannel(input.value) : "";
+        done(); sel.value = n; if (!n) sel.value = "";
+    };
+    sel.addEventListener("change", () => {
+        if (sel.value === "__new") { input.classList.remove("hidden"); input.focus(); } else done();
+    });
+    input.addEventListener("keydown", ev => {
+        if (ev.key === "Enter") { ev.preventDefault(); ev.stopPropagation(); commit(); sel.focus(); }
+        else if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); done(); sel.value = ""; sel.focus(); }
+    });
+    input.addEventListener("blur", () => { if (!input.classList.contains("hidden")) commit(); });
+}
+// The chosen channel ("" when none). A name typed in the add box but not confirmed yet is added too.
+function readChannel(sel, input) {
+    if (sel.value === "__new") return input.value.trim() ? addChannel(input.value) : "";
+    return sel.value;
+}
+function setChannel(sel, input, value) {
+    input.classList.add("hidden"); input.value = "";
+    if (value && ![...sel.options].some(o => o.value === value)) sel.add(new Option(value, value), sel.options[sel.options.length - 1]); // not in the list: keep it selectable
+    sel.value = value || "";
+}
 
 // ---------- Price history: every catalog price change is recorded (item, old price, new price, when) ----------
 const LS_PRICE_HISTORY = "pre_price_history_v1";
@@ -705,6 +770,7 @@ function resetForm() {
     $("fBuyer").value = "Anonymous";
     $("fMop").value = "Cash";
     $("fRef").value = "";
+    setChannel($("fChannel"), $("fChannelNew"), ""); setChannel($("sChannel"), $("sChannelNew"), "");
     toggleSplit(false);
     $("sMethod").value = "Online Payment";
     $("itemsList").innerHTML = "";
@@ -731,6 +797,7 @@ function startEdit(id) {
         { const m = e.mop && e.mop !== "Split" ? e.mop : "Cash"; ensureOption($("fMop"), m); $("fMop").value = m; }
         $("fRef").value = e.mopRef || ""; $("fBank").value = e.mopBank || "";
         updateRefField();
+        setChannel($("fChannel"), $("fChannelNew"), e.mopChannel || "");
     }
     $("itemsList").innerHTML = "";
     e.items.forEach(addItemRow);
@@ -739,7 +806,7 @@ function startEdit(id) {
         const onlinePay = e.payments.find(p => p.method !== "Cash");
         toggleSplit(true);
         $("sCash").value = cashPay ? String(cashPay.amount) : "";
-        if (onlinePay) { ensureOption($("sMethod"), onlinePay.method); $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; $("sBank").value = onlinePay.bank || ""; }
+        if (onlinePay) { ensureOption($("sMethod"), onlinePay.method); $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; $("sBank").value = onlinePay.bank || ""; setChannel($("sChannel"), $("sChannelNew"), onlinePay.channel || ""); }
         updateSplitRefLabel();
         splitAnchor = "cash";
         recalcSplit();
@@ -764,6 +831,9 @@ function updateRefField() {
     $("refLabel").textContent = v === "Others" ? "Please specify" : v === "Cheque" ? "Cheque No." : "Reference No.";
     $("fRef").placeholder = v === "Others" ? "Please specify" : "e.g. 689746";
     if (!show) $("fRef").value = "";
+    const chan = v === "Online Payment";
+    $("channelField").classList.toggle("hidden", !chan);
+    if (!chan) setChannel($("fChannel"), $("fChannelNew"), "");
     const bank = v === "Bank Transfer" && !splitOn;
     $("bankField").classList.toggle("hidden", !bank);
     if (!bank) $("fBank").value = "";
@@ -1064,6 +1134,7 @@ $("prForm").addEventListener("submit", async ev => {
         items: items.map(({ desc, qty, price }) => ({ desc, qty, price })),
         updatedAt: Date.now()
     };
+    if (entry.mop === "Online Payment") { const ch = readChannel($("fChannel"), $("fChannelNew")); if (ch) entry.mopChannel = ch; }
     if (splitOn) {
         const total = entryTotal(entry);
         const cash = round2(Number($("sCash").value) || 0);
@@ -1077,6 +1148,8 @@ $("prForm").addEventListener("submit", async ev => {
             { method: "Cash", amount: cash },
             { method: $("sMethod").value, amount: online, ref: $("sRef").value.trim(), bank: $("sBank").value.trim() }
         ];
+        const sch = readChannel($("sChannel"), $("sChannelNew"));
+        if (sch) entry.payments[1].channel = sch;
     }
     const oldId = editingId;
     const wasEdit = !!editingId;
@@ -1143,7 +1216,7 @@ let pendingSel = null; // saved booklet / month filter, applied once those dropd
     if (st.cardMonth) cardMonth = st.cardMonth;
     const f = st.f || {};
     $("searchInput").value = f.q || ""; $("fromDate").value = f.from || ""; $("toDate").value = f.to || "";
-    $("uncheckedOnly").checked = !!f.unchecked; $("mopFilter").value = f.mop || "";
+    $("uncheckedOnly").checked = !!f.unchecked; ensureOption($("mopFilter"), f.mop); $("mopFilter").value = f.mop || "";
     pendingSel = { booklet: f.booklet || "", month: f.month || "" };
 })();
 function saveViewState() {
@@ -1624,8 +1697,9 @@ function bookletHeaderHtml(start, rowsInBooklet) {
     const collapsed = collapsedBooklets.has(start);
     const sales = rowsInBooklet.reduce((s, r) => round2(s + r.total), 0);
     const split = paymentSplit(rowsInBooklet);
-    const onlineTip = Object.entries(split.byMethod).filter(([m]) => m !== "Cash")
-        .map(([m, v]) => `${m}: ${peso(v)}`).join("\n") || "No online payments";
+    const chanTip = Object.entries(split.byChannel).filter(([c]) => c).map(([c, v]) => `   ${c}: ${peso(v)}`).join("\n");
+    const onlineTip = (Object.entries(split.byMethod).filter(([m]) => m !== "Cash")
+        .map(([m, v]) => `${m}: ${peso(v)}`).join("\n") || "No online payments") + (chanTip ? "\n" + chanTip : "");
     const shownMissing = st.missing.slice(0, 8).join(", ") + (st.missing.length > 8 ? `, +${st.missing.length - 8} more` : "");
     const missing = st.missing.length
         ? `<span class="bk-missing" title="Missing sheets: ${esc(st.missing.join(", "))}"><i class="ri-error-warning-line"></i> Missing ${st.missing.length}: ${esc(shownMissing)}</span>`
@@ -2415,7 +2489,7 @@ function finishReviewEdit(savedPr) {
 // A replica of the paper Provisional Receipt, filled in with what was encoded.
 // Review: a payment line with just the reference number (falls back to the method name when there is none).
 function reviewPayText(p) {
-    const label = !p.method || p.method === "Cash" ? "Cash" : [p.method === "Bank Transfer" ? (p.bank || "").trim() : "", (p.ref || "").trim()].filter(Boolean).join(" ") || p.method;
+    const label = !p.method || p.method === "Cash" ? "Cash" : [p.method === "Bank Transfer" ? (p.bank || "").trim() : (p.channel || "").trim(), (p.ref || "").trim()].filter(Boolean).join(" ") || p.method;
     return `${label} ${money(p.amount)}`;
 }
 
@@ -2521,7 +2595,7 @@ function renderReview() {
         const e = cur.entry;
         const pay = Array.isArray(e.payments) && e.payments.length
             ? e.payments.map(p => esc(reviewPayText(p))).join("<br>")
-            : esc(e.mop && e.mop !== "Cash" && e.mop !== "Split" ? ([e.mop === "Bank Transfer" ? (e.mopBank || "").trim() : "", (e.mopRef || "").trim()].filter(Boolean).join(" ") || e.mop) : (mopText(e) || "Cash"));
+            : esc(e.mop && e.mop !== "Cash" && e.mop !== "Split" ? ([e.mop === "Bank Transfer" ? (e.mopBank || "").trim() : (e.mopChannel || "").trim(), (e.mopRef || "").trim()].filter(Boolean).join(" ") || e.mop) : (mopText(e) || "Cash"));
         $("rvHead").innerHTML = `
                 <div class="rv-sheet-label">Compare with paper PR #${esc(e.pr)}</div>
                 <div class="rv-sys"><b>Encoded MOP:</b> ${pay.replace(/<br>/g, " + ")}</div>
@@ -2714,7 +2788,7 @@ function summaryHtml(bookEntries) {
             </thead>
             <tbody>${sec.rows.length ? sec.rows.map(r => `<tr><td>${itemNameHtml(r.desc)}</td><td class="num">${qty(r.qty)}</td><td class="num">${money(r.price)}</td><td class="num">${money(r.total)}</td></tr>`).join("")
                 : `<tr><td colspan="4" class="rs-none">None</td></tr>`}</tbody>
-            <tfoot><tr><td colspan="3">TOTAL</td><td class="num">${money(sec.total)}</td></tr></tfoot>
+            <tfoot><tr><td colspan="3">TOTAL</td><td class="num">${money(sec.total)}</td></tr>${cls === "online" ? (s.channels || []).map(c => `<tr class="rs-chan"><td colspan="3">&nbsp;&nbsp;${esc(c.channel)}</td><td class="num">${money(c.total)}</td></tr>`).join("") : ""}</tfoot>
         </table>`;
     return `
         <div class="rs-head"><span class="rs-pr">PR No.: ${s.firstPr}-${s.lastPr}</span><span class="rs-date">Date: ${esc(s.dateRange)}</span></div>
@@ -2900,6 +2974,9 @@ scBox.addEventListener("toggle", () => { localStorage.setItem("pre_sc_open_v2", 
 // ---------- Init ----------
 setStatus("offline", "Connecting");
 catalogOptions();
+fillChannelSelects();
+bindChannelInput($("fChannel"), $("fChannelNew"));
+bindChannelInput($("sChannel"), $("sChannelNew"));
 resetForm();
 refresh();
 

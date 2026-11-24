@@ -65,6 +65,7 @@ function topSheetRows(s) {
             add(["", "", "", ""], "gap");
         });
         add(["TOTAL", "", "", money(sec.total)], "total");
+        if (i === 1) (s.channels || []).forEach(c => add([`   ${c.channel}`, "", "", money(c.total)], "chan")); // online total per channel
     });
     return { rows, kinds };
 }
@@ -93,6 +94,7 @@ function drawTopSheet(doc, s) {
             if (k === "head") { d.cell.styles.fillColor = BAND; d.cell.styles.fontStyle = "bold"; d.cell.styles.halign = d.column.index ? "center" : "left"; }
             if (k === "cat") { d.cell.styles.fillColor = GREEN; d.cell.styles.fontStyle = "bold"; d.cell.styles.halign = "left"; }
             if (k === "total") d.cell.styles.fontStyle = "bold";
+            if (k === "chan") d.cell.styles.fontStyle = "italic";
             if (k === "gap" && d.row.index > 0 && kinds[d.row.index + 1] === "band") { d.cell.styles.lineWidth = 0; d.cell.styles.fillColor = false; } // space between CASH and ONLINE PAYMENT
         },
         didDrawCell: d => { // underline the column titles
@@ -179,13 +181,16 @@ function drawBookletSummary(doc, s, bookEntries, counts, preparedBy) {
     const notes = [s.voidText ? `VOID: ${s.voidText}` : ""].filter(Boolean);
     doc.setFont("helvetica", "normal").setFontSize(9);
     const noteLines = notes.flatMap(n => doc.splitTextToSize(n, 280));
-    const leftNeed = 60 + 24 + noteLines.length * 11 + 32 + 84 + 10;
+    const chans = s.channels || [];
+    const leftNeed = 60 + chans.length * 14 + 24 + noteLines.length * 11 + 32 + 84 + 10;
     if (y + Math.max(80, ((counted.length || counts.length) + 2) * 17, leftNeed) > 780) { doc.addPage(); y = 40; }
     const sales = round2(s.cash.total + s.online.total);
     const topY = y;
     doc.autoTable({
         startY: topY, margin: { left: 30, right: 330 }, theme: "plain", styles: { fontSize: 10, fontStyle: "bold", textColor: 0 },
-        body: [["Cash Sales", money(s.cash.total)], ["Online Payment", money(s.online.total)], ["Total Sales", money(sales)]],
+        body: [["Cash Sales", money(s.cash.total)], ["Online Payment", money(s.online.total)],
+            ...chans.map(c => [{ content: `    ${c.channel}`, styles: { fontStyle: "italic", fontSize: 9 } }, { content: money(c.total), styles: { fontStyle: "italic", fontSize: 9 } }]),
+            ["Total Sales", money(sales)]],
         columnStyles: { 1: { halign: "right" } },
     });
     const totalsEnd = doc.lastAutoTable.finalY;
@@ -281,14 +286,16 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
         if (k === "gap" && kinds[i + 1] === "band") { r += 1; return; } // space between CASH and ONLINE PAYMENT
         const sec = i < kinds.indexOf("band", 1) ? s.cash : s.online;
         const rawRow = k === "item" ? sec.rows.find(x => x.desc === cells[0] && money(x.price) === cells[2]) : null;
-        const vals = rawRow ? [rawRow.desc, rawRow.qty, rawRow.price, rawRow.total] : k === "total" ? ["TOTAL", "", "", sec.total] : cells;
+        const chanRow = k === "chan" ? (s.channels || []).find(x => `   ${x.channel}` === cells[0]) : null;
+        const vals = rawRow ? [rawRow.desc, rawRow.qty, rawRow.price, rawRow.total] : k === "total" ? ["TOTAL", "", "", sec.total] : chanRow ? [cells[0], "", "", chanRow.total] : cells;
         vals.forEach((v, j) => {
             const c = top.getCell(r, 1 + j);
             c.value = v === "" ? null : v;
             c.border = BORDER;
             c.alignment = { horizontal: k === "head" && j ? "center" : j ? "right" : "left", vertical: "middle" };
             if (k === "item" && j) c.numFmt = j === 1 ? QTY : NUM;
-            if (k === "total" && j === 3) c.numFmt = NUM;
+            if ((k === "total" || k === "chan") && j === 3) c.numFmt = NUM;
+            if (k === "chan") c.font = { italic: true };
             if (k === "band" || k === "head") { c.fill = bandFill; c.font = { bold: true, underline: k === "head" }; }
             if (k === "cat") { c.fill = greenFill; c.font = { bold: true }; }
             if (k === "total") c.font = { bold: true };
@@ -315,18 +322,20 @@ export function buildSummaryWorkbook(ExcelJS, s, bookEntries, counts, preparedBy
 
     // Totals on the left, cash count on the right (same side-by-side layout as the PDF).
     const sales = round2(s.cash.total + s.online.total);
-    [["Cash Sales", s.cash.total], ["Online Payment", s.online.total], ["Total Sales", sales]].forEach(([label, amount], i) => {
+    const totalLines = [["Cash Sales", s.cash.total], ["Online Payment", s.online.total],
+        ...(s.channels || []).map(c => [`    ${c.channel}`, c.total, true]), ["Total Sales", sales]];
+    totalLines.forEach(([label, amount, sub], i) => {
         const lc = bk.getCell(r + i, 1), ac = bk.getCell(r + i, 4);
         lc.value = label; ac.value = amount;
         bk.mergeCells(r + i, 1, r + i, 3);
-        lc.font = ac.font = { bold: true };
+        lc.font = ac.font = sub ? { italic: true } : { bold: true };
         lc.alignment = { horizontal: "left" };
         ac.alignment = { horizontal: "right" };
         ac.numFmt = NUM;
     });
     const cc = cashCountRows(counts);
     const ccEnd = writeTable(bk, r, 6, ["Cash Count", "Count", "Amount"], cc.body, { values: ["TOTAL COUNTED", "", cc.total], span: 2 }, [null, "#,##0", NUM]);
-    r = Math.max(r + 3, ccEnd) + 1;
+    r = Math.max(r + totalLines.length, ccEnd) + 1;
 
     [s.voidText ? `VOID: ${s.voidText}` : ""].filter(Boolean)
         .forEach(n => { bk.getCell(r, 1).value = n; r += 1; });

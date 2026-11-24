@@ -113,6 +113,11 @@
                                         <option value="Split">Split</option>
                                     </select>
                                 </label>
+                                <label class="field hidden" id="channelField">
+                                    <span>Channel</span>
+                                    <select id="fChannel" title="Which online channel was used (GCash, BDO, ...)"></select>
+                                    <input type="text" id="fChannelNew" class="hidden" placeholder="New channel, press Enter" autocomplete="off">
+                                </label>
                                 <label class="field hidden" id="bankField">
                                     <span>Bank</span>
                                     <input type="text" id="fBank" placeholder="Which bank? e.g. BDO">
@@ -173,6 +178,9 @@
                                 <select id="sMethod">
                                     <option>Online Payment</option>
                                 </select></label>
+                            <label class="field" id="sChannelField"><span>Channel</span>
+                                <select id="sChannel" title="Which online channel was used (GCash, BDO, ...)"></select>
+                                <input type="text" id="sChannelNew" class="hidden" placeholder="New channel, press Enter" autocomplete="off"></label>
                             <label class="field"><span id="sRefLabel">Reference No.</span>
                                 <input type="text" id="sRef" placeholder="e.g. 689746"></label>
                             <label class="field hidden" id="sBankField"><span>Bank</span>

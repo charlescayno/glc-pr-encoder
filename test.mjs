@@ -399,3 +399,43 @@ if (typeof process !== "undefined" && process.versions && process.versions.node)
 
 console.log("all tests passed (including the exports)");
 }
+
+// Online payment channels
+{
+    const L = await import("./logic.js");
+    const mk = (pr, over) => ({ id: "pr_" + pr, pr, date: "2026-09-13", buyer: "A", mop: "Cash", mopRef: "", items: [{ desc: "Gospel Tract English", qty: 10, price: 3 }], ...over });
+    const gc = mk(1, { mop: "Online Payment", mopChannel: "GCash", mopRef: "689746" });
+    const bdoNoRef = mk(2, { mop: "Online Payment", mopChannel: "BDO" });
+    const noCh = mk(3, { mop: "Online Payment", mopRef: "55" });
+    const split = mk(4, { mop: "Split", items: [{ desc: "Gospel Tract English", qty: 20, price: 3 }], payments: [{ method: "Cash", amount: 20 }, { method: "Online Payment", amount: 40, ref: "9", channel: "GoTyme" }] });
+    const cash = mk(5, {});
+    assert.equal(L.mopText(gc), "ONLINE PAYMENT - GCash REF # 689746");
+    assert.equal(L.mopText(bdoNoRef), "Online Payment - BDO");
+    assert.equal(L.mopText(noCh), "ONLINE PAYMENT REF # 55");
+    assert.equal(L.mopText(split), "Cash 20.00 + ONLINE PAYMENT - GoTyme REF # 9 40.00");
+    const ps = L.paymentSplit(L.flatten([gc, bdoNoRef, noCh, split, cash]));
+    assert.deepEqual(ps.byChannel, { GCash: 30, BDO: 30, "": 30, GoTyme: 40 });
+    assert.equal(ps.online, 130);
+    const all = [gc, bdoNoRef, noCh, split, cash];
+    assert.deepEqual(L.filterEntries(all, { mop: "channel:gcash" }).map(e => e.pr), [1]);
+    assert.deepEqual(L.filterEntries(all, { mop: "channel:GoTyme" }).map(e => e.pr), [4]);
+    assert.deepEqual(L.filterEntries(all, { mop: "Online Payment" }).map(e => e.pr), [1, 2, 3, 4]);
+    assert.deepEqual(L.filterEntries(all, { q: "gcash" }).map(e => e.pr), [1]);
+    assert.deepEqual(L.channelTotals(all).map(c => [c.channel, c.total]), [["GoTyme", 40], ["BDO", 30], ["GCash", 30], ["No channel", 30]]);
+    assert.deepEqual(L.channelTotals([cash, noCh]), []);
+    assert.equal(L.bookletSummary(all).channels.length, 4);
+    assert.equal(L.analytics(all, [], {}).channels.length, 3);
+    assert.equal(L.matchChannel(["GCash", "BDO"], " gcash "), "GCash");
+    assert.equal(L.matchChannel(["GCash"], "Coins.ph"), "Coins.ph");
+    // text round trip (export -> import)
+    const sheet = ["DATE\tPR NUMBER\tBUYER\tSOLD ITEMS\tQTY\tUNIT PRICE\tTOTAL\tGRAND TOTAL\tMOP"];
+    for (const e of all) L.flatten([e]).forEach((r, i) => sheet.push([r.first ? "09-13-2026" : "", r.first ? r.pr : "", r.first ? "A" : "", r.desc, r.qty, r.price, r.total, r.grand, r.first ? r.mop : ""].join("\t")));
+    const back = L.parseSheet(sheet.join("\n")).entries;
+    assert.equal(back.find(e => e.pr === 1).mopChannel, "GCash");
+    assert.equal(back.find(e => e.pr === 1).mopRef, "689746");
+    assert.equal(back.find(e => e.pr === 2).mopChannel, "BDO");
+    assert.equal(back.find(e => e.pr === 2).mopRef, "");
+    assert.equal(back.find(e => e.pr === 3).mopChannel, undefined);
+    assert.equal(back.find(e => e.pr === 4).payments[1].channel, "GoTyme");
+    assert.equal(back.find(e => e.pr === 4).payments[1].ref, "9");
+}

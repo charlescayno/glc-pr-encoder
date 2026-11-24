@@ -15,10 +15,18 @@ export function fmtDate(iso) {
     return `${m}-${d}-${y}`;
 }
 
+// Online payment channels (the sub-option of Online Payment). The list can be extended from the form and is shared across devices.
+export const DEFAULT_CHANNELS = ['GCash', 'BPI', 'BDO', 'PSBank', 'Security Bank', 'Maribank', 'Atome', 'GoTyme', 'InstaPay'];
+// Channel name as typed -> the one in the list (case-insensitive), or the trimmed text itself.
+export function matchChannel(list, name) {
+    const t = String(name || '').trim();
+    return (list || []).find(c => c.toLowerCase() === t.toLowerCase()) || t;
+}
+
 // One payment line, e.g. "Cash 150.00" or "INVOICE REF # 689746 250.00"
 export function paymentText(p) {
     const ref = (p.ref || '').trim();
-    const bank = p.method === 'Bank Transfer' && p.bank ? ` - ${String(p.bank).trim()}` : '';
+    const bank = p.method === 'Bank Transfer' && p.bank ? ` - ${String(p.bank).trim()}` : (p.channel ? ` - ${String(p.channel).trim()}` : '');
     const label = p.method === 'Cash' ? 'Cash' : (ref ? `${p.method.toUpperCase()}${bank} REF # ${ref}` : p.method + bank);
     return `${label} ${money(p.amount)}`;
 }
@@ -29,7 +37,7 @@ export function mopText(e) {
     const mop = (e.mop || '').trim();
     const ref = (e.mopRef || '').trim();
     if (!mop) return ref ? `REF # ${ref}` : '';
-    const bank = mop === 'Bank Transfer' && e.mopBank ? ` - ${String(e.mopBank).trim()}` : '';
+    const bank = mop === 'Bank Transfer' && e.mopBank ? ` - ${String(e.mopBank).trim()}` : (e.mopChannel ? ` - ${String(e.mopChannel).trim()}` : '');
     return ref ? `${mop.toUpperCase()}${bank} REF # ${ref}` : mop + bank;
 }
 
@@ -204,11 +212,15 @@ export function itemShortcut(catalog, item) {
 // An empty MOP (older receipts) counts as cash.
 // Split PRs add each payment's own amount to cash or online.
 export function paymentSplit(rows) {
-    const out = { cash: 0, online: 0, byMethod: {} };
-    const add = (m, amount) => {
+    const out = { cash: 0, online: 0, byMethod: {}, byChannel: {} };
+    const add = (m, amount, channel = '') => {
         out.byMethod[m] = round2((out.byMethod[m] || 0) + amount);
         if (m === 'Cash') out.cash = round2(out.cash + amount);
-        else out.online = round2(out.online + amount);
+        else {
+            out.online = round2(out.online + amount);
+            const c = String(channel || '').trim(); // '' = online payment without a channel
+            out.byChannel[c] = round2((out.byChannel[c] || 0) + amount);
+        }
     };
     const seen = new Set();
     for (const r of rows) {
@@ -216,15 +228,20 @@ export function paymentSplit(rows) {
         if (Array.isArray(e.payments) && e.payments.length) {
             if (seen.has(e)) continue; // count a split PR once, not once per line item
             seen.add(e);
-            e.payments.forEach(p => add((p.method || '').trim() || 'Cash', Number(p.amount) || 0));
+            e.payments.forEach(p => add((p.method || '').trim() || 'Cash', Number(p.amount) || 0, p.channel));
         } else {
-            add((e.mop || '').trim() || 'Cash', r.total);
+            add((e.mop || '').trim() || 'Cash', r.total, e.mopChannel);
         }
     }
     return out;
 }
 
 function entryHasMop(e, mop) {
+    if (mop.startsWith('channel:')) { // one online channel, e.g. "channel:GCash"
+        const ch = mop.slice(8).toLowerCase();
+        const is = (m, c) => !!m && m !== 'Cash' && m !== 'Split' && String(c || '').trim().toLowerCase() === ch;
+        return is(e.mop, e.mopChannel) || (e.payments || []).some(p => is(p.method, p.channel));
+    }
     // "Online Payment" = any non-cash method (GCash, bank transfer, invoice, ...).
     const same = m => mop === 'Online Payment' ? !!m && m !== 'Cash' && m !== 'Split' : (m === mop || (mop === 'Cheque' && m === 'Check'));
     return same(e.mop) || (e.payments || []).some(p => same(p.method));
@@ -395,15 +412,18 @@ export function withMarks(rows, marks, { booklet = '' } = {}) {
 function parseMopLabel(text) {
     const t = String(text || '').trim();
     if (!t || /^cash$/i.test(t)) return { method: 'Cash', ref: '', bank: '' };
-    const kindOf = h => /^gcash/i.test(h) ? 'GCash' : /^maya/i.test(h) ? 'Maya' : /^bank/i.test(h) ? 'Bank Transfer'
+    const kindOf = h => /^online\s*payment/i.test(h) ? 'Online Payment' : /^gcash/i.test(h) ? 'GCash' : /^maya/i.test(h) ? 'Maya' : /^bank/i.test(h) ? 'Bank Transfer'
         : /^(cheque|check)/i.test(h) ? 'Cheque' : /^others?/i.test(h) ? 'Others' : /^invoice/i.test(h) ? 'Invoice' : '';
     const r = /^(.*?)\s*\bREF(?:ERENCE)?\b\.?\s*(?:NO\.?|#)?\s*(.*)$/i.exec(t);
     if (r) {
         const head = r[1].trim();
         const method = kindOf(head) || 'Invoice';
         const bank = method === 'Bank Transfer' ? head.replace(/^bank\s*transfer\s*[-:\u2013]?\s*/i, '').trim() : '';
-        return { method, ref: r[2].trim(), bank };
+        const channel = method === 'Online Payment' ? head.replace(/^online\s*payment\s*[-:\u2013]?\s*/i, '').trim() : '';
+        return { method, ref: r[2].trim(), bank, channel };
     }
+    const op = /^online\s*payment\b[\s\-:\u2013]*(.*)$/i.exec(t); // "Online Payment - GCash" (no reference number)
+    if (op) return { method: 'Online Payment', ref: '', bank: '', channel: op[1].trim() };
     const k = /^(invoice|gcash|maya|bank\s*transfer|bank|cheque|check|others?)\b[\s\-:]*(.*)$/i.exec(t);
     if (k) return { method: kindOf(k[1]), ref: k[2].trim(), bank: '' };
     return { method: 'Invoice', ref: t, bank: '' };
@@ -418,7 +438,7 @@ function parseSplit(text) {
         if (!m) return null;
         const lab = parseMopLabel(m[1]);
         const pay = { method: lab.method, amount: Number(m[2].replace(/,/g, '')) };
-        if (lab.method !== 'Cash') { if (lab.ref) pay.ref = lab.ref; if (lab.bank) pay.bank = lab.bank; }
+        if (lab.method !== 'Cash') { if (lab.ref) pay.ref = lab.ref; if (lab.bank) pay.bank = lab.bank; if (lab.channel) pay.channel = lab.channel; }
         pays.push(pay);
     }
     return pays;
@@ -485,6 +505,7 @@ export function parseSheet(text) {
                     cur.mop = lab.method;
                     cur.mopRef = lab.ref;
                     if (lab.bank) cur.mopBank = lab.bank;
+                    if (lab.channel) cur.mopChannel = lab.channel;
                 }
             }
         }
@@ -513,6 +534,15 @@ export function importChanges(parsed, existing) {
 // End-of-review summary: items sold in the booklet, split into CASH and ONLINE PAYMENT (anything not cash),
 // grouped by item + selling price. For a split PR the cash amount is filled first, in item order,
 // and the remaining quantity goes online.
+// Online total per channel, biggest first: [{ channel, total }]. Empty when no online payment has a channel yet;
+// otherwise online payments without a channel are listed as "No channel" so the lines add up to the online total.
+export function channelTotals(entries) {
+    const by = paymentSplit(flatten(entries)).byChannel;
+    const named = Object.keys(by).filter(Boolean);
+    if (!named.length) return [];
+    return [...named.map(c => ({ channel: c, total: by[c] })).sort((a, b) => b.total - a.total || a.channel.localeCompare(b.channel)),
+        ...(by[''] ? [{ channel: 'No channel', total: by[''] }] : [])];
+}
 export function bookletSummary(entries) {
     const sorted = sortEntries(entries);
     const sections = { cash: new Map(), online: new Map() };
@@ -552,6 +582,7 @@ export function bookletSummary(entries) {
     return {
         cash: finish(sections.cash),
         online: finish(sections.online),
+        channels: channelTotals(entries),
         firstPr: prs.length ? Math.min(...prs) : null,
         lastPr: prs.length ? Math.max(...prs) : null,
         dateRange: dates.length ? (dates[0] === dates[dates.length - 1] ? md(dates[0]) : `${md(dates[0])} \u2013 ${md(dates[dates.length - 1])}`) : '',
@@ -564,7 +595,8 @@ export function summaryTSV(s) {
     const block = (title, sec) => [
         [title], ['Item', 'QTY', 'Selling Price', 'Total'],
         ...sec.rows.map(r => [r.desc, qty(r.qty), money(r.price), money(r.total)]),
-        ['TOTAL', '', '', money(sec.total)], [],
+        ['TOTAL', '', '', money(sec.total)],
+        ...(title === 'ONLINE PAYMENT' ? (s.channels || []).map(c => [`  ${c.channel}`, '', '', money(c.total)]) : []), [],
     ];
     return [[`PR No.: ${s.firstPr}-${s.lastPr}`, '', '', `Date: ${s.dateRange}`], [],
         ...block('CASH', s.cash), ...block('ONLINE PAYMENT', s.online),
@@ -893,6 +925,8 @@ export function analytics(entries, marks = [], { from = '', to = '' } = {}) {
         weekdays: wd.map((w, i) => ({ day: i, total: w.total, receipts: w.receipts, activeDays: w.days.size, avg: w.days.size ? round2(w.total / w.days.size) : 0 })),
         categories: [...cats.values()].map(c => ({ ...c, share: share(c.total) })),
         methods,
+        channels: Object.entries(split.byChannel).filter(([c, v]) => c && v > 0).map(([channel, amount]) => ({ channel, total: amount, share: share(amount) })).sort((a, b) => b.total - a.total),
+        channelsNone: split.byChannel[''] || 0,
         topItems: [...items.values()].sort((a, b) => b.total - a.total || b.qty - a.qty),
         marks: { void: marks.filter(m => m.status === 'void').length, unused: marks.filter(m => m.status === 'unused').length, missing },
     };
