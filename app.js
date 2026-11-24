@@ -2837,7 +2837,7 @@ function renderReview() {
             ${cur.checked ? `<button type="button" class="btn btn-secondary btn-lg" data-rv="uncheck">Uncheck</button>` : ""}
             ${skip}
             <button type="button" class="btn btn-success btn-lg" data-rv="confirm"><i class="ri-check-line"></i> ${cur.checked ? "Next" : "Checked, next"}</button></div>`;
-        fitPaper();
+        fitPaper(true);
     } else if (cur.type === "mark") {
         $("rvCard").innerHTML = `
             <div class="rv-empty">
@@ -2865,7 +2865,22 @@ function renderReview() {
     }
 }
 
-function fitPaper() {
+// Receipt size in review: "fit" (whole receipt on screen) or "larger" (fills the width, scroll to see the bottom). Remembered.
+let rvWide = localStorage.getItem("pre_rv_wide") === "1";
+function updateRvZoomBtn() {
+    $("rvZoom").innerHTML = rvWide ? '<i class="ri-zoom-out-line"></i> Fit screen' : '<i class="ri-zoom-in-line"></i> Larger';
+    $("rvZoom").title = rvWide ? "Show the whole receipt on screen (Z)" : "Make the receipt larger to read it better (Z)";
+}
+function toggleRvZoom() {
+    rvWide = !rvWide;
+    localStorage.setItem("pre_rv_wide", rvWide ? "1" : "0");
+    updateRvZoomBtn();
+    fitPaper(true);
+}
+$("rvZoom").addEventListener("click", toggleRvZoom);
+updateRvZoomBtn();
+function fitPaper(resetScroll = false) {
+    resetScroll = resetScroll === true;
     const card = $("rvCard");
     // Reset so the card fills the free space, then shrink the card to the receipt's own proportions.
     card.style.flex = ""; card.style.width = ""; card.style.alignSelf = "";
@@ -2876,6 +2891,14 @@ function fitPaper() {
     paper.style.zoom = 1;
     const nw = paper.offsetWidth, nh = paper.offsetHeight;
     const padX = card.offsetWidth - stage.clientWidth;
+    if (rvWide) { // larger: fill the width, the card scrolls up and down
+        const zw = Math.max(0.3, Math.min(stage.clientWidth / nw, 2.4));
+        paper.style.zoom = zw.toFixed(4);
+        stage.style.flex = "none";
+        stage.style.height = Math.ceil(nh * zw) + 2 + "px";
+        if (resetScroll) card.scrollTop = 0;
+        return;
+    }
     const z = Math.max(0.3, Math.min(stage.clientWidth / nw, stage.clientHeight / nh, 1.6));
     paper.style.zoom = z.toFixed(4);
     stage.style.flex = "none";
@@ -3187,7 +3210,7 @@ document.addEventListener("keydown", ev => {
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const k = ev.key;
-    const used = ["Enter", "ArrowLeft", "ArrowRight", " ", "Escape", "e", "E", "u", "U", "v", "V", "n", "N", "l", "L"];
+    const used = ["Enter", "ArrowLeft", "ArrowRight", " ", "Escape", "e", "E", "u", "U", "v", "V", "n", "N", "l", "L", "z", "Z"];
     if (!used.includes(k)) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -3200,6 +3223,7 @@ document.addEventListener("keydown", ev => {
     else if (k.toLowerCase() === "v") rvMark("void");
     else if (k.toLowerCase() === "n") rvMark("unused");
     else if (k.toLowerCase() === "l") rvEncodeLater();
+    else if (k.toLowerCase() === "z") toggleRvZoom();
 }, true);
 
 // ---------- Shortcuts legend (collapsible, remembered) ----------

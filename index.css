@@ -1121,3 +1121,7 @@ tr.row-flash > td { animation: rowflash 2.5s ease-out; }
 .rs-totalsbox td { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 720px) { .rs-topgrid { grid-template-columns: 1fr; } }
 @media print { .rs-topgrid { grid-template-columns: 1fr 16rem; } }
+
+/* --- Review: bigger receipt --- */
+#reviewOverlay .review { max-width: 1400px; }
+.review .rv-card .rv-stage { align-items: flex-start; }
