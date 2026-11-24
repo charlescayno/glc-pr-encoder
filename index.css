@@ -922,7 +922,13 @@ tr.mark-row.void td.pr-no { text-decoration: line-through; }
 .section-tabs a:hover { background: var(--color-bg-hover); color: var(--color-text-main); }
 .section-tabs a.active { background: var(--color-primary); color: #fff; }
 .section-tabs a.hidden { display: none; }
-#encoderCard, #verifiedCard, #outputCard, #bkSummary { scroll-margin-top: 4.5rem; }
+#encoderCard, #continueCard, #verifiedCard, #outputCard, #bkSummary { scroll-margin-top: 4.5rem; }
+/* Continue verifying section (same look as Verified booklets, amber accent) */
+#continueCard .card-head { align-items: center; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.cont-count { background: var(--color-warning); }
+.vb-card.cont { border-left-color: var(--color-warning); }
+.cont-bar { display: inline-block; width: 90px; height: 6px; border-radius: 999px; background: var(--color-border); overflow: hidden; }
+.cont-bar > span { display: block; height: 100%; background: var(--color-warning); }
 
 /* --- Sync status --- */
 .status-saving .sync-dot { background: var(--color-primary); animation: sync-pulse 0.9s ease-in-out infinite; }

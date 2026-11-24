@@ -1235,6 +1235,44 @@ function cashBadgeHtml(start) {
             : `<span class="bk-badge cc-off" title="Counted ${peso(cashCounted)}, expected ${peso(cashExpected)}."><i class="ri-error-warning-fill"></i> Cash ${cashDiff > 0 ? "over" : "short"} ${peso(Math.abs(cashDiff))}</span>`;
 }
 
+// "Continue verifying" section: booklets whose review was started (some PRs checked) but is not finished.
+function renderContinueSection() {
+    const starts = allBookletStarts().sort((x, y) => prSortDesc ? y - x : x - y);
+    const cards = [];
+    starts.forEach(s => {
+        const seq = reviewSequence(entries, marks, s);
+        const prog = reviewProgress(seq);
+        if (!(prog.entries > 0 && prog.checked > 0 && !prog.done)) return;
+        const next = seq.find(x => !x.resolved);
+        const rows = flatten(entries.filter(e => bookletStart(e.pr) === s));
+        const sales = rows.length ? rows[rows.length - 1].grand : 0;
+        const split = paymentSplit(rows);
+        const pct = Math.round((prog.checked / prog.entries) * 100);
+        cards.push(`
+        <div class="vb-card cont" data-cont="${s}">
+            <div class="vb-main">
+                <strong>Booklet ${esc(bookletLabel(s))}</strong>
+                <span class="bk-badge partial">Checked ${prog.checked}/${prog.entries}</span>
+                <span class="cont-bar" title="${pct}% checked"><span style="width:${pct}%"></span></span>
+                <span class="bk-count">${next ? `next: PR ${esc(String(next.pr))}` : ""}${prog.lastAt ? `, last checked ${esc(fmtStamp(prog.lastAt))}` : ""}${prog.missing ? `, ${prog.missing} missing` : ""}</span>
+            </div>
+            <div class="vb-side">
+                <span class="vb-money">Cash <b>${peso(split.cash)}</b> \u00B7 Online <b>${peso(split.online)}</b></span>
+                <span class="bk-total">${peso(sales)}</span>
+                <button type="button" class="btn btn-primary btn-sm" data-cont-open="${s}"><i class="ri-play-circle-line"></i> Continue review</button>
+            </div>
+        </div>`);
+    });
+    $("continueCount").textContent = String(cards.length);
+    $("continueCard").classList.toggle("hidden", !cards.length);
+    $("continueList").innerHTML = cards.join("");
+}
+$("continueList").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-cont-open], [data-cont]");
+    if (!b) return;
+    openReview(Number(b.dataset.contOpen || b.dataset.cont)); // resumes at the first PR not checked yet
+});
+
 // "Verified booklets" section: every booklet whose PRs are all checked. "View summary" opens its summary directly (no review needed).
 function renderVerifiedSection() {
     const list = $("verifiedList");
@@ -1679,6 +1717,7 @@ function refresh() {
     const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s)) && monthKeys.every(m => collapsedMonths.has(m));
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
     $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
+    renderContinueSection();
     renderVerifiedSection();
     pruneBookletSelection();
     renderBookletSummary(flatten(filterEntries(entries, { ...f, booklet: "" }))); // all booklets, even while one is selected below
@@ -2887,6 +2926,7 @@ const queueTabs = () => { if (!tabsQueued) { tabsQueued = true; requestAnimation
 window.addEventListener("scroll", queueTabs, { passive: true });
 window.addEventListener("resize", queueTabs);
 new MutationObserver(queueTabs).observe($("verifiedCard"), { attributes: true, attributeFilter: ["class"] });
+new MutationObserver(queueTabs).observe($("continueCard"), { attributes: true, attributeFilter: ["class"] });
 new MutationObserver(queueTabs).observe($("bkSummary"), { childList: true });
 updateTabs();
 

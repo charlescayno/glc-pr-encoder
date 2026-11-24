@@ -57,6 +57,7 @@
 
         <nav class="section-tabs no-print" id="sectionTabs" aria-label="Sections">
             <a href="#encoderCard" data-target="encoderCard"><i class="ri-edit-box-line"></i> Encode</a>
+            <a href="#continueCard" data-target="continueCard" class="hidden"><i class="ri-play-circle-line"></i> Continue</a>
             <a href="#verifiedCard" data-target="verifiedCard" class="hidden"><i class="ri-shield-check-line"></i> Verified</a>
             <a href="#outputCard" data-target="outputCard"><i class="ri-table-line"></i> Output</a>
             <a href="#bkSummary" data-target="bkSummary"><i class="ri-book-2-line"></i> Booklet summary</a>
@@ -190,6 +191,15 @@
                         </div>
                     </div>
                 </form>
+            </section>
+
+            <!-- Booklets whose review was started but not finished: pick up where you stopped -->
+            <section class="card hidden" id="continueCard">
+                <div class="card-head">
+                    <h2>Continue verifying <span class="badge vb-count cont-count" id="continueCount">0</span></h2>
+                    <span class="hint">Review started, not finished. Continue from the next PR to check.</span>
+                </div>
+                <div class="vb-list" id="continueList"></div>
             </section>
 
             <!-- Verified booklets: open their summary without entering review mode -->
