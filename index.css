@@ -1089,3 +1089,25 @@ tr.row-flash > td { animation: rowflash 2.5s ease-out; }
 .recent-buyer { flex: 1 1 8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-meta { font-size: 0.8rem; opacity: 0.75; }
 .recent-total { font-weight: 700; margin-left: auto; }
+
+/* --- Save status + version history --- */
+.save-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; border-radius: 8px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.5); font-size: 0.9rem; }
+.save-bar.failed { background: rgba(220, 38, 38, 0.12); border-color: rgba(220, 38, 38, 0.5); }
+.save-badge { font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.2rem; }
+.save-badge.ok { color: #15803d; }
+.save-badge.waiting { color: #b45309; }
+.save-badge.failed { color: #b91c1c; }
+.hm-tools { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.75rem; }
+.hm-tools input { max-width: 10rem; }
+.hm-h { margin: 0.75rem 0 0.4rem; font-size: 1rem; }
+.hm-ver { border: 1px solid rgba(128, 128, 128, 0.3); border-radius: 8px; padding: 0.55rem 0.7rem; margin-bottom: 0.5rem; }
+.hm-head { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.hm-at, .hm-sum { font-size: 0.8rem; opacity: 0.75; }
+.hm-badge { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 99px; background: rgba(128, 128, 128, 0.2); text-transform: uppercase; }
+.hm-badge.added, .hm-badge.restored { background: rgba(22, 163, 74, 0.2); }
+.hm-badge.edited { background: rgba(37, 99, 235, 0.2); }
+.hm-badge.deleted { background: rgba(220, 38, 38, 0.2); }
+.hm-cur { font-size: 0.7rem; font-weight: 700; color: #15803d; }
+.hm-changes { margin: 0.35rem 0; padding-left: 1.2rem; font-size: 0.85rem; }
+.hm-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.hm-empty { opacity: 0.75; }

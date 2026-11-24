@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -212,10 +212,11 @@ function remoteFail(err) {
     toast("Could not save to cloud. Saved on this device only.");
 }
 
-async function persist(entry, oldId) {
+async function persist(entry, oldId, action) {
     const old = oldId && entries.find(e => e.id === oldId);
     if (isLocked(entry.pr) || (old && isLocked(old.pr))) return lockedToast();
     const idx = entries.findIndex(e => e.id === entry.id);
+    const prev = idx >= 0 ? entries[idx] : (old || null);
     if (oldId && oldId !== entry.id) entries = entries.filter(e => e.id !== oldId);
     if (idx >= 0) entries[idx] = entry; else entries.push(entry);
     saveLocal();
@@ -223,8 +224,73 @@ async function persist(entry, oldId) {
     const { id, ...data } = entry;
     try {
         if (oldId && oldId !== id) deleteDoc(doc(col, oldId)).catch(remoteFail);
-        setDoc(doc(col, id), data).catch(remoteFail);
+        const p = setDoc(doc(col, id), data);
+        p.catch(remoteFail);
+        trackSave(id, data, p, () => { // version history is written only after the cloud confirmed the save
+            if (!prev || versionContent(prev) !== versionContent(entry)) recordVersion(action || (prev ? "edited" : "added"), entry, prev);
+        });
     } catch (e) { remoteFail(e); }
+}
+
+// ---------- Save tracking: which receipts the cloud has not confirmed yet ----------
+const saveState = new Map(); // id -> { data, state: "waiting" | "failed" }
+function trackSave(id, data, promise, onSaved) {
+    saveState.set(id, { data, state: "waiting" });
+    renderSaveStatus();
+    promise.then(() => {
+        if (saveState.get(id)?.data === data) saveState.delete(id);
+        renderSaveStatus();
+        if (onSaved) onSaved();
+    }).catch(() => {
+        if (saveState.get(id)?.data === data) saveState.set(id, { data, state: "failed" });
+        renderSaveStatus();
+    });
+}
+function retryFailedSaves() {
+    for (const [id, s] of [...saveState]) {
+        if (s.state !== "failed") continue;
+        const p = setDoc(doc(col, id), s.data);
+        p.catch(remoteFail);
+        trackSave(id, s.data, p, null);
+    }
+}
+window.addEventListener("online", () => setTimeout(retryFailedSaves, 1500));
+
+// ---------- Version history: every add / edit / delete / restore of a receipt, last MAX_VERSIONS per PR ----------
+const histCol = collection(db, "pr_encoder_history");
+let history = [];
+let historyOk = true;
+onSnapshot(histCol, snap => {
+    historyOk = true;
+    history = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!$("historyModal").classList.contains("hidden")) renderHistory();
+    renderRecentSection();
+}, err => { console.error("History listener error", err); historyOk = false; if (!$("historyModal").classList.contains("hidden")) renderHistory(); });
+// What counts as a change (not the save time or the verified tick).
+const versionContent = e => { const { id, updatedAt, checkedAt, ...rest } = e || {}; return JSON.stringify(rest); };
+const versionData = e => { const { id, updatedAt, checkedAt, ...rest } = e; return JSON.parse(JSON.stringify(rest)); };
+function recordVersion(action, entry, prev) {
+    const at = Date.now();
+    const pr = Number(entry.pr);
+    const recs = [];
+    // First time this PR is versioned: keep the state it had before this change as the "original".
+    if (prev && action !== "added" && !versionsForPr(history, pr).length) recs.push({ action: "original", at: Math.min(prev.updatedAt || at - 1, at - 1), data: versionData(prev) });
+    recs.push({ action, at, data: versionData(entry) });
+    const writes = recs.map(r => {
+        const rec = { pr, action: r.action, at: r.at, data: r.data };
+        const id = `${pr}_${r.at}`;
+        setDoc(doc(histCol, id), rec).catch(err => { console.error(err); historyFail(); });
+        return { id, ...rec };
+    });
+    const trim = versionsToTrim(history.concat(writes), pr, MAX_VERSIONS);
+    trim.forEach(id => deleteDoc(doc(histCol, id)).catch(err => console.error(err)));
+}
+let historyFailShown = false;
+function historyFail() {
+    historyOk = false;
+    if (historyFailShown) return;
+    historyFailShown = true;
+    toast("Could not save the version history. The receipt itself is saved. Add the pr_encoder_history rule in Firestore (see README).");
 }
 
 // ---------- Shared item catalog: one document in the cloud, so every device uses the same items, prices and shorthand ----------
@@ -401,8 +467,10 @@ function removeEntry(id) {
     entries = entries.filter(e => e.id !== id);
     saveLocal();
     refresh();
-    deleteDoc(doc(col, id)).catch(remoteFail);
-    if (cur) toast(`PR #${cur.pr} deleted.`, () => { persist(cur); toast(`PR #${cur.pr} restored.`); });
+    const dp = deleteDoc(doc(col, id));
+    dp.catch(remoteFail);
+    if (cur) dp.then(() => recordVersion("deleted", cur, cur)).catch(() => {});
+    if (cur) toast(`PR #${cur.pr} deleted.`, () => { persist(cur, undefined, "restored"); toast(`PR #${cur.pr} restored.`); });
 }
 
 // ---------- Form ----------
@@ -1156,7 +1224,7 @@ $("prForm").addEventListener("submit", async ev => {
     const prevEntry = wasEdit ? entries.find(e => e.id === oldId) : null;
     persist(entry, oldId);
     if (marks.some(m => Number(m.pr) === pr)) clearMark(pr); // a real receipt replaces a void / not-used mark
-    if (wasEdit) toast(`PR #${pr} updated.`, prevEntry && (() => { persist({ ...prevEntry }, entry.id); toast(`PR #${prevEntry.pr} changes undone.`); }));
+    if (wasEdit) toast(`PR #${pr} updated.`, prevEntry && (() => { persist({ ...prevEntry }, entry.id, "restored"); toast(`PR #${prevEntry.pr} changes undone.`); }));
     else if (pr % BOOKLET_SIZE === 0) toast(`PR #${pr} added. Booklet ${bookletLabel(bookletStart(pr))} is fully encoded - next sheet starts a new booklet.`);
     else toast(`PR #${pr} added.`);
     localStorage.setItem(LS_LAST_DATE, entry.date);
@@ -1311,17 +1379,128 @@ function cashBadgeHtml(start) {
 // "Recent PRs": the last receipts added or edited (newest first), each with a quick Edit button.
 function renderRecentSection() {
     const recent = entries.filter(e => e.updatedAt).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
-    $("recentCard").classList.toggle("hidden", !recent.length);
+    $("recentCard").classList.toggle("hidden", !recent.length && !saveState.size);
     $("recentCount").textContent = String(recent.length);
-    $("recentList").innerHTML = recent.map(e => `
+    $("recentList").innerHTML = recent.map(e => {
+        const st = saveState.get(e.id);
+        const badge = st ? (st.state === "failed"
+            ? `<span class="save-badge failed" title="Not saved to the cloud yet"><i class="ri-error-warning-fill"></i> Not saved</span>`
+            : `<span class="save-badge waiting" title="Waiting for the cloud to confirm"><i class="ri-time-line"></i> Saving\u2026</span>`)
+            : `<span class="save-badge ok" title="Confirmed saved in the cloud"><i class="ri-checkbox-circle-fill"></i> Saved</span>`;
+        const n = versionsForPr(history, e.pr).length;
+        return `
         <div class="recent-row">
             <strong class="recent-pr">PR #${esc(String(e.pr))}</strong>
             <span class="recent-buyer">${esc(e.buyer || "")}</span>
             <span class="recent-meta">${esc(mopText(e))} \u00B7 ${esc(fmtStamp(e.updatedAt))}</span>
+            ${badge}
             <span class="recent-total">${peso(entryTotal(e))}</span>
             <button type="button" class="btn btn-secondary btn-sm" data-edit="${esc(e.id)}"><i class="ri-edit-line"></i> Edit</button>
-        </div>`).join("");
+            <button type="button" class="btn btn-secondary btn-sm" data-hist="${esc(String(e.pr))}" title="Version history"><i class="ri-history-line"></i>${n ? ` ${n}` : ""}</button>
+        </div>`;
+    }).join("");
 }
+// Banner: receipts the cloud has not confirmed yet, with a retry button.
+function renderSaveStatus() {
+    const n = saveState.size, failed = [...saveState.values()].filter(s => s.state === "failed").length;
+    const bar = $("saveBar");
+    bar.classList.toggle("hidden", !n);
+    bar.classList.toggle("failed", failed > 0);
+    $("saveBarText").textContent = failed ? `${failed} PR${failed > 1 ? "s" : ""} could not be saved to the cloud. They are kept on this device.`
+        : n ? `${n} PR${n > 1 ? "s" : ""} waiting for the cloud to confirm\u2026` : "";
+    $("saveRetry").classList.toggle("hidden", !failed);
+    renderRecentSection();
+}
+$("saveRetry").addEventListener("click", retryFailedSaves);
+
+// ---------- Version history modal ----------
+let histPr = 0; // 0 = recent activity of all PRs
+function openHistory(pr) {
+    histPr = Number(pr) || 0;
+    $("hmPr").value = histPr || "";
+    renderHistory();
+    $("historyModal").classList.remove("hidden");
+}
+function versionCard(v, older, isCurrent, canRestore) {
+    const d = v.data || {};
+    const lines = v.action === "deleted" ? ["Receipt deleted"] : (older && older.action === "deleted" ? ["Receipt brought back"] : older ? diffEntries(older.data, d) : [v.action === "original" ? "State before the first recorded change" : "Receipt created"]);
+    const label = { added: "Added", edited: "Edited", deleted: "Deleted", restored: "Restored", original: "Original" }[v.action] || v.action;
+    return `<div class="hm-ver">
+        <div class="hm-head"><span class="hm-badge ${esc(v.action)}">${label}</span> <strong>PR #${esc(String(v.pr))}</strong> <span class="hm-at">${esc(fmtStamp(v.at))}</span>${isCurrent ? ' <span class="hm-cur">Current</span>' : ""}
+            <span class="hm-sum">${esc(d.buyer || "")} \u00B7 ${peso(entryTotal(d))} \u00B7 ${esc(mopText(d))}</span></div>
+        <ul class="hm-changes">${lines.map(l => `<li>${esc(l)}</li>`).join("") || "<li>No visible change</li>"}</ul>
+        <div class="hm-actions">${canRestore ? `<button type="button" class="btn btn-secondary btn-sm" data-hm-restore="${esc(v.id)}"><i class="ri-arrow-go-back-line"></i> Restore this version</button>` : ""}
+        ${histPr ? "" : `<button type="button" class="btn btn-secondary btn-sm" data-hist="${esc(String(v.pr))}"><i class="ri-history-line"></i> All versions</button>`}</div>
+    </div>`;
+}
+function renderHistory() {
+    const body = $("hmBody");
+    $("hmNote").innerHTML = historyOk
+        ? `Every add, edit, delete and restore, newest first. The last ${MAX_VERSIONS} versions of each PR are kept.`
+        : `<b>History is not being saved.</b> Add a Firestore rule for <code>pr_encoder_history</code> (see README), then reload.`;
+    $("hmTitle").textContent = histPr ? `Version history \u00B7 PR #${histPr}` : "Version history";
+    if (histPr) {
+        const list = versionsForPr(history, histPr);
+        const cur = entries.find(e => Number(e.pr) === histPr);
+        body.innerHTML = list.length
+            ? list.map((v, i) => versionCard(v, list[i + 1], i === 0 && !!cur && v.action !== "deleted", true)).join("")
+            : `<p class="hm-empty">No saved versions for PR #${histPr} yet. The next change you make to it will be recorded${cur ? ", together with its current state" : ""}.</p>`;
+        return;
+    }
+    const del = deletedPrs(history, entries);
+    const recent = [...history].sort((a, b) => b.at - a.at).slice(0, 40);
+    body.innerHTML = (del.length ? `<h3 class="hm-h">Deleted PRs (restorable)</h3>${del.map(v => versionCard(v, null, false, false).replace('<div class="hm-actions">', `<div class="hm-actions"><button type="button" class="btn btn-primary btn-sm" data-hm-undelete="${esc(String(v.pr))}"><i class="ri-arrow-go-back-line"></i> Restore PR #${esc(String(v.pr))}</button>`)).join("")}` : "")
+        + `<h3 class="hm-h">Recent activity</h3>`
+        + (recent.length ? recent.map(v => versionCard(v, null, false, false).replace(/<ul class="hm-changes">.*?<\/ul>/s, "")).join("") : `<p class="hm-empty">Nothing recorded yet. Versions are saved from now on, each time a PR is added, edited or deleted.</p>`);
+}
+function restoreVersion(v) {
+    const d = v.data;
+    if (!d) return;
+    const entry = { ...d, id: `pr_${v.pr}`, pr: Number(v.pr), updatedAt: Date.now() };
+    persist(entry, undefined, "restored");
+    toast(`PR #${v.pr} restored to the version from ${fmtStamp(v.at)}. Verify it again if needed.`);
+}
+document.addEventListener("click", ev => {
+    const h = ev.target.closest("[data-hist]");
+    if (h) { openHistory(h.dataset.hist); return; }
+    const ed = ev.target.closest("#recentList [data-edit]");
+    if (ed) startEdit(ed.dataset.edit);
+});
+$("recentHistoryBtn").addEventListener("click", () => openHistory(0));
+$("hmClose").addEventListener("click", () => $("historyModal").classList.add("hidden"));
+$("historyModal").addEventListener("mousedown", ev => { if (ev.target === $("historyModal")) $("historyModal").classList.add("hidden"); });
+document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && !$("historyModal").classList.contains("hidden")) { ev.stopImmediatePropagation(); $("historyModal").classList.add("hidden"); }
+}, true);
+$("hmGo").addEventListener("click", () => { const n = Number($("hmPr").value); openHistory(n > 0 ? n : 0); });
+$("hmPr").addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); $("hmGo").click(); } });
+$("hmBody").addEventListener("click", async ev => {
+    const r = ev.target.closest("[data-hm-restore]"), u = ev.target.closest("[data-hm-undelete]");
+    if (r) {
+        const v = history.find(x => x.id === r.dataset.hmRestore);
+        if (!v) return;
+        const exists = entries.some(e => Number(e.pr) === Number(v.pr));
+        if (!(await askConfirm({ title: `Restore PR #${v.pr}?`, message: `Go back to the version from ${fmtStamp(v.at)}.${exists ? " The current version is kept in the history." : ""}`, ok: "Restore" }))) return;
+        restoreVersion(v);
+    } else if (u) {
+        const del = versionsForPr(history, u.dataset.hmUndelete)[0];
+        if (!del || !del.data) return;
+        if (!(await askConfirm({ title: `Restore deleted PR #${del.pr}?`, message: "The receipt comes back as it was when it was deleted.", ok: "Restore" }))) return;
+        restoreVersion(del);
+    }
+});
+$("hmBackup").addEventListener("click", () => {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    const save = (name, text, type) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([text], { type }));
+        a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    };
+    save(`GLC-PR-backup-${stamp}.json`, JSON.stringify({ app: "glc-pr-encoder", exportedAt: new Date().toISOString(), entries, marks, history }, null, 2), "application/json");
+    save(`GLC-PR-backup-${stamp}.csv`, toCSV(flatten(entries)), "text/csv");
+    toast(`Backup downloaded: ${entries.length} PRs, ${history.length} saved versions.`);
+});
 
 // "Continue verifying" section: booklets whose review was started (some PRs checked) but is not finished.
 function renderContinueSection() {
@@ -1854,6 +2033,7 @@ function rowHtml(r) {
             <td>${r.first ? mopCellHtml(r) : ""}</td>
             <td class="no-print">${r.first && isLocked(r.pr) ? `<i class="ri-lock-fill row-lock" title="Locked"></i>` : r.first ? `<div class="row-actions">
                 <button class="btn btn-secondary btn-icon-only" data-edit="${esc(r.entry.id)}" title="Edit"><i class="ri-edit-line"></i></button>
+                <button class="btn btn-secondary btn-icon-only" data-hist="${esc(String(r.entry.pr))}" title="Version history"><i class="ri-history-line"></i></button>
                 <button class="btn btn-danger btn-icon-only" data-del="${esc(r.entry.id)}" title="Delete"><i class="ri-delete-bin-line"></i></button>
             </div>` : ""}</td>
         </tr>`;

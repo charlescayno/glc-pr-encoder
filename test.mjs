@@ -1,5 +1,6 @@
 // Run with: node test.mjs (or open test.html through a local web server)
 const assert = {
+    ok(v, m) { if (!v) throw new Error(m || "not ok"); },
     equal(a, b, m) { if (a !== b) throw new Error((m || "equal") + ": " + a + " !== " + b); },
     deepEqual(a, b) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error("deepEqual: " + JSON.stringify(a) + " vs " + JSON.stringify(b)); },
 };
@@ -438,4 +439,36 @@ console.log("all tests passed (including the exports)");
     assert.equal(back.find(e => e.pr === 3).mopChannel, undefined);
     assert.equal(back.find(e => e.pr === 4).payments[1].channel, "GoTyme");
     assert.equal(back.find(e => e.pr === 4).payments[1].ref, "9");
+}
+
+// Version history
+{
+    const L = await import("./logic.js");
+    const base = { id: "pr_7", pr: 7, date: "2026-09-13", buyer: "A", mop: "Cash", items: [{ desc: "Gospel Tract English", qty: 10, price: 3 }] };
+    assert.deepEqual(L.diffEntries(null, base), ["Receipt created"]);
+    assert.deepEqual(L.diffEntries(base, null), ["Receipt deleted"]);
+    assert.deepEqual(L.diffEntries(base, { ...base }), []);
+    const ed = { ...base, buyer: "B", mop: "Online Payment", mopChannel: "GCash", items: [{ desc: "Gospel Tract English", qty: 12, price: 3 }, { desc: "Bible", qty: 1, price: 100 }] };
+    const d = L.diffEntries(base, ed);
+    assert.ok(d.some(x => x.startsWith("Buyer: A")));
+    assert.ok(d.some(x => x.startsWith("Payment:") && x.includes("GCash")));
+    assert.ok(d.some(x => x.startsWith("Added 1 x Bible")));
+    assert.ok(d.some(x => x.includes("Gospel Tract English: 10")));
+    assert.ok(d.some(x => x.startsWith("Total:")));
+    assert.ok(L.diffEntries(ed, { ...ed, items: [ed.items[0]] }).some(x => x.startsWith("Removed 1 x Bible")));
+    // trimming keeps the newest 20 per PR
+    const hist = [];
+    for (let i = 1; i <= 25; i++) hist.push({ id: `7_${i}`, pr: 7, at: i, action: "edited", data: base });
+    hist.push({ id: "8_1", pr: 8, at: 1, action: "added", data: base });
+    const trim = L.versionsToTrim(hist, 7);
+    assert.equal(trim.length, 5);
+    assert.deepEqual(trim.sort(), ["7_1", "7_2", "7_3", "7_4", "7_5"]);
+    assert.equal(L.versionsToTrim(hist, 8).length, 0);
+    assert.equal(L.versionsForPr(hist, 7)[0].at, 25);
+    // deleted PRs: newest version is a deletion and no receipt exists now
+    const h2 = [{ id: "a", pr: 1, at: 1, action: "added" }, { id: "b", pr: 1, at: 2, action: "deleted" },
+        { id: "c", pr: 2, at: 1, action: "deleted" }, { id: "d", pr: 2, at: 3, action: "restored" },
+        { id: "e", pr: 3, at: 1, action: "deleted" }];
+    assert.deepEqual(L.deletedPrs(h2, [{ pr: 3 }]).map(v => v.pr), [1]);
+    assert.deepEqual(L.deletedPrs(h2, []).map(v => v.pr), [1, 3]);
 }

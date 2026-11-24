@@ -206,7 +206,9 @@
                 <div class="card-head">
                     <h2>Recent PRs <span class="badge vb-count" id="recentCount">0</span></h2>
                     <span class="hint">Last receipts you added or edited. Tap Edit to fix one.</span>
+                    <button type="button" class="btn btn-secondary btn-sm" id="recentHistoryBtn" title="Version history of all PRs, deleted PRs and backup"><i class="ri-history-line"></i> History</button>
                 </div>
+                <div class="save-bar hidden" id="saveBar" role="status"><i class="ri-cloud-line"></i> <span id="saveBarText"></span> <button type="button" class="btn btn-primary btn-sm hidden" id="saveRetry"><i class="ri-refresh-line"></i> Retry now</button></div>
                 <div class="recent-list" id="recentList"></div>
             </section>
 
@@ -376,6 +378,25 @@
             <datalist id="catCategories"></datalist>
         </div>
     </div>
+    <!-- Version history of receipts -->
+    <div class="modal-overlay hidden no-print" id="historyModal">
+        <div class="modal modal-video">
+            <div class="modal-head">
+                <h2 id="hmTitle">Version history</h2>
+                <button class="btn btn-close" id="hmClose" title="Close (Esc)"><i class="ri-close-line"></i> Close</button>
+            </div>
+            <p class="modal-note" id="hmNote"></p>
+            <div class="modal-body">
+                <div class="hm-tools">
+                    <input type="number" id="hmPr" class="ph-search" min="1" placeholder="PR number">
+                    <button type="button" class="btn btn-secondary btn-sm" id="hmGo"><i class="ri-search-line"></i> Show PR</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="hmBackup" title="Download all PRs, marks and history as JSON, and the PRs as CSV"><i class="ri-download-2-line"></i> Download backup</button>
+                </div>
+                <div id="hmBody"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Price history -->
     <div class="modal-overlay hidden no-print" id="priceHistoryModal">
         <div class="modal modal-video">

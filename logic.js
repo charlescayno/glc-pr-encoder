@@ -931,3 +931,47 @@ export function analytics(entries, marks = [], { from = '', to = '' } = {}) {
         marks: { void: marks.filter(m => m.status === 'void').length, unused: marks.filter(m => m.status === 'unused').length, missing },
     };
 }
+// ---------- Version history of receipts ----------
+export const MAX_VERSIONS = 20;
+
+// Plain-language list of what differs between two versions of a receipt (a = older or null, b = newer or null).
+export function diffEntries(a, b) {
+    if (!a && !b) return [];
+    if (!a) return ['Receipt created'];
+    if (!b) return ['Receipt deleted'];
+    const out = [];
+    const f = (label, x, y) => { if ((x || '') !== (y || '')) out.push(`${label}: ${x || '(none)'} \u2192 ${y || '(none)'}`); };
+    f('Date', a.date, b.date);
+    f('Buyer', a.buyer, b.buyer);
+    f('Payment', mopText(a), mopText(b));
+    const key = i => `${i.desc}`;
+    const am = new Map((a.items || []).map(i => [key(i), i]));
+    const bm = new Map((b.items || []).map(i => [key(i), i]));
+    for (const [k, i] of bm) {
+        const o = am.get(k);
+        if (!o) out.push(`Added ${i.qty} x ${i.desc} @ ${money(i.price)}`);
+        else if (Number(o.qty) !== Number(i.qty) || Number(o.price) !== Number(i.price)) out.push(`${i.desc}: ${o.qty} @ ${money(o.price)} \u2192 ${i.qty} @ ${money(i.price)}`);
+    }
+    for (const [k, i] of am) if (!bm.has(k)) out.push(`Removed ${i.qty} x ${i.desc}`);
+    const ta = entryTotal(a), tb = entryTotal(b);
+    if (ta !== tb) out.push(`Total: ${money(ta)} \u2192 ${money(tb)}`);
+    return out;
+}
+
+// Versions of one PR, newest first.
+export function versionsForPr(history, pr) {
+    return (history || []).filter(v => Number(v.pr) === Number(pr)).sort((x, y) => y.at - x.at);
+}
+
+// Ids of the versions of one PR beyond the newest `max` (to delete).
+export function versionsToTrim(history, pr, max = MAX_VERSIONS) {
+    return versionsForPr(history, pr).slice(max).map(v => v.id);
+}
+
+// PRs whose newest version is a deletion and that have no receipt now (restorable), newest deletion first.
+export function deletedPrs(history, entries) {
+    const have = new Set((entries || []).map(e => Number(e.pr)));
+    const latest = new Map();
+    for (const v of history || []) { const c = latest.get(Number(v.pr)); if (!c || v.at > c.at) latest.set(Number(v.pr), v); }
+    return [...latest.values()].filter(v => v.action === 'deleted' && !have.has(Number(v.pr))).sort((x, y) => y.at - x.at);
+}
