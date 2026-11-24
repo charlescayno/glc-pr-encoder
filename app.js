@@ -3029,12 +3029,21 @@ function renderReviewSummary(seq, prog) {
             <div class="rv-prno">${allDone ? "Booklet verified" : "Review finished"}</div>
             <span class="rv-status ${allDone ? "ok" : "todo"}">${allDone ? "All PRs checked" : `${open.length} still to check`}</span>
         </div>
-        <p style="color:var(--color-text-muted)">Booklet ${esc(bookletLabel(rv.start))}${prog.lastAt ? `, last checked ${esc(fmtStamp(prog.lastAt))}` : ""}.</p>
-        <div class="rs-stats">
-            <span><b>${prog.entries}</b> receipts</span>
-            <span><b>${prog.checked}/${prog.entries}</b> checked</span>
-            <span><b>${prog.marks}</b> void or not used</span>
-            <span>Total sales <b>${peso(sales)}</b></span>
+        <div class="rs-topgrid">
+            <div class="rs-topleft">
+                <p style="color:var(--color-text-muted)">Booklet ${esc(bookletLabel(rv.start))}${prog.lastAt ? `, last checked ${esc(fmtStamp(prog.lastAt))}` : ""}.</p>
+                <div class="rs-stats">
+                    <span><b>${prog.entries}</b> receipts</span>
+                    <span><b>${prog.checked}/${prog.entries}</b> checked</span>
+                    <span><b>${prog.marks}</b> void or not used</span>
+                    <span>Total sales <b>${peso(sales)}</b></span>
+                </div>
+            </div>
+            <table class="rs-totalsbox" aria-label="Sales totals">
+                <tr><th>Cash Sales</th><td>${money(split.cash)}</td></tr>
+                <tr><th>Online Payment</th><td>${money(split.online)}</td></tr>
+                <tr><th>Total Sales</th><td>${money(sales)}</td></tr>
+            </table>
         </div>
         ${summaryHtml(bookEntries)}
         ${allDone ? "" : `<p>Still open: ${open.slice(0, 12).map(s => "#" + s.pr).join(", ")}${open.length > 12 ? ", ..." : ""}</p>`}`;
