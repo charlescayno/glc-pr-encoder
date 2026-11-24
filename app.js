@@ -851,6 +851,17 @@ function resetForm() {
     updateBookletHint();
 }
 
+// Map a saved payment name to what the form offers now: Cash stays Cash, everything else non-cash becomes Online Payment.
+// The channel is the saved one, or the old name / bank when it matches a channel in the list (e.g. GCash, BDO).
+function modernMop(method, bank, channel) {
+    const m = method && method !== "Split" ? method : "Cash";
+    if (m === "Cash") return { method: "Cash", channel: "" };
+    if (channel) return { method: "Online Payment", channel };
+    const hit = [m, bank].map(x => String(x || "").trim().toLowerCase()).filter(Boolean)
+        .map(x => channels.find(c => c.toLowerCase() === x)).find(Boolean);
+    return { method: "Online Payment", channel: hit || "" };
+}
+
 function startEdit(id) {
     const e = entries.find(x => x.id === id);
     if (!e) return;
@@ -862,10 +873,12 @@ function startEdit(id) {
     const isSplit = Array.isArray(e.payments) && e.payments.length > 0;
     toggleSplit(false);
     if (!isSplit) {
-        { const m = e.mop && e.mop !== "Split" ? e.mop : "Cash"; ensureOption($("fMop"), m); $("fMop").value = m; }
+        // Old payment names (Invoice, GCash, Bank Transfer, ...) are non-cash = online: edit them as Online Payment with the matching channel.
+        const lg = modernMop(e.mop, e.mopBank, e.mopChannel);
+        $("fMop").value = lg.method;
         $("fRef").value = e.mopRef || ""; $("fBank").value = e.mopBank || "";
         updateRefField();
-        setChannel($("fChannel"), $("fChannelNew"), e.mopChannel || "");
+        setChannel($("fChannel"), $("fChannelNew"), lg.channel);
     }
     $("itemsList").innerHTML = "";
     e.items.forEach(addItemRow);
@@ -874,7 +887,7 @@ function startEdit(id) {
         const onlinePay = e.payments.find(p => p.method !== "Cash");
         toggleSplit(true);
         $("sCash").value = cashPay ? String(cashPay.amount) : "";
-        if (onlinePay) { ensureOption($("sMethod"), onlinePay.method); $("sMethod").value = onlinePay.method; $("sRef").value = onlinePay.ref || ""; $("sBank").value = onlinePay.bank || ""; setChannel($("sChannel"), $("sChannelNew"), onlinePay.channel || ""); }
+        if (onlinePay) { const lg = modernMop(onlinePay.method, onlinePay.bank, onlinePay.channel); $("sMethod").value = lg.method; $("sRef").value = onlinePay.ref || ""; $("sBank").value = onlinePay.bank || ""; setChannel($("sChannel"), $("sChannelNew"), lg.channel); }
         updateSplitRefLabel();
         splitAnchor = "cash";
         recalcSplit();
