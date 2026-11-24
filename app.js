@@ -2634,15 +2634,113 @@ $("rvSound").addEventListener("click", () => {
 });
 updateSoundBtn();
 
+// ---- Review effects: CHECKED stamp, checkpoint every 10 PRs, confetti when the booklet is verified ----
+const LS_FX = "pre_fx";
+let fxOn = localStorage.getItem(LS_FX) !== "off";
+const reducedMotion = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+let rvBusy = false;      // the stamp is showing: ignore extra Enter presses so nothing is skipped
+let rvPopPr = null;      // PR whose chip pops after it was checked
+const cpShown = new Set(); // checkpoints already shown ("start:count") so unchecking and rechecking does not repeat them
+function updateFxBtn() {
+    $("rvFx").innerHTML = fxOn ? '<i class="ri-sparkling-2-fill"></i>' : '<i class="ri-sparkling-2-line"></i>';
+    $("rvFx").title = fxOn ? "Effects on: stamp, checkpoints, confetti (click to turn off)" : "Effects off (click to turn on)";
+    $("rvFx").classList.toggle("fx-off", !fxOn);
+}
+$("rvFx").addEventListener("click", () => { fxOn = !fxOn; localStorage.setItem(LS_FX, fxOn ? "on" : "off"); updateFxBtn(); if (fxOn) showStamp(); });
+updateFxBtn();
+function showStamp() {
+    const r = $("rvCard").getBoundingClientRect();
+    const st = document.createElement("div");
+    st.className = "rv-stamp" + (reducedMotion() ? " calm" : "");
+    st.setAttribute("aria-hidden", "true");
+    st.innerHTML = '<i class="ri-check-double-line"></i> CHECKED';
+    st.style.left = (r.left + r.width / 2) + "px";
+    st.style.top = (r.top + Math.min(r.height, window.innerHeight - r.top) / 2) + "px";
+    $("reviewOverlay").appendChild(st);
+    setTimeout(() => st.remove(), 900);
+}
+let bannerTimer;
+function showBanner(html, cls, ms) {
+    let b = $("rvBanner");
+    if (!b) { b = document.createElement("div"); b.id = "rvBanner"; b.setAttribute("role", "status"); $("reviewOverlay").appendChild(b); }
+    b.className = "rv-banner " + (cls || "") + (reducedMotion() ? " calm" : "");
+    b.innerHTML = html;
+    void b.offsetWidth; // restart the slide-in
+    b.classList.add("show");
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => b.classList.remove("show"), ms);
+}
+function playChime(kind) {
+    if (!soundOn) return;
+    try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        if (kind === "checkpoint") [659.25, 880, 1318.51].forEach((n, i) => tone(n, 0.16 + i * 0.1, 0.28, 0.14, "triangle"));
+        else [261.63, 329.63, 392, 523.25].forEach(n => tone(n, 0.7, 0.9, 0.09)); // big warm chord under the fanfare
+    } catch { /* sound is optional */ }
+}
+function checkpointFor(start, checked, total) {
+    const key = `${start}:${checked}`;
+    if (checked <= 0 || checked % 10 !== 0 || cpShown.has(key)) return;
+    cpShown.add(key);
+    const pct = total ? Math.round((checked / total) * 100) : 0;
+    showBanner(`<span class="rv-flag">&#9873;</span><div><b>Checkpoint: ${checked} of ${total} checked</b><div class="rv-cp-bar"><span style="width:${pct}%"></span></div></div>`, "cp", 1700);
+    playChime("checkpoint");
+}
+function launchConfetti() {
+    if (reducedMotion()) return;
+    const dpr = window.devicePixelRatio || 1, W = window.innerWidth, H = window.innerHeight;
+    const cv = document.createElement("canvas");
+    cv.className = "rv-confetti";
+    cv.width = W * dpr; cv.height = H * dpr;
+    document.body.appendChild(cv);
+    const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+    const colors = ["#f43f5e", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#fde047"];
+    const ps = [];
+    const cannon = (x0, dir, n) => { for (let i = 0; i < n; i++) ps.push({ x: x0, y: H * 0.9, vx: dir * (4 + Math.random() * 12), vy: -(10 + Math.random() * 16), w: 6 + Math.random() * 7, h: 4 + Math.random() * 6, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4, c: colors[i % colors.length], round: Math.random() < 0.25, delay: Math.random() * 12 }); };
+    cannon(0, 1, 90); cannon(W, -1, 90);
+    let frame = 0;
+    (function tick() {
+        frame++;
+        ctx.clearRect(0, 0, W, H);
+        let alive = 0;
+        for (const p of ps) {
+            if (frame < p.delay) { alive++; continue; }
+            p.vy += 0.32; p.vx *= 0.992; p.vy *= 0.992;
+            p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+            if (p.y < H + 30) alive++;
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c;
+            if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, 6.28); ctx.fill(); } else ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+        }
+        if (alive && frame < 420) requestAnimationFrame(tick); else cv.remove();
+    })();
+}
+function celebrateBooklet() {
+    showBanner('<span class="rv-flag">&#127881;</span><div><b>Booklet verified!</b><div class="rv-cp-sub">Every PR is checked.</div></div>', "done", 3200);
+    launchConfetti();
+    playChime("done");
+}
+
 function rvConfirm() {
-    if (rv.summary) return;
+    if (rv.summary || rvBusy) return;
     const s = rvCurrent();
     if (s.type === "entry") {
         if (!s.checked && isLocked(s.pr)) { lockedToast(); return; }
         if (!s.checked) {
             setChecked(s.entry.id, true);
-            playCheckSound(reviewProgress(rvSeq()).done);
+            const prog = reviewProgress(rvSeq());
+            playCheckSound(prog.done);
             rvStreak++;
+            if (fxOn) {
+                rvPopPr = s.pr;
+                showStamp();
+                if (prog.done) celebrateBooklet(); else checkpointFor(rv.start, prog.checked, prog.entries);
+                rvBusy = true;
+                const pr = rv.pr, start = rv.start;
+                setTimeout(() => { rvBusy = false; if (rv && !rv.summary && rv.start === start && rv.pr === pr) rvGo(1); }, reducedMotion() ? 120 : 380);
+                return;
+            }
         }
         rvGo(1);
     }
@@ -2806,11 +2904,15 @@ function renderReview() {
         (rv.summary ? "" : ` | now at ${idx + 1} of ${seq.length}`);
     $("rvBar").style.width = `${seq.length ? Math.round((seq.filter(s => s.resolved).length / seq.length) * 100) : 0}%`;
 
+    let cpCount = 0;
     $("rvStrip").innerHTML = seq.map(s => {
         const cls = s.type === "entry" ? (s.checked ? "checked" : "") : s.type === "mark" ? "mark" : "missing";
         const current = !rv.summary && s.pr === cur.pr ? " current" : "";
-        return `<button type="button" class="rv-chip ${cls}${current}" data-pr="${s.pr}" title="${s.type === "mark" ? s.status : s.type === "missing" ? "No entry" : s.checked ? "Checked" : "Not checked yet"}">${s.pr}</button>`;
+        const pop = rvPopPr !== null && s.pr === rvPopPr ? " pop" : "";
+        const cp = s.type === "entry" && s.checked && ++cpCount % 10 === 0 ? " cp" : ""; // flag on every 10th checked PR
+        return `<button type="button" class="rv-chip ${cls}${current}${pop}${cp}" data-pr="${s.pr}" title="${s.type === "mark" ? s.status : s.type === "missing" ? "No entry" : s.checked ? "Checked" : "Not checked yet"}">${s.pr}</button>`;
     }).join("");
+    rvPopPr = null;
     const chip = $("rvStrip").querySelector(".current");
     if (chip && chip.scrollIntoView) chip.scrollIntoView({ block: "nearest" });
 
@@ -3196,6 +3298,7 @@ $("rvRestart").addEventListener("click", async () => {
     refresh();
     entries.filter(e => ids.has(e.id)).forEach(({ id, ...data }) => setDoc(doc(col, id), data).catch(remoteFail));
     rvStreak = 0;
+    [...cpShown].filter(k => k.startsWith(rv.start + ":")).forEach(k => cpShown.delete(k));
     const seq = rvSeq();
     rv.pr = seq[0].pr; rv.summary = false;
     renderReview();
@@ -3214,6 +3317,7 @@ document.addEventListener("keydown", ev => {
     if (!used.includes(k)) return;
     ev.preventDefault();
     ev.stopPropagation();
+    if (rvBusy) return; // the CHECKED stamp is showing
     if (k === "Enter") rvConfirm();
     else if (k === "ArrowLeft") rvGo(-1);
     else if (k === "ArrowRight" || k === " ") rvGo(1);
