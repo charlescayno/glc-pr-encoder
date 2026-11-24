@@ -1308,6 +1308,21 @@ function cashBadgeHtml(start) {
             : `<span class="bk-badge cc-off" title="Counted ${peso(cashCounted)}, expected ${peso(cashExpected)}."><i class="ri-error-warning-fill"></i> Cash ${cashDiff > 0 ? "over" : "short"} ${peso(Math.abs(cashDiff))}</span>`;
 }
 
+// "Recent PRs": the last receipts added or edited (newest first), each with a quick Edit button.
+function renderRecentSection() {
+    const recent = entries.filter(e => e.updatedAt).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8);
+    $("recentCard").classList.toggle("hidden", !recent.length);
+    $("recentCount").textContent = String(recent.length);
+    $("recentList").innerHTML = recent.map(e => `
+        <div class="recent-row">
+            <strong class="recent-pr">PR #${esc(String(e.pr))}</strong>
+            <span class="recent-buyer">${esc(e.buyer || "")}</span>
+            <span class="recent-meta">${esc(mopText(e))} \u00B7 ${esc(fmtStamp(e.updatedAt))}</span>
+            <span class="recent-total">${peso(entryTotal(e))}</span>
+            <button type="button" class="btn btn-secondary btn-sm" data-edit="${esc(e.id)}"><i class="ri-edit-line"></i> Edit</button>
+        </div>`).join("");
+}
+
 // "Continue verifying" section: booklets whose review was started (some PRs checked) but is not finished.
 function renderContinueSection() {
     const starts = allBookletStarts().sort((x, y) => prSortDesc ? y - x : x - y);
@@ -1791,6 +1806,7 @@ function refresh() {
     const allCollapsed = starts.length > 0 && starts.every(s => collapsedBooklets.has(s)) && monthKeys.every(m => collapsedMonths.has(m));
     $("collapseText").textContent = allCollapsed ? "Expand all" : "Collapse all";
     $("collapseBtn").querySelector("i").className = allCollapsed ? "ri-expand-up-down-line" : "ri-contract-up-down-line";
+    renderRecentSection();
     renderContinueSection();
     renderVerifiedSection();
     pruneBookletSelection();

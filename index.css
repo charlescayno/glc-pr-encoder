@@ -1081,3 +1081,11 @@ tr.row-flash > td { animation: rowflash 2.5s ease-out; }
 /* --- Online payment channel --- */
 #channelField input, #sChannelField input { margin-top: 0.3rem; }
 .rs-table tfoot .rs-chan td { font-weight: 400; font-style: italic; }
+
+/* --- Recent PRs --- */
+.recent-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.recent-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.45rem 0.6rem; border: 1px solid var(--border, rgba(128,128,128,.25)); border-radius: 8px; }
+.recent-pr { min-width: 5.5rem; }
+.recent-buyer { flex: 1 1 8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-meta { font-size: 0.8rem; opacity: 0.75; }
+.recent-total { font-weight: 700; margin-left: auto; }
