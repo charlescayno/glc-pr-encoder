@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 import {
     money, fmtDate, entryTotal, filterEntries, flatten, toTSV, toCSV, nextPr, checkPr, round2,
-    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, SHOW_CHANNEL_TOTALS, cascadeDateTargets, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
+    BOOKLET_SIZE, bookletStart, bookletLabel, bookletStats, bookletStarts, paymentSplit, resolveShortcut, itemShortcut, priceChanges, itemCategory, DEFAULT_CHANNELS, matchChannel, paymentText, mopText, SHOW_CHANNEL_TOTALS, bookletVerification, formatDuration, cascadeDateTargets, diffEntries, versionsForPr, versionsToTrim, deletedPrs, MAX_VERSIONS, reviewSequence, reviewProgress, pesoWords, buyerSuggestions
 } from "./logic.js";
 
 // ---------- Firebase (shared glc-inventory project, separate collection) ----------
@@ -1551,6 +1551,7 @@ function renderContinueSection() {
             <div class="vb-main">
                 <strong>Booklet ${esc(bookletLabel(s))}</strong>
                 <span class="bk-badge partial">Checked ${prog.checked}/${prog.entries}</span>
+                ${verifyTime(s, true)}
                 <span class="cont-bar" title="${pct}% checked"><span style="width:${pct}%"></span></span>
                 <span class="bk-count">${next ? `next: PR ${esc(String(next.pr))}` : ""}${prog.lastAt ? `, last checked ${esc(fmtStamp(prog.lastAt))}` : ""}${prog.missing ? `, ${prog.missing} missing` : ""}</span>
             </div>
@@ -1572,6 +1573,13 @@ $("continueList").addEventListener("click", ev => {
 });
 
 // "Verified booklets" section: every booklet whose PRs are all checked. "View summary" opens its summary directly (no review needed).
+// Time spent verifying a booklet (active time: pauses over 5 minutes are not counted). Empty when nothing is checked yet.
+function verifyTime(start, partial = false) {
+    const v = bookletVerification(entries, start);
+    if (v.checks < 2) return "";
+    const tip = `Active checking time. Pauses over 5 minutes are not counted. First check to last check: ${formatDuration(v.spanMs)}.${v.approx ? " Approximate: long pauses or very few checks." : ""}`;
+    return `<span class="bk-time" title="${esc(tip)}"><i class="ri-timer-line"></i> ${partial ? "so far " : ""}${esc(formatDuration(v.ms))}${v.approx ? " approx." : ""}</span>`;
+}
 function renderVerifiedSection() {
     const list = $("verifiedList");
     const starts = allBookletStarts().sort((x, y) => prSortDesc ? y - x : x - y);
@@ -1589,6 +1597,7 @@ function renderVerifiedSection() {
                 <strong>Booklet ${esc(bookletLabel(s))}</strong>
                 <span class="bk-badge verified"><i class="ri-checkbox-circle-fill"></i> ${st.complete ? "Verified" : "All checked"}</span>
                 ${cashBadgeHtml(s)}
+                ${verifyTime(s)}
                 <span class="bk-count">${prog.entries} receipts${prog.marks ? `, ${prog.marks} void/not used` : ""}${prog.lastAt ? `, checked ${esc(fmtStamp(prog.lastAt))}` : ""}</span>
             </div>
             <div class="vb-side">
@@ -3196,6 +3205,7 @@ function renderReviewSummary(seq, prog) {
                     <span><b>${prog.checked}/${prog.entries}</b> checked</span>
                     <span><b>${prog.marks}</b> void or not used</span>
                     <span>Total sales <b>${peso(sales)}</b></span>
+                    ${(() => { const v = bookletVerification(entries, rv.start); return v.checks >= 2 ? `<span title="Active checking time. Pauses over 5 minutes are not counted. First check to last check: ${esc(formatDuration(v.spanMs))}.">Verification time <b>${esc(formatDuration(v.ms))}${v.approx ? " approx." : ""}</b></span>` : ""; })()}
                 </div>
             </div>
             <table class="rs-totalsbox" aria-label="Sales totals">

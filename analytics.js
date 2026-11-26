@@ -1,5 +1,5 @@
 // Analytics page (full page inside the app, like the sales summary): totals, daily trend, categories, payments, weekdays, top items.
-import { analytics, periodOf, money } from "./logic.js";
+import { analytics, periodOf, money, formatDuration } from "./logic.js";
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const peso = n => "\u20B1" + money(n);
@@ -70,6 +70,7 @@ export function renderAnalytics(el, entries, marks, state = {}) {
             ${card("Receipts", num(a.receipts), `${num(a.units)} units sold`)}
             ${card("Average receipt", peso(a.avgReceipt), `${num(a.avgItems)} items per receipt`)}
             ${card("Best day", a.bestDay ? peso(a.bestDay.total) : "-", a.bestDay ? `${esc(longDate(a.bestDay.date))}, ${a.bestDay.receipts} receipts` : "")}
+            ${card("Verification time", a.verification.count ? esc(formatDuration(a.verification.avgMs)) : "-", a.verification.count ? `average per booklet &middot; ${a.verification.count} verified &middot; fastest ${esc(formatDuration(a.verification.fastest.ms))}, slowest ${esc(formatDuration(a.verification.slowest.ms))}${a.verification.approx ? ` &middot; ${a.verification.approx} approx.` : ""} (all time)` : "no fully checked booklet yet")}
             ${card("Biggest receipt", a.biggest ? peso(a.biggest.total) : "-", a.biggest ? `PR ${esc(a.biggest.pr)}, ${esc(a.biggest.buyer)}` : "")}
             ${card("PR numbers", a.marks.missing ? `${a.marks.missing} missing` : "None missing", `${a.marks.void} void &middot; ${a.marks.unused} not used &middot; ${a.marks.missing} missing (all time)`)}
         </div>

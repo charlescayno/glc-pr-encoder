@@ -493,3 +493,37 @@ console.log("all tests passed (including the exports)");
     assert.deepEqual(L.cascadeDateTargets(all, mk(42800, "2026-10-01")).change, []);
     assert.deepEqual(L.cascadeDateTargets(all, mk(42760, "2026-09-05")).change.map(e => e.pr), [42783, 42784, 42785, 42786, 42787]);
 }
+
+// Verification time
+{
+    const L = await import("./logic.js");
+    const min = m => m * 60000, base = 1_700_000_000_000;
+    assert.equal(L.formatDuration(45000), "45 s");
+    assert.equal(L.formatDuration(min(23)), "23 min");
+    assert.equal(L.formatDuration(min(72)), "1 h 12 min");
+    assert.equal(L.formatDuration(min(120)), "2 h");
+    assert.equal(L.formatDuration(0), "0 s");
+    // one sitting: gaps added up
+    const a = L.verificationStats([base, base + min(1), base + min(3), base + min(4)].reverse());
+    assert.equal(a.ms, min(4)); assert.equal(a.spanMs, min(4)); assert.equal(a.breakMs, 0); assert.equal(a.approx, false); assert.equal(a.checks, 4);
+    // a long break is not counted
+    const b = L.verificationStats([base, base + min(2), base + min(4), base + min(604), base + min(606), base + min(608)]);
+    assert.equal(b.ms, min(8)); assert.equal(b.spanMs, min(608)); assert.equal(b.breakMs, min(600)); assert.equal(b.approx, true);
+    // gap exactly 5 min still counts as work, 5 min + 1 s is a break
+    assert.equal(L.verificationStats([base, base + min(5)]).ms, min(5));
+    assert.equal(L.verificationStats([base, base + min(5) + 1000]).ms, 0);
+    // fewer than 2 checks: approximate, no time
+    assert.equal(L.verificationStats([base]).approx, true); assert.equal(L.verificationStats([base]).ms, 0);
+    assert.equal(L.verificationStats([]).checks, 0);
+    assert.equal(L.verificationStats([undefined, null, base, base + 1000]).checks, 2);
+    // per booklet + overview over booklets that are fully checked
+    const mk = (pr, at) => ({ id: "pr_" + pr, pr, date: "2026-09-13", items: [], ...(at ? { checkedAt: at } : {}) });
+    const es = [mk(42751, base), mk(42752, base + min(2)), mk(42753, base + min(4)),
+        mk(42801, base), mk(42802, base + min(10)), mk(42803, undefined)];
+    assert.equal(L.bookletVerification(es, 42751).ms, min(4));
+    assert.equal(L.bookletVerification(es, 42801).ms, 0); // 10 min gap = a break
+    const o = L.verificationOverview(es);
+    assert.equal(o.count, 1); assert.equal(o.avgMs, min(4)); assert.equal(o.fastest.start, 42751);
+    assert.equal(L.verificationOverview([mk(42751, base)]).count, 0);
+    assert.equal(L.analytics(es, [], {}).verification.count, 1);
+}

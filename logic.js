@@ -930,6 +930,7 @@ export function analytics(entries, marks = [], { from = '', to = '' } = {}) {
         channels: !SHOW_CHANNEL_TOTALS ? [] : Object.entries(split.byChannel).filter(([c, v]) => c && v > 0).map(([channel, amount]) => ({ channel, total: amount, share: share(amount) })).sort((a, b) => b.total - a.total),
         channelsNone: SHOW_CHANNEL_TOTALS ? (split.byChannel[''] || 0) : 0,
         topItems: [...items.values()].sort((a, b) => b.total - a.total || b.qty - a.qty),
+        verification: verificationOverview(entries),
         marks: { void: marks.filter(m => m.status === 'void').length, unused: marks.filter(m => m.status === 'unused').length, missing },
     };
 }
@@ -986,4 +987,42 @@ export function cascadeDateTargets(entries, entry, isLocked = () => false) {
         .filter(e => Number(e.pr) > Number(entry.pr) && bookletStart(Number(e.pr)) === start && e.date !== entry.date)
         .sort((a, b) => a.pr - b.pr);
     return { change: later.filter(e => !isLocked(e.pr)), skipped: later.filter(e => isLocked(e.pr)) };
+}
+
+// ---------- Verification time ----------
+export const BREAK_MS = 5 * 60 * 1000; // a pause longer than this between two checks is a break, not working time
+
+// From the times PRs were checked: active time (gaps up to BREAK_MS added up), total span, breaks, and whether it is only approximate.
+export function verificationStats(times) {
+    const t = (times || []).filter(x => x).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+    let active = 0, breaks = 0;
+    for (let i = 1; i < t.length; i++) { const g = t[i] - t[i - 1]; if (g <= BREAK_MS) active += g; else breaks += g; }
+    const span = t.length ? t[t.length - 1] - t[0] : 0;
+    return { checks: t.length, ms: active, spanMs: span, breakMs: breaks, firstAt: t[0] || 0, lastAt: t[t.length - 1] || 0,
+        approx: t.length < 2 || breaks > span / 2 };
+}
+export function bookletVerification(entries, start) {
+    return verificationStats(entries.filter(e => bookletStart(Number(e.pr)) === start && e.checkedAt).map(e => e.checkedAt));
+}
+// "45 s", "23 min", "1 h 12 min"
+export function formatDuration(ms) {
+    const s = Math.round(Math.max(0, ms) / 1000);
+    if (s < 60) return `${s} s`;
+    const m = Math.round(s / 60);
+    if (m < 60) return `${m} min`;
+    const h = Math.floor(m / 60), r = m % 60;
+    return r ? `${h} h ${r} min` : `${h} h`;
+}
+// Average / fastest / slowest verification time over booklets whose receipts are all checked.
+export function verificationOverview(entries) {
+    const list = [];
+    for (const s of bookletStarts(entries)) {
+        const es = entries.filter(e => bookletStart(Number(e.pr)) === s);
+        if (!es.length || !es.every(e => e.checkedAt)) continue;
+        const v = verificationStats(es.map(e => e.checkedAt));
+        if (v.checks >= 2) list.push({ start: s, ms: v.ms, approx: v.approx });
+    }
+    if (!list.length) return { count: 0, avgMs: 0, fastest: null, slowest: null, approx: 0 };
+    const sorted = [...list].sort((a, b) => a.ms - b.ms);
+    return { count: list.length, avgMs: Math.round(list.reduce((n, b) => n + b.ms, 0) / list.length), fastest: sorted[0], slowest: sorted[sorted.length - 1], approx: list.filter(b => b.approx).length };
 }
